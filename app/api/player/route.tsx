@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
   <script>
     const video = document.getElementById('video');
     const statusEl = document.getElementById('status');
-    const streamUrl = decodeURIComponent('${encodeURIComponent(url)}');
+    const streamUrl = ${JSON.stringify(url)};
     let hls = null;
 
     console.log('[v0] Starting player for URL:', streamUrl);
@@ -81,12 +81,16 @@ export async function GET(request: NextRequest) {
       statusEl.textContent = message;
       statusEl.className = 'show ' + type;
       
-      if (window.parent) {
-        window.parent.postMessage({
-          type: 'playerStatus',
-          status: type,
-          message: message
-        }, '*');
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'playerStatus',
+            status: type,
+            message: message
+          }, '*');
+        }
+      } catch (e) {
+        console.log('[v0] Could not send message to parent:', e);
       }
       
       if (type === 'playing') {
@@ -96,31 +100,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    async function resolveAndPlay() {
+    async function playStream() {
       try {
-        showStatus('Résolution du flux...', 'loading');
+        showStatus('Chargement du flux...', 'loading');
+        console.log('[v0] Loading stream directly');
 
-        console.log('[v0] Resolving stream URL...');
-        const response = await fetch('/api/resolve-stream?url=' + encodeURIComponent(streamUrl));
-        
-        if (!response.ok) {
-          throw new Error('Failed to resolve stream: ' + response.status);
-        }
+        const isHLS = streamUrl.includes('m3u8') || streamUrl.includes('.m3u');
 
-        const data = await response.json();
-        console.log('[v0] Resolution result:', data);
-
-        if (!data.success || !data.streamUrl) {
-          throw new Error(data.error || 'Stream resolution failed');
-        }
-
-        const finalUrl = data.streamUrl;
-        console.log('[v0] Playing resolved stream:', finalUrl.substring(0, 100));
-
-        const isHLS = finalUrl.includes('m3u8') || finalUrl.includes('hls');
-        const isTS = finalUrl.includes('.ts');
-
-        if (Hls.isSupported() && (isHLS || isTS)) {
+        if (Hls.isSupported() && isHLS) {
           console.log('[v0] Using HLS.js for playback');
           hls = new Hls({
             enableWorker: true,
@@ -130,14 +117,17 @@ export async function GET(request: NextRequest) {
             maxMaxBufferLength: 600,
             maxBufferSize: 60 * 1000 * 1000,
             maxBufferHole: 0.5,
+            maxFragLookUpTolerance: 0.25,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 10,
           });
 
-          hls.loadSource(finalUrl);
+          hls.loadSource(streamUrl);
           hls.attachMedia(video);
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             console.log('[v0] Manifest parsed, starting playback');
-            showStatus('Lecture en cours...', 'playing');
+            showStatus('Démarrage...', 'buffering');
             video.play().catch(err => {
               console.error('[v0] Autoplay failed:', err);
               showStatus('Cliquez pour lire', 'buffering');
@@ -145,23 +135,25 @@ export async function GET(request: NextRequest) {
           });
 
           hls.on(Hls.Events.ERROR, (event, data) => {
-            console.error('[v0] HLS error:', data.type, data.details, data.fatal);
+            console.error('[v0] HLS error:', data.type, data.details, data);
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
                   console.log('[v0] Fatal network error, attempting recovery...');
-                  showStatus('Erreur réseau - Récupération...', 'buffering');
-                  setTimeout(() => hls.startLoad(), 1000);
+                  showStatus('Erreur réseau - Tentative de récupération...', 'buffering');
+                  setTimeout(() => {
+                    if (hls) hls.startLoad();
+                  }, 1000);
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   console.log('[v0] Fatal media error, attempting recovery...');
-                  showStatus('Erreur média - Récupération...', 'buffering');
-                  hls.recoverMediaError();
+                  showStatus('Erreur média - Tentative de récupération...', 'buffering');
+                  if (hls) hls.recoverMediaError();
                   break;
                 default:
                   console.log('[v0] Fatal error, cannot recover');
-                  showStatus('Erreur fatale de lecture', 'error');
-                  hls.destroy();
+                  showStatus('Impossible de lire ce flux', 'error');
+                  if (hls) hls.destroy();
                   break;
               }
             }
@@ -174,31 +166,36 @@ export async function GET(request: NextRequest) {
 
           video.addEventListener('playing', () => {
             console.log('[v0] Playing');
-            showStatus('Lecture en cours...', 'playing');
+            showStatus('Lecture en cours', 'playing');
           });
 
           video.addEventListener('error', (e) => {
-            console.error('[v0] Video element error:', e);
-            showStatus('Erreur de lecture vidéo', 'error');
+            console.error('[v0] Video element error:', e, video.error);
+            showStatus('Erreur: ' + (video.error ? video.error.message : 'Inconnu'), 'error');
           });
 
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           console.log('[v0] Using native HLS support');
-          video.src = finalUrl;
+          video.src = streamUrl;
           video.addEventListener('loadedmetadata', () => {
-            showStatus('Lecture en cours...', 'playing');
+            showStatus('Lecture en cours', 'playing');
             video.play().catch(err => {
               console.error('[v0] Play error:', err);
               showStatus('Erreur de lecture', 'error');
             });
           });
+          video.addEventListener('error', (e) => {
+            console.error('[v0] Video error:', e, video.error);
+            showStatus('Erreur de lecture', 'error');
+          });
         } else {
-          showStatus('Votre navigateur ne supporte pas ce format', 'error');
+          console.error('[v0] No HLS support available');
+          showStatus('Format non supporté par ce navigateur', 'error');
         }
 
       } catch (error) {
         console.error('[v0] Player error:', error);
-        showStatus('Impossible de charger le flux: ' + error.message, 'error');
+        showStatus('Erreur: ' + error.message, 'error');
       }
     }
 
@@ -208,7 +205,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    resolveAndPlay();
+    playStream();
   </script>
 </body>
 </html>
