@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server"
+import { VavooClient } from "@/lib/vavoo-client"
 
 export async function GET() {
   try {
-    const response = await fetch("https://vavoo.to/channels", {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
-      next: { revalidate: 3600 },
+    console.log("[v0] Fetching channels from VAVOO...")
+
+    const vavooClient = new VavooClient()
+    const channels = await vavooClient.getAllChannels()
+
+    // Transform to array format expected by frontend
+    const channelArray = Object.entries(channels).flatMap(([name, urls]) => {
+      return urls.map((url, index) => ({
+        id: `${name}-${index}`,
+        name: name,
+        url: url,
+        country: "France", // Default country, can be enhanced
+        logo: `https://michaz1988.github.io/logos/${name.replace(/\s/g, "").toLowerCase()}.png`,
+      }))
     })
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch channels")
-    }
+    console.log(`[v0] Loaded ${channelArray.length} channel sources`)
 
-    const data = await response.json()
-
-    return NextResponse.json(Array.isArray(data) ? data : [])
+    return NextResponse.json(channelArray)
   } catch (error) {
     console.error("[v0] Error fetching channels:", error)
     return NextResponse.json({ error: "Failed to fetch channels" }, { status: 500 })

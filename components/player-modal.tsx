@@ -20,8 +20,8 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  const getPlayerUrl = useCallback((sourceId: string, key: number) => {
-    return `/api/player?id=${sourceId}&k=${key}`
+  const getPlayerUrl = useCallback((sourceUrl: string, key: number) => {
+    return `/api/player?url=${encodeURIComponent(sourceUrl)}&k=${key}`
   }, [])
 
   useEffect(() => {
@@ -81,21 +81,20 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   }
 
   const openDirectStream = () => {
-    const sourceId = channel?.sources[selectedSource]?.id
-    if (sourceId) {
-      window.open(`https://vavoo.to/play/${sourceId}/index.m3u8`, "_blank")
+    const sourceUrl = channel?.sources[selectedSource]?.url
+    if (sourceUrl) {
+      window.open(sourceUrl, "_blank")
     }
   }
 
   const openInVLC = () => {
-    const sourceId = channel?.sources[selectedSource]?.id
-    if (!sourceId || !channel) return
+    const sourceUrl = channel?.sources[selectedSource]?.url
+    if (!sourceUrl || !channel) return
 
-    const m3u8Url = `https://vavoo.to/play/${sourceId}/index.m3u8`
-    window.location.href = `vlc://${m3u8Url}`
+    window.location.href = `vlc://${sourceUrl}`
 
     setTimeout(() => {
-      const blob = new Blob([`#EXTM3U\n#EXTINF:-1,${channel.displayName}\n${m3u8Url}`], {
+      const blob = new Blob([`#EXTM3U\n#EXTINF:-1,${channel.displayName}\n${sourceUrl}`], {
         type: "application/x-mpegURL",
       })
       const url = URL.createObjectURL(blob)
@@ -111,7 +110,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
   if (!isOpen || !channel) return null
 
-  const currentSourceId = channel.sources[selectedSource]?.id
+  const currentSourceUrl = channel.sources[selectedSource]?.url
 
   const getStatusIcon = () => {
     switch (playerStatus) {
@@ -210,11 +209,11 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
       {/* Video player area - iframe key only changes on explicit actions */}
       <div className="flex-1 relative">
-        {currentSourceId && (
+        {currentSourceUrl && (
           <iframe
             ref={iframeRef}
             key={playerKey}
-            src={getPlayerUrl(currentSourceId, playerKey)}
+            src={getPlayerUrl(currentSourceUrl, playerKey)}
             className="absolute inset-0 w-full h-full border-0"
             allow="autoplay; fullscreen; encrypted-media"
             allowFullScreen
