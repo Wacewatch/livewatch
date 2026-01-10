@@ -15,9 +15,12 @@ interface VavooResponse {
 
 export class VavooClient {
   private baseUrl = "https://vavoo.to"
+  private requestDelay = 300 // ms between requests
 
-  // This signature would normally be generated dynamically
-  // For now using a static approach similar to the Kodi addon
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
   private getAuthSignature(): string {
     // In production, this would call the signature generation endpoint
     // For simplicity, we'll use a basic implementation
@@ -69,6 +72,10 @@ export class VavooClient {
       }
 
       try {
+        if (cursor > 0) {
+          await this.sleep(this.requestDelay)
+        }
+
         const response = await fetch(`${this.baseUrl}/mediahubmx-catalog.json`, {
           method: "POST",
           headers,
@@ -82,7 +89,6 @@ export class VavooClient {
           break
         }
 
-        // Check if data.items exists and is an array
         if (!data.items || !Array.isArray(data.items)) {
           console.log(`[v0] No items array in response for group: ${group}`, data)
           break
@@ -113,18 +119,15 @@ export class VavooClient {
     return items
   }
 
-  async getAllChannels(): Promise<Record<string, string[]>> {
+  async getChannelsByGroups(groups: string[]): Promise<Record<string, string[]>> {
     try {
-      const groups = await this.getGroups()
       const allChannels: Record<string, string[]> = {}
 
-      console.log(`[v0] Fetching channels from ${groups.length} groups...`)
+      console.log(`[v0] Fetching channels from ${groups.length} selected groups...`)
 
-      // Fetch channels from all groups in parallel
-      const channelsByGroup = await Promise.all(groups.map((group) => this.getChannelsByGroup(group)))
+      for (const group of groups) {
+        const channels = await this.getChannelsByGroup(group)
 
-      // Organize by channel name
-      for (const channels of channelsByGroup) {
         for (const channel of channels) {
           const normalizedName = this.filterChannelName(channel.name)
           if (!normalizedName) continue
@@ -137,11 +140,30 @@ export class VavooClient {
             allChannels[normalizedName].push(channel.url)
           }
         }
+
+        await this.sleep(this.requestDelay)
       }
 
       console.log(`[v0] Loaded ${Object.keys(allChannels).length} unique channels`)
 
       return allChannels
+    } catch (error) {
+      console.error("[v0] Error in getChannelsByGroups:", error)
+      return {}
+    }
+  }
+
+  async getAllChannels(): Promise<Record<string, string[]>> {
+    try {
+      const groups = await this.getGroups()
+
+      const popularGroups = groups.filter((g) =>
+        ["France", "Germany", "United Kingdom", "Spain", "Italy", "Turkey"].some((country) => g.includes(country)),
+      )
+
+      const selectedGroups = popularGroups.length > 0 ? popularGroups.slice(0, 15) : groups.slice(0, 15)
+
+      return this.getChannelsByGroups(selectedGroups)
     } catch (error) {
       console.error("[v0] Error in getAllChannels:", error)
       return {}
@@ -149,10 +171,8 @@ export class VavooClient {
   }
 
   private filterChannelName(name: string): string {
-    // Basic filtering - remove special characters and normalize
     let filtered = name.toUpperCase().trim()
 
-    // Remove HD indicators, country codes, etc.
     filtered = filtered
       .replace(/\bHD\+?\b/g, "")
       .replace(/\b(FHD|UHD|4K|2K|1080p|720p)\b/g, "")
@@ -161,7 +181,6 @@ export class VavooClient {
       .replace(/\s+/g, " ")
       .trim()
 
-    // Skip channels with special markers
     if (filtered.includes("***") || filtered.includes("###") || filtered.includes("---")) {
       return ""
     }
@@ -172,7 +191,6 @@ export class VavooClient {
   async resolveVavooStream(url: string): Promise<{ streamUrl: string; headers?: string } | null> {
     console.log("[v0] Attempting to resolve VAVOO stream:", url)
 
-    // Method 1: Try MediaHubMX resolve API (preferred method from Kodi addon)
     try {
       const headers = {
         "user-agent": "MediaHubMX/2",
@@ -188,41 +206,60 @@ export class VavooClient {
         clientVersion: "3.0.2",
       }
 
-      const response = await fetch("https://vavoo.to/mediahubmx-resolve.json", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      })
+      const fetchWithTimeout = (url: string, options: RequestInit, timeout: number) => {
+        return Promise.race([
+          fetch(url, options),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeout)),
+        ])
+      }
+
+      const response = await fetchWithTimeout(
+        "https://vavoo.to/mediahubmx-resolve.json",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        },
+        10000,
+      )
 
       const data = await response.json()
       const streamUrl = data[0]?.url
 
       if (streamUrl) {
-        // Verify stream is accessible
-        const statusResponse = await fetch(streamUrl, {
-          method: "HEAD",
-          signal: AbortSignal.timeout(10000),
-        })
+        try {
+          const statusResponse = await fetchWithTimeout(streamUrl, { method: "HEAD" }, 10000)
 
-        if (statusResponse.ok) {
-          console.log("[v0] MediaHubMX resolve successful")
-          return { streamUrl }
+          if (statusResponse.ok) {
+            console.log("[v0] MediaHubMX resolve successful")
+            return { streamUrl }
+          }
+        } catch (error) {
+          throw error
         }
       }
     } catch (error) {
       console.log("[v0] MediaHubMX resolve failed, trying fallback method")
     }
 
-    // Method 2: Direct VAVOO stream (fallback from Kodi addon)
     try {
-      // Transform URL: vavoo-iptv -> live2, remove last 12 chars, add .ts?n=1&b=5
       const tsUrl = url.replace("vavoo-iptv", "live2").slice(0, -12) + ".ts?n=1&b=5"
 
-      const statusResponse = await fetch(tsUrl, {
-        method: "HEAD",
-        headers: { "User-Agent": "VAVOO/2.6" },
-        signal: AbortSignal.timeout(10000),
-      })
+      const fetchWithTimeout = (url: string, options: RequestInit, timeout: number) => {
+        return Promise.race([
+          fetch(url, options),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeout)),
+        ])
+      }
+
+      const statusResponse = await fetchWithTimeout(
+        tsUrl,
+        {
+          method: "HEAD",
+          headers: { "User-Agent": "VAVOO/2.6" },
+        },
+        10000,
+      )
 
       if (statusResponse.ok) {
         console.log("[v0] Direct VAVOO stream successful")

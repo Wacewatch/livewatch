@@ -47,6 +47,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       setStatusMessage("Initialisation...")
     } else {
       document.body.style.overflow = ""
+      setPlayerKey(0)
     }
 
     return () => {
@@ -209,7 +210,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
       {/* Video player area - iframe key only changes on explicit actions */}
       <div className="flex-1 relative">
-        {currentSourceUrl && (
+        {currentSourceUrl && playerKey > 0 && (
           <iframe
             ref={iframeRef}
             key={playerKey}

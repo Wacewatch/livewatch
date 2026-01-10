@@ -26,9 +26,14 @@ export function TVAppClient() {
   const directId = searchParams.get("id")
 
   useEffect(() => {
+    const controller = new AbortController()
+
     const fetchChannels = async () => {
       try {
-        const response = await fetch("/api/channels")
+        const response = await fetch(`/api/channels?limit=100`, {
+          signal: controller.signal,
+        })
+
         const data = await response.json()
 
         if (Array.isArray(data)) {
@@ -54,13 +59,20 @@ export function TVAppClient() {
           console.error("[v0] Invalid data format:", data)
         }
       } catch (error) {
-        console.error("[v0] Error fetching channels:", error)
+        if (error.name !== "AbortError") {
+          console.error("[v0] Error fetching channels:", error)
+        }
       } finally {
         setLoading(false)
       }
     }
 
     fetchChannels()
+
+    return () => {
+      // Abort the fetch request on component unmount
+      controller.abort()
+    }
   }, [directId])
 
   const countries = useMemo(() => {

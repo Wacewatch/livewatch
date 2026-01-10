@@ -1,27 +1,45 @@
 import { NextResponse } from "next/server"
 import { VavooClient } from "@/lib/vavoo-client"
 
-export async function GET() {
+export const runtime = "nodejs"
+export const maxDuration = 60
+
+export async function GET(request: Request) {
   try {
-    console.log("[v0] Fetching channels from VAVOO...")
+    const { searchParams } = new URL(request.url)
+    const country = searchParams.get("country")
+    const limit = Number.parseInt(searchParams.get("limit") || "50")
+
+    console.log("[v0] Fetching channels from VAVOO...", { country, limit })
 
     const vavooClient = new VavooClient()
-    const channels = await vavooClient.getAllChannels()
 
-    // Transform to array format expected by frontend
+    let channels: Record<string, string[]>
+
+    if (country) {
+      const groups = await vavooClient.getGroups()
+      const countryGroups = groups.filter((g) => g.includes(country))
+      channels = await vavooClient.getChannelsByGroups(countryGroups.slice(0, 5))
+    } else {
+      channels = await vavooClient.getAllChannels()
+    }
+
     const channelArray = Object.entries(channels).flatMap(([name, urls]) => {
-      return urls.map((url, index) => ({
+      return urls.slice(0, 3).map((url, index) => ({
         id: `${name}-${index}`,
         name: name,
         url: url,
-        country: "France", // Default country, can be enhanced
+        country: country || "France",
         logo: `https://michaz1988.github.io/logos/${name.replace(/\s/g, "").toLowerCase()}.png`,
       }))
     })
 
-    console.log(`[v0] Loaded ${channelArray.length} channel sources`)
+    const limitedChannels = channelArray.slice(0, limit * 3)
 
-    return NextResponse.json(channelArray)
+    console.log(`[v0] Loaded ${Object.keys(channels).length} unique channels`)
+    console.log(`[v0] Loaded ${limitedChannels.length} channel sources`)
+
+    return NextResponse.json(limitedChannels)
   } catch (error) {
     console.error("[v0] Error fetching channels:", error)
     return NextResponse.json({ error: "Failed to fetch channels" }, { status: 500 })
