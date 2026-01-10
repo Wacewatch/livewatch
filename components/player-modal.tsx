@@ -21,13 +21,18 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const getPlayerUrl = useCallback((sourceUrl: string, key: number) => {
-    return `/api/player?url=${encodeURIComponent(sourceUrl)}&k=${key}`
+    const url = `/api/player?url=${encodeURIComponent(sourceUrl)}&k=${key}`
+    console.log("[v0] Generated player URL:", url)
+    console.log("[v0] Source URL:", sourceUrl)
+    return url
   }, [])
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      console.log("[v0] Received postMessage:", event.data)
       if (event.data?.type === "playerStatus") {
         const { status, message } = event.data
+        console.log("[v0] Player status update:", status, message)
         setPlayerStatus(status)
         if (message) setStatusMessage(message)
       }
@@ -38,11 +43,16 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   }, [])
 
   useEffect(() => {
+    console.log("[v0] PlayerModal isOpen changed:", isOpen)
     if (isOpen) {
+      console.log("[v0] Opening player for channel:", channel?.displayName)
+      console.log("[v0] Channel sources:", channel?.sources)
       document.body.style.overflow = "hidden"
       setSelectedSource(0)
       retryCountRef.current = 0
-      setPlayerKey(Date.now())
+      const newKey = Date.now()
+      console.log("[v0] Setting player key:", newKey)
+      setPlayerKey(newKey)
       setPlayerStatus("loading")
       setStatusMessage("Initialisation...")
     } else {
@@ -53,7 +63,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     return () => {
       document.body.style.overflow = ""
     }
-  }, [isOpen])
+  }, [isOpen, channel])
 
   const toggleFullscreen = () => {
     const container = containerRef.current
@@ -67,16 +77,23 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   }
 
   const handleReload = () => {
+    console.log("[v0] Reloading player...")
     retryCountRef.current += 1
-    setPlayerKey(Date.now())
+    const newKey = Date.now()
+    console.log("[v0] New player key:", newKey)
+    setPlayerKey(newKey)
     setPlayerStatus("loading")
     setStatusMessage("Rechargement...")
   }
 
   const handleSourceChange = (index: number) => {
+    console.log("[v0] Changing source to index:", index)
+    console.log("[v0] New source URL:", channel?.sources[index]?.url)
     setSelectedSource(index)
     retryCountRef.current = 0
-    setPlayerKey(Date.now())
+    const newKey = Date.now()
+    console.log("[v0] New player key:", newKey)
+    setPlayerKey(newKey)
     setPlayerStatus("loading")
     setStatusMessage("Changement de source...")
   }
@@ -112,6 +129,8 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   if (!isOpen || !channel) return null
 
   const currentSourceUrl = channel.sources[selectedSource]?.url
+  console.log("[v0] Current source URL:", currentSourceUrl)
+  console.log("[v0] Player key:", playerKey)
 
   const getStatusIcon = () => {
     switch (playerStatus) {
@@ -210,7 +229,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
       {/* Video player area - iframe key only changes on explicit actions */}
       <div className="flex-1 relative">
-        {currentSourceUrl && playerKey > 0 && (
+        {currentSourceUrl && playerKey > 0 ? (
           <iframe
             ref={iframeRef}
             key={playerKey}
@@ -218,7 +237,13 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
             className="absolute inset-0 w-full h-full border-0"
             allow="autoplay; fullscreen; encrypted-media"
             allowFullScreen
+            onLoad={() => console.log("[v0] Iframe loaded successfully")}
+            onError={(e) => console.error("[v0] Iframe load error:", e)}
           />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-white">
+            <p>Aucune source disponible</p>
+          </div>
         )}
       </div>
 
