@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
 
 export type UserRole = "admin" | "vip" | "member" | null
 
@@ -9,12 +9,9 @@ export function useUserRole() {
   const [role, setRole] = useState<UserRole>(null)
   const [loading, setLoading] = useState(true)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-
   useEffect(() => {
+    const supabase = createClient()
+
     async function fetchRole() {
       try {
         const {
@@ -35,8 +32,8 @@ export function useUserRole() {
         } else {
           setRole((data?.role as UserRole) || "member")
         }
-      } catch (err) {
-        console.error("[v0] Error in useUserRole:", err)
+      } catch (err: any) {
+        console.error("[v0] Error in useUserRole:", err?.message || err)
         setRole(null)
       } finally {
         setLoading(false)
@@ -54,13 +51,13 @@ export function useUserRole() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [])
 
   return {
     role,
     loading,
     isAdmin: role === "admin",
-    isVip: role === "vip" || role === "admin", // Admins have VIP benefits
+    isVip: role === "vip" || role === "admin",
     isMember: role === "member",
   }
 }

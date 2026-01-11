@@ -53,17 +53,30 @@ export async function PUT(request: Request) {
 
     const { id, enabled } = await request.json()
 
-    const updates: any = { updated_at: new Date().toISOString() }
+    if (!id) {
+      return NextResponse.json({ error: "Channel ID required" }, { status: 400 })
+    }
+
+    console.log("[v0] Toggling channel:", id, "to enabled:", enabled)
+
+    const updates: any = { last_synced: new Date().toISOString() }
     if (typeof enabled === "boolean") updates.enabled = enabled
 
-    const { error } = await supabase.from("catalog_cache").update(updates).eq("id", id)
+    const { error, data } = await supabase.from("catalog_cache").update(updates).eq("id", id).select()
 
-    if (error) throw error
+    if (error) {
+      console.error("[v0] Toggle error:", error)
+      throw error
+    }
 
-    return NextResponse.json({ success: true })
+    console.log("[v0] Channel toggled successfully:", data)
+    return NextResponse.json({ success: true, channel: data?.[0] })
   } catch (error) {
     console.error("[v0] Admin channel update error:", error)
-    return NextResponse.json({ error: "Failed to update channel" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to update channel", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 },
+    )
   }
 }
 
@@ -127,21 +140,34 @@ export async function PATCH(request: Request) {
 
     const { id, name, category, language, logo, background } = await request.json()
 
-    const updates: any = { updated_at: new Date().toISOString() }
+    if (!id) {
+      return NextResponse.json({ error: "Channel ID required" }, { status: 400 })
+    }
+
+    console.log("[v0] Editing channel:", id, { name, category, language })
+
+    const updates: any = { last_synced: new Date().toISOString() }
     if (name) updates.name = name
     if (category) updates.category = category
     if (language) updates.language = language
     if (logo !== undefined) updates.logo = logo
     if (background !== undefined) updates.background = background
 
-    const { error } = await supabase.from("catalog_cache").update(updates).eq("id", id)
+    const { error, data } = await supabase.from("catalog_cache").update(updates).eq("id", id).select()
 
-    if (error) throw error
+    if (error) {
+      console.error("[v0] Edit error:", error)
+      throw error
+    }
 
-    return NextResponse.json({ success: true })
+    console.log("[v0] Channel edited successfully:", data)
+    return NextResponse.json({ success: true, channel: data?.[0] })
   } catch (error) {
     console.error("[v0] Admin channel update error:", error)
-    return NextResponse.json({ error: "Failed to update channel" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to update channel", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 },
+    )
   }
 }
 

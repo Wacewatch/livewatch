@@ -1,19 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
 
 export function useFavorites() {
   const [favorites, setFavorites] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-
   useEffect(() => {
+    const supabase = createClient()
+
     async function loadFavorites() {
       try {
         const {
@@ -24,6 +21,11 @@ export function useFavorites() {
         if (currentUser) {
           // Load from database
           const response = await fetch("/api/favorites")
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch favorites: ${response.statusText}`)
+          }
+
           const data = await response.json()
           setFavorites(data.favorites || [])
         } else {
@@ -33,12 +35,16 @@ export function useFavorites() {
             setFavorites(JSON.parse(stored))
           }
         }
-      } catch (error) {
-        console.error("[v0] Error loading favorites:", error)
+      } catch (error: any) {
+        console.error("[v0] Error loading favorites:", error?.message || error)
         // Fallback to localStorage
-        const stored = localStorage.getItem("tv-favorites")
-        if (stored) {
-          setFavorites(JSON.parse(stored))
+        try {
+          const stored = localStorage.getItem("tv-favorites")
+          if (stored) {
+            setFavorites(JSON.parse(stored))
+          }
+        } catch (e) {
+          // Ignore localStorage errors
         }
       } finally {
         setLoading(false)
@@ -47,7 +53,6 @@ export function useFavorites() {
 
     loadFavorites()
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -89,8 +94,8 @@ export function useFavorites() {
           : [...favorites, channelId]
         localStorage.setItem("tv-favorites", JSON.stringify(newFavorites))
       }
-    } catch (error) {
-      console.error("[v0] Error toggling favorite:", error)
+    } catch (error: any) {
+      console.error("[v0] Error toggling favorite:", error?.message || error)
       // Revert on error
       setFavorites((prev) => (isCurrentlyFavorite ? [...prev, channelId] : prev.filter((id) => id !== channelId)))
     }

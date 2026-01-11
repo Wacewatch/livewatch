@@ -21,6 +21,10 @@ export async function POST(request: Request) {
 
     const { name, category, language, logo, background, sources, mergeIds } = await request.json()
 
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Channel name is required" }, { status: 400 })
+    }
+
     console.log("[v0] Creating channel:", { name, mergeIds: mergeIds?.length || 0 })
 
     // Generate unique ID
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
         // Disable merged channels
         const { error: disableError } = await supabase
           .from("catalog_cache")
-          .update({ enabled: false })
+          .update({ enabled: false, last_synced: new Date().toISOString() })
           .in("id", mergeIds)
 
         if (disableError) {
@@ -66,13 +70,13 @@ export async function POST(request: Request) {
       language: language || "FR",
       logo: logo || null,
       background: background || null,
-      sources: JSON.stringify(allSources),
+      sources: allSources, // Use jsonb directly, not string
       enabled: true,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_synced: new Date().toISOString(),
     }
 
-    console.log("[v0] Inserting new channel:", id)
+    console.log("[v0] Inserting new channel:", id, "with", allSources.length, "sources")
     const { error, data: inserted } = await supabase.from("catalog_cache").insert(newChannel).select()
 
     if (error) {
@@ -81,7 +85,7 @@ export async function POST(request: Request) {
     }
 
     console.log("[v0] Channel created successfully:", inserted)
-    return NextResponse.json({ success: true, id, channel: inserted[0] })
+    return NextResponse.json({ success: true, id, channel: inserted?.[0] })
   } catch (error) {
     console.error("[v0] Create channel error:", error)
     return NextResponse.json(
