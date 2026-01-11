@@ -328,21 +328,22 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
           <div className="flex items-center gap-2">
             {channel.sources.length > 1 && adUnlocked && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
-                {availableQualities.map((quality) => {
-                  const sourceIndex = channel.sources.findIndex((s) => s.quality === quality)
-                  const isActive = quality === currentQuality
+              <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
+                <span className="text-xs text-white/60 font-medium mr-1">Sources:</span>
+                {channel.sources.map((source, index) => {
+                  const isActive = index === selectedSourceIndex
                   return (
                     <button
-                      key={quality}
-                      onClick={() => switchSource(sourceIndex)}
+                      key={index}
+                      onClick={() => switchSource(index)}
                       className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
                         isActive
-                          ? "bg-cyan-500 text-black"
+                          ? "bg-cyan-500 text-black shadow-lg"
                           : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
                       }`}
+                      title={source.name}
                     >
-                      {quality}
+                      {source.quality} #{index + 1}
                     </button>
                   )
                 })}

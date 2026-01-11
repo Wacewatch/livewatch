@@ -5,7 +5,9 @@ const channelCache = new Map<string, any>()
 
 function isGenericPlaceholder(url: string | undefined) {
   if (!url) return true
-  return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
+  return (
+    url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("tvvoo") || url.includes("placeholder")
+  )
 }
 
 function extractQuality(name: string): string {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, Filter, Globe, Sparkles } from "lucide-react"
+import { Search, Star, Filter, Globe } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import { UserMenu } from "@/components/user-menu"
@@ -293,9 +293,9 @@ export function TVAppClient() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
                   <div className="absolute inset-0 flex items-center justify-center p-4">
-                    {channel.logo || channel.poster ? (
+                    {channel.logo && !channel.logo.includes("tvvoo") && !channel.logo.includes("qwertyuiop8899") ? (
                       <Image
-                        src={channel.logo || channel.poster || ""}
+                        src={channel.logo || "/placeholder.svg"}
                         alt={channel.baseName}
                         width={120}
                         height={60}
@@ -303,14 +303,8 @@ export function TVAppClient() {
                         unoptimized
                       />
                     ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center backdrop-blur-sm border border-primary/20">
-                        <Image
-                          src="/livewatch-logo.png"
-                          alt="LiveWatch"
-                          width={20}
-                          height={10}
-                          className="object-contain"
-                        />
+                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30 flex items-center justify-center backdrop-blur-sm border border-cyan-500/20">
+                        <div className="text-4xl font-black text-cyan-400">TV</div>
                       </div>
                     )}
                   </div>
@@ -353,12 +347,6 @@ export function TVAppClient() {
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
                         <Globe className="w-3 h-3" />
                         {channel.language}
-                      </span>
-                    )}
-                    {channel.sources[0]?.quality && channel.sources[0].quality !== "SD" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30">
-                        <Sparkles className="w-3 h-3" />
-                        {channel.sources[0].quality}
                       </span>
                     )}
                   </div>
