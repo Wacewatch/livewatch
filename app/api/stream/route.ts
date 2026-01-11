@@ -4,6 +4,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const channelId = searchParams.get("id")
+    const sourceId = searchParams.get("sourceId") // Optional specific source
 
     if (!channelId) {
       return NextResponse.json({ error: "Channel ID required" }, { status: 400 })
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
 
     const apiUrl = `https://morning-wildflower-3cf3.wavewatchcontact.workers.dev/https://nakios.site/api/tv-live/channel/${channelId}`
 
-    console.log("[v0] Fetching stream for channel ID:", channelId)
+    console.log("[v0] Fetching stream for channel:", channelId, sourceId ? `source: ${sourceId}` : "")
 
     const response = await fetch(apiUrl, {
       headers: {
@@ -25,7 +26,25 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json()
-    console.log("[v0] Stream data received for channel:", channelId)
+
+    if (data.success && data.data) {
+      // If sourceId is specified, find that specific source
+      if (sourceId && data.data.sources) {
+        const source = data.data.sources.find((s: any) => s.name === sourceId || s.quality === sourceId)
+        if (source) {
+          return NextResponse.json({
+            ...data,
+            data: {
+              ...data.data,
+              url: source.url,
+              quality: source.quality,
+            },
+          })
+        }
+      }
+    }
+
+    console.log("[v0] Stream data received, sources available:", data.data?.sources?.length || 0)
 
     return NextResponse.json(data)
   } catch (error) {

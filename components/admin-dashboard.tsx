@@ -16,6 +16,7 @@ import {
   Check,
   Key,
   Copy,
+  Home,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -311,8 +312,16 @@ export function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background p-3 md:p-6">
       <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold">Administration</h1>
-        <p className="text-sm md:text-base text-muted-foreground">Tableau de bord Admin</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Administration</h1>
+            <p className="text-sm md:text-base text-muted-foreground">Tableau de bord Admin</p>
+          </div>
+          <Button onClick={() => (window.location.href = "/")} variant="outline" className="flex items-center gap-2">
+            <Home className="h-4 w-4" />
+            Retour au site
+          </Button>
+        </div>
       </div>
 
       <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">

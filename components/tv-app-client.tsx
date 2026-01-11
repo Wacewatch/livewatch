@@ -7,6 +7,7 @@ import { useFavorites } from "@/lib/hooks/use-favorites"
 import { UserMenu } from "@/components/user-menu"
 import type { GroupedChannel, SortType } from "@/lib/types"
 import Image from "next/image"
+import Link from "next/link"
 
 export function TVAppClient() {
   const [channels, setChannels] = useState<GroupedChannel[]>([])
@@ -153,9 +154,9 @@ export function TVAppClient() {
 
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-3 md:gap-5 flex-wrap p-3 md:p-5 relative">
           <div className="flex items-center gap-2 md:gap-4">
-            <div className="relative w-48 h-12 md:w-64 md:h-16">
+            <Link href="/" className="relative w-48 h-12 md:w-64 md:h-16 hover:opacity-80 transition-opacity">
               <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" priority />
-            </div>
+            </Link>
           </div>
 
           <div className="relative flex-1 max-w-2xl order-last md:order-none w-full md:w-auto">

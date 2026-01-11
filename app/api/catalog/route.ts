@@ -1,52 +1,52 @@
 import { NextResponse } from "next/server"
 
-const channelMap = new Map<string, string>()
-let nextInternalId = 1
+const channelCache = new Map<string, any>()
 
-function getInternalId(externalId: string): string {
-  if (!channelMap.has(externalId)) {
-    channelMap.set(externalId, `ch_${nextInternalId++}`)
-  }
-  return channelMap.get(externalId)!
+function isGenericPlaceholder(url: string | undefined) {
+  if (!url) return true
+  return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
 }
 
-export function getExternalId(internalId: string): string | undefined {
-  for (const [external, internal] of channelMap.entries()) {
-    if (internal === internalId) return external
+async function fetchChannelDetails(channelId: string) {
+  // Check cache first
+  if (channelCache.has(channelId)) {
+    return channelCache.get(channelId)
   }
-  return undefined
-}
 
-function getBaseName(name: string): string {
-  let normalized = name.toUpperCase().trim()
+  try {
+    const apiUrl = `https://morning-wildflower-3cf3.wavewatchcontact.workers.dev/https://nakios.site/api/tv-live/channel/${channelId}`
 
-  // Remove combined quality + backup/evening suffixes first
-  normalized = normalized
-    .replace(/\s+(HD|FHD|4K|UHD|SD)\s+(BACKUP|EVENING|EVEN|EVENT|BACKUP2|BACKUP3)\s*$/i, "")
-    .replace(/\s+(BACKUP|EVENING|EVEN|EVENT|BACKUP2|BACKUP3)\s+(HD|FHD|4K|UHD|SD)\s*$/i, "")
+    const response = await fetch(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+      next: { revalidate: 300 },
+    })
 
-  // Remove standalone backup/evening keywords
-  normalized = normalized.replace(/\s+(BACKUP|EVENING|EVEN|EVENT|BACKUP2|BACKUP3)\s*$/i, "")
+    if (!response.ok) {
+      return null
+    }
 
-  // Remove quality indicators at the end
-  normalized = normalized.replace(/\s+(HD|FHD|4K|UHD|SD|HEVC|H\.264|H264)\s*$/i, "")
+    const data = await response.json()
 
-  // Remove special characters but keep alphanumeric and spaces
-  normalized = normalized.replace(/[^A-Z0-9\s]/g, " ")
+    if (data.success && data.data) {
+      channelCache.set(channelId, data.data)
+      return data.data
+    }
+  } catch (error) {
+    console.error(`[v0] Failed to fetch details for ${channelId}:`, error)
+  }
 
-  // Normalize multiple spaces
-  normalized = normalized.replace(/\s+/g, " ").trim()
-
-  return normalized
+  return null
 }
 
 export async function GET() {
   try {
     console.log("[v0] Fetching channels from catalog API...")
 
-    const apiUrl = "https://apis.wavewatch.xyz/api.php?action=catalog&type=tv&id=vavoo_tv_fr"
+    const catalogUrl = "https://apis.wavewatch.xyz/api.php?action=catalog&type=tv&id=vavoo_tv_fr"
 
-    const response = await fetch(apiUrl, {
+    const response = await fetch(catalogUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         Accept: "application/json",
@@ -61,83 +61,58 @@ export async function GET() {
     const text = await response.text()
     const data = JSON.parse(text)
 
-    const isGenericPlaceholder = (url: string | undefined) => {
-      if (!url) return true
-      return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
-    }
+    const channels: any[] = []
 
-    const channelGroups = new Map<string, any[]>()
+    // Fetch first 100 channels with details to avoid overwhelming the API
+    const channelsToFetch = (data.metas || []).slice(0, 100)
 
-    data.metas?.forEach((meta: any) => {
+    console.log(`[v0] Fetching details for ${channelsToFetch.length} channels...`)
+
+    for (const meta of channelsToFetch) {
       const groupMatch = meta.id?.match(/group:(\w+)/)
       const language = groupMatch ? groupMatch[1].toUpperCase() : "FR"
 
-      const nameUpper = meta.name?.toUpperCase() || ""
-      const has4K = nameUpper.includes("4K") || nameUpper.includes("UHD")
-      const hasFHD = nameUpper.includes("FHD")
-      const hasHD = nameUpper.includes("HD") && !hasFHD
-      const quality = has4K ? "4K" : hasFHD ? "FHD" : hasHD ? "HD" : "SD"
+      // Fetch detailed channel data with sources
+      const channelDetails = await fetchChannelDetails(meta.id)
 
-      const baseName = getBaseName(meta.name)
-      const groupKey = `${baseName}_${language}`
+      const sources = channelDetails?.sources || [
+        {
+          id: meta.id,
+          name: meta.name,
+          quality: meta.name?.toUpperCase().includes("FHD")
+            ? "FHD"
+            : meta.name?.toUpperCase().includes("HD")
+              ? "HD"
+              : "SD",
+          url: null,
+        },
+      ]
 
-      if (!channelGroups.has(groupKey)) {
-        channelGroups.set(groupKey, [])
-      }
+      const logo = channelDetails?.logo || meta.logo
+      const poster = channelDetails?.poster || meta.poster
+      const background = channelDetails?.background || meta.background
 
-      channelGroups.get(groupKey)!.push({
+      channels.push({
         id: meta.id,
-        name: meta.name,
-        poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
-        logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
-        background: isGenericPlaceholder(meta.background) ? null : meta.background,
+        name: channelDetails?.name || meta.name,
+        poster: isGenericPlaceholder(poster) ? null : poster,
+        logo: isGenericPlaceholder(logo) ? null : logo,
+        background: isGenericPlaceholder(background) ? null : background,
         posterShape: meta.posterShape || "landscape",
-        category: meta.genres?.[0] || "Divers",
+        category: channelDetails?.category || meta.genres?.[0] || "Divers",
         genres: meta.genres || [],
         type: meta.type || "tv",
         language,
-        quality,
-        baseName,
-      })
-    })
-
-    const channels: any[] = []
-    channelGroups.forEach((variants) => {
-      // Sort variants by quality (4K > FHD > HD > SD)
-      const qualityOrder = { "4K": 4, FHD: 3, HD: 2, SD: 1 }
-      variants.sort(
-        (a, b) =>
-          (qualityOrder[b.quality as keyof typeof qualityOrder] || 0) -
-          (qualityOrder[a.quality as keyof typeof qualityOrder] || 0),
-      )
-
-      const primary = variants[0]
-      const bestLogo = variants.find((v) => v.logo)?.logo || primary.logo
-      const bestBackground = variants.find((v) => v.background)?.background || primary.background
-      const bestPoster = variants.find((v) => v.poster)?.poster || primary.poster
-
-      channels.push({
-        id: primary.id,
-        name: primary.name,
-        baseName: primary.baseName,
-        poster: bestPoster,
-        logo: bestLogo,
-        background: bestBackground,
-        posterShape: primary.posterShape,
-        category: primary.category,
-        genres: primary.genres,
-        type: primary.type,
-        language: primary.language,
-        quality: primary.quality,
-        sources: variants.map((v) => ({
-          id: v.id,
-          name: v.name,
-          quality: v.quality,
+        sources: sources.map((src: any) => ({
+          id: src.id || meta.id,
+          name: src.name || meta.name,
+          quality: src.quality || "SD",
+          priority: src.priority || 1,
         })),
       })
-    })
+    }
 
-    console.log("[v0] Successfully grouped channels:", channels.length, "unique channels")
+    console.log(`[v0] Successfully loaded ${channels.length} channels with sources`)
 
     return NextResponse.json({ channels })
   } catch (error) {
