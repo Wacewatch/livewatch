@@ -1,7 +1,20 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { X, Maximize, Minimize, RefreshCw, Loader2, Lock, Unlock, Crown, Sparkles } from "lucide-react"
+import {
+  X,
+  Maximize,
+  Minimize,
+  RefreshCw,
+  Loader2,
+  Lock,
+  Unlock,
+  Crown,
+  Sparkles,
+  Link2,
+  Copy,
+  Check,
+} from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
 import { useUserRole } from "@/lib/hooks/use-user-role"
@@ -27,6 +40,8 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionStartTime, setSessionStartTime] = useState<number>(0)
   const [showVipModal, setShowVipModal] = useState(false)
+  const [showShareLinks, setShowShareLinks] = useState(false)
+  const [copiedLink, setCopiedLink] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
@@ -292,6 +307,16 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     loadStreamSource(index)
   }
 
+  const copyToClipboard = async (link: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedLink(type)
+      setTimeout(() => setCopiedLink(null), 2000)
+    } catch (err) {
+      console.error("[v0] Failed to copy link:", err)
+    }
+  }
+
   if (!isOpen || !channel) return null
 
   const availableQualities = Array.from(new Set(channel.sources.map((s) => s.quality))).sort((a, b) => {
@@ -300,6 +325,10 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   })
 
   const currentQuality = channel.sources[selectedSourceIndex]?.quality || "SD"
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+  const playerLink = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}`
+  const vipPlayerLink = `${baseUrl}/playervip?url=${encodeURIComponent(channel.baseId)}`
 
   return (
     <>
@@ -327,6 +356,15 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Share button */}
+            <button
+              onClick={() => setShowShareLinks(!showShareLinks)}
+              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+              title="Partager"
+            >
+              <Link2 className="w-5 h-5" />
+            </button>
+
             {channel.sources.length > 1 && adUnlocked && (
               <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
                 <span className="text-xs text-white/60 font-medium mr-1">Sources:</span>
@@ -373,6 +411,90 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
             </button>
           </div>
         </div>
+
+        {/* Share links panel */}
+        {showShareLinks && (
+          <div className="absolute top-20 right-4 z-30 w-96 bg-black/95 backdrop-blur-lg rounded-xl border border-white/20 p-4 shadow-2xl">
+            <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-cyan-400" />
+              Liens de partage
+            </h3>
+
+            <div className="space-y-4">
+              {/* Regular player link */}
+              <div>
+                <p className="text-white/70 text-sm mb-2 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-400 border border-red-500/30">
+                    Avec publicité
+                  </span>
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={playerLink}
+                    readOnly
+                    className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm font-mono"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(playerLink, "player")}
+                    className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black rounded-lg transition-all flex items-center gap-2"
+                  >
+                    {copiedLink === "player" ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span className="text-sm font-bold">Copié</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span className="text-sm font-bold">Copier</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* VIP player link */}
+              <div>
+                <p className="text-white/70 text-sm mb-2 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <Crown className="w-3 h-3" />
+                    Sans publicité (VIP)
+                  </span>
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={vipPlayerLink}
+                    readOnly
+                    className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm font-mono"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(vipPlayerLink, "vip")}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-lg transition-all flex items-center gap-2"
+                  >
+                    {copiedLink === "vip" ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span className="text-sm font-bold">Copié</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span className="text-sm font-bold">Copier</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-white/50 text-xs mt-4 leading-relaxed">
+              Partagez ces liens pour permettre l'accès direct au lecteur. Le lien VIP ne nécessite pas de compte VIP
+              pour le partage.
+            </p>
+          </div>
+        )}
 
         <div className="flex-1 relative">
           <video
