@@ -4,15 +4,15 @@ import { useState, useEffect, useMemo } from "react"
 import { Search, Star, LaptopMinimal as TvMinimal, SortAsc, Flame, Filter, Globe, Sparkles } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
-import type { Channel, ChannelWithFavorite, SortType } from "@/lib/types"
+import type { GroupedChannel, SortType } from "@/lib/types"
 import Image from "next/image"
 
 export function TVAppClient() {
-  const [channels, setChannels] = useState<Channel[]>([])
+  const [channels, setChannels] = useState<GroupedChannel[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortType, setSortType] = useState<SortType>("name")
-  const [selectedChannel, setSelectedChannel] = useState<ChannelWithFavorite | null>(null)
+  const [selectedChannel, setSelectedChannel] = useState<GroupedChannel | null>(null)
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [selectedLanguage, setSelectedLanguage] = useState<string>("all")
@@ -41,7 +41,9 @@ export function TVAppClient() {
           return
         }
 
-        const channelsList: Channel[] = Array.isArray(data) ? data : data.metas || data.channels || data.data || []
+        const channelsList: GroupedChannel[] = Array.isArray(data)
+          ? data
+          : data.metas || data.channels || data.data || []
 
         if (channelsList.length > 0) {
           console.log("[v0] Loaded channels:", channelsList.length)
@@ -62,7 +64,7 @@ export function TVAppClient() {
   const channelsWithFavorites = useMemo(() => {
     return channels.map((ch) => ({
       ...ch,
-      isFavorite: favorites.includes(ch.id),
+      isFavorite: favorites.includes(ch.baseId),
     }))
   }, [channels, favorites])
 
@@ -77,7 +79,7 @@ export function TVAppClient() {
   }, [channels])
 
   const qualities = useMemo(() => {
-    const quals = new Set(channels.map((c) => c.quality).filter(Boolean))
+    const quals = new Set(channels.flatMap((c) => c.sources.map((s) => s.quality)).filter(Boolean))
     return ["all", ...Array.from(quals).sort()]
   }, [channels])
 
@@ -97,18 +99,18 @@ export function TVAppClient() {
     }
 
     if (selectedQuality !== "all") {
-      filtered = filtered.filter((c) => c.quality === selectedQuality)
+      filtered = filtered.filter((c) => c.sources.some((s) => s.quality === selectedQuality))
     }
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
-        (c) => c.name.toLowerCase().includes(query) || (c.category && c.category.toLowerCase().includes(query)),
+        (c) => c.baseName.toLowerCase().includes(query) || (c.category && c.category.toLowerCase().includes(query)),
       )
     }
 
     if (sortType === "name") {
-      filtered.sort((a, b) => a.name.localeCompare(b.name))
+      filtered.sort((a, b) => a.baseName.localeCompare(b.baseName))
     }
 
     return filtered
@@ -311,7 +313,7 @@ export function TVAppClient() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fade-in">
             {filteredChannels.map((channel) => (
               <div
-                key={channel.id}
+                key={channel.baseId}
                 onClick={() => setSelectedChannel(channel)}
                 className="group glass-card border border-border/50 rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
               >
@@ -334,7 +336,7 @@ export function TVAppClient() {
                     {channel.logo || channel.poster ? (
                       <Image
                         src={channel.logo || channel.poster || ""}
-                        alt={channel.name}
+                        alt={channel.baseName}
                         width={120}
                         height={60}
                         className="object-contain max-h-16 drop-shadow-2xl group-hover:scale-110 transition-transform duration-300"
@@ -355,7 +357,7 @@ export function TVAppClient() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      toggleFavorite(channel.id)
+                      toggleFavorite(channel.baseId)
                     }}
                     className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
                       channel.isFavorite
@@ -365,11 +367,17 @@ export function TVAppClient() {
                   >
                     <Star className="w-5 h-5" fill={channel.isFavorite ? "currentColor" : "none"} strokeWidth={2} />
                   </button>
+
+                  {channel.sources.length > 1 && (
+                    <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/90 text-white shadow-lg">
+                      {channel.sources.length} sources
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 bg-gradient-to-b from-card/50 to-card">
                   <h3 className="font-bold text-lg text-foreground mb-2 truncate group-hover:text-primary transition-colors">
-                    {channel.name}
+                    {channel.baseName}
                   </h3>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
@@ -381,10 +389,10 @@ export function TVAppClient() {
                         {channel.language}
                       </span>
                     )}
-                    {channel.quality && channel.quality !== "SD" && (
+                    {channel.sources[0]?.quality && channel.sources[0].quality !== "SD" && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30">
                         <Sparkles className="w-3 h-3" />
-                        {channel.quality}
+                        {channel.sources[0].quality}
                       </span>
                     )}
                   </div>

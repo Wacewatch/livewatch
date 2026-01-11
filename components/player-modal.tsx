@@ -20,18 +20,20 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [videoLoaded, setVideoLoaded] = useState(false)
+  const [selectedSourceIndex, setSelectedSourceIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
 
   useEffect(() => {
     if (isOpen && channel) {
-      console.log("[v0] Opening player for channel:", channel.name)
+      console.log("[v0] Opening player for channel:", channel.baseName)
       document.body.style.overflow = "hidden"
       setAdUnlocked(false)
       setStreamUrl(null)
       setError(null)
       setVideoLoaded(false)
+      setSelectedSourceIndex(0)
     } else if (!isOpen) {
       document.body.style.overflow = ""
       if (hlsRef.current) {
@@ -78,27 +80,30 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     }, 1000)
   }
 
-  const loadStreamSource = async () => {
-    if (!channel) return
+  const loadStreamSource = async (sourceIndex: number = selectedSourceIndex) => {
+    if (!channel || !channel.sources[sourceIndex]) return
 
     setLoading(true)
     setError(null)
+    setVideoLoaded(false)
 
     try {
-      console.log("[v0] Fetching stream for channel:", channel.id)
-      const response = await fetch(`/api/stream?id=${encodeURIComponent(channel.id)}`)
+      const selectedSource = channel.sources[sourceIndex]
+      console.log("[v0] Fetching stream for source:", selectedSource.name, selectedSource.id)
+
+      const response = await fetch(`/api/stream?id=${encodeURIComponent(selectedSource.id)}`)
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
 
       const data = await response.json()
-      console.log("[v0] Stream data received:", data)
+      console.log("[v0] Stream data received")
 
       if (data.success && data.data && data.data.sources && data.data.sources.length > 0) {
         const originalUrl = data.data.sources[0].url
         const proxiedUrl = `/api/proxy-stream?url=${encodeURIComponent(originalUrl)}`
-        console.log("[v0] Playing proxied stream:", proxiedUrl)
+        console.log("[v0] Playing stream via proxy")
         setStreamUrl(proxiedUrl)
         playSource(proxiedUrl)
       } else {
@@ -188,6 +193,11 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     }
   }
 
+  const switchSource = (index: number) => {
+    setSelectedSourceIndex(index)
+    loadStreamSource(index)
+  }
+
   if (!isOpen || !channel) return null
 
   return (
@@ -195,7 +205,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       {/* Header */}
       <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black to-transparent z-20">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-white">{channel.name}</h2>
+          <h2 className="text-xl font-bold text-white">{channel.baseName}</h2>
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             EN DIRECT
@@ -203,6 +213,20 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {channel.sources.length > 1 && adUnlocked && (
+            <select
+              value={selectedSourceIndex}
+              onChange={(e) => switchSource(Number(e.target.value))}
+              className="px-4 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all outline-none"
+            >
+              {channel.sources.map((source, index) => (
+                <option key={source.id} value={index} className="bg-black text-white">
+                  {source.quality} - {source.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           <button
             onClick={handleReload}
             className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"

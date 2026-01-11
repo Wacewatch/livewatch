@@ -13,6 +13,25 @@ export interface Channel {
   priority?: number
 }
 
+export interface GroupedChannel {
+  baseId: string
+  baseName: string
+  poster?: string
+  logo?: string
+  background?: string
+  posterShape?: string
+  category?: string
+  genres?: string[]
+  type?: string
+  language?: string
+  sources: Array<{
+    id: string
+    name: string
+    quality: string
+    priority: number
+  }>
+}
+
 export interface StreamSource {
   name: string
   url: string
@@ -29,7 +48,7 @@ export interface ChannelStream {
   cached?: boolean
 }
 
-export interface ChannelWithFavorite extends Channel {
+export interface ChannelWithFavorite extends GroupedChannel {
   isFavorite: boolean
 }
 

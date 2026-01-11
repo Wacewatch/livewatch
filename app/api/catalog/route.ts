@@ -1,5 +1,32 @@
 import { NextResponse } from "next/server"
 
+const channelMap = new Map<string, string>()
+let nextInternalId = 1
+
+function getInternalId(externalId: string): string {
+  if (!channelMap.has(externalId)) {
+    channelMap.set(externalId, `ch_${nextInternalId++}`)
+  }
+  return channelMap.get(externalId)!
+}
+
+export function getExternalId(internalId: string): string | undefined {
+  for (const [external, internal] of channelMap.entries()) {
+    if (internal === internalId) return external
+  }
+  return undefined
+}
+
+function getBaseName(name: string): string {
+  return name
+    .replace(/\s*(HD|FHD|4K|UHD|SD|HEVC|H\.264|H264).*$/i, "") // Remove quality indicators
+    .replace(/\s+\d+$/, "") // Remove trailing numbers
+    .replace(/[^\w\s]/g, "") // Remove special characters
+    .replace(/\s+/g, " ") // Normalize whitespace
+    .toUpperCase() // Normalize to uppercase for comparison
+    .trim()
+}
+
 export async function GET() {
   try {
     console.log("[v0] Fetching channels from catalog API...")
@@ -25,21 +52,25 @@ export async function GET() {
 
       const isGenericPlaceholder = (url: string | undefined) => {
         if (!url) return true
-        return url.includes("qwertyuiop8899") || url.includes("tvvoo.png")
+        return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
       }
 
-      const channels =
+      const channelsList =
         data.metas?.map((meta: any) => {
           const groupMatch = meta.id?.match(/group:(\w+)/)
           const language = groupMatch ? groupMatch[1].toUpperCase() : "FR"
 
-          const hasHD = meta.name?.includes("HD")
-          const has4K = meta.name?.includes("4K")
-          const quality = has4K ? "4K" : hasHD ? "HD" : "SD"
+          const nameUpper = meta.name?.toUpperCase() || ""
+          const has4K = nameUpper.includes("4K") || nameUpper.includes("UHD")
+          const hasFHD = nameUpper.includes("FHD")
+          const hasHD = nameUpper.includes("HD") && !hasFHD
+          const quality = has4K ? "4K" : hasFHD ? "FHD" : hasHD ? "HD" : "SD"
 
           return {
-            id: meta.id,
+            id: getInternalId(meta.id),
+            externalId: meta.id,
             name: meta.name,
+            baseName: getBaseName(meta.name),
             poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
             logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
             background: isGenericPlaceholder(meta.background) ? null : meta.background,
@@ -49,11 +80,58 @@ export async function GET() {
             type: meta.type || "tv",
             language,
             quality,
-            priority: 1,
+            priority: has4K ? 4 : hasFHD ? 3 : hasHD ? 2 : 1,
           }
         }) || []
 
-      console.log("[v0] Successfully fetched", channels.length, "channels")
+      const groupedMap = new Map<string, any>()
+
+      for (const channel of channelsList) {
+        const key = `${channel.baseName}_${channel.language}`
+
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, {
+            baseId: channel.id,
+            baseName: channel.baseName,
+            displayName: channel.name, // Keep original display name
+            poster: channel.poster,
+            logo: channel.logo,
+            background: channel.background,
+            posterShape: channel.posterShape,
+            category: channel.category,
+            genres: channel.genres,
+            type: channel.type,
+            language: channel.language,
+            sources: [],
+          })
+        }
+
+        const grouped = groupedMap.get(key)
+
+        grouped.sources.push({
+          id: channel.id,
+          name: channel.name,
+          quality: channel.quality,
+          priority: channel.priority,
+        })
+
+        if (channel.logo && !grouped.logo) grouped.logo = channel.logo
+        if (channel.background && !grouped.background) grouped.background = channel.background
+        if (channel.poster && !grouped.poster) grouped.poster = channel.poster
+
+        // Update display name to shortest variant (usually the cleanest)
+        if (channel.name.length < grouped.displayName.length) {
+          grouped.displayName = channel.name
+        }
+      }
+
+      const channels = Array.from(groupedMap.values()).map((group) => {
+        group.sources.sort((a: any, b: any) => b.priority - a.priority)
+        return group
+      })
+
+      console.log("[v0] Successfully fetched and grouped", channels.length, "channels")
+      console.log("[v0] Example grouped channel:", channels[0])
 
       return NextResponse.json({ channels })
     } catch (parseError) {
