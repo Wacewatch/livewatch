@@ -8,6 +8,22 @@ function isGenericPlaceholder(url: string | undefined) {
   return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
 }
 
+function extractQuality(name: string): string {
+  const qualityMatch = name.match(/\b(FHD|4K|UHD|HD)\b/i)
+  if (qualityMatch) {
+    return qualityMatch[1].toUpperCase()
+  }
+  return "SD"
+}
+
+function getBaseName(name: string): string {
+  return name
+    .replace(/\s*(FHD|4K|UHD|HD|SD)\s*/gi, "")
+    .replace(/\s*(BACKUP|EVENING|LIVE|EVENTS?|ONLY)\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 async function fetchFromExternalAPI() {
   try {
     console.log("[v0] Fetching channels from external API...")
@@ -32,78 +48,54 @@ async function fetchFromExternalAPI() {
       throw new Error("Invalid API response structure")
     }
 
-    console.log("[v0] Fetching detailed sources for channels...")
-    const channelsWithDetails = await Promise.all(
-      data.metas
-        .filter((meta: any) => meta.type === "tv")
-        .slice(0, 100) // Limit to 100 to avoid rate limiting
-        .map(async (meta: any) => {
-          const details = await fetchChannelDetails(meta.id)
+    const channelGroups = new Map<string, any>()
 
-          const sources = details?.sources || [
-            {
-              id: meta.id,
-              name: meta.name,
-              quality: "SD",
-              url: meta.id,
-            },
-          ]
+    for (const meta of data.metas.filter((m: any) => m.type === "tv")) {
+      const baseName = getBaseName(meta.name)
+      const quality = extractQuality(meta.name)
+      const groupKey = `${baseName}_${meta.language || "FR"}`
 
-          return {
-            id: meta.id,
-            baseId: meta.id,
-            name: meta.name,
-            baseName: meta.name,
-            poster: isGenericPlaceholder(details?.poster || meta.poster) ? null : details?.poster || meta.poster,
-            logo: isGenericPlaceholder(details?.logo || meta.logo) ? null : details?.logo || meta.logo,
-            background: isGenericPlaceholder(details?.background || meta.background)
-              ? null
-              : details?.background || meta.background,
-            posterShape: meta.posterShape || "landscape",
-            category: details?.category || meta.category || "Divers",
-            genres: meta.genres || [],
-            type: meta.type,
-            language: meta.language || "FR",
-            sources: sources.map((src: any, idx: number) => ({
-              id: meta.id,
-              name: src.name || meta.name,
-              quality: src.quality || "SD",
-              url: meta.id,
-              priority: src.priority || idx + 1,
-            })),
-          }
-        }),
-    )
+      if (!channelGroups.has(groupKey)) {
+        channelGroups.set(groupKey, {
+          id: `grouped_${baseName.toLowerCase().replace(/\s+/g, "_")}`,
+          baseId: meta.id,
+          name: baseName,
+          baseName: baseName,
+          poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
+          logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
+          background: isGenericPlaceholder(meta.background) ? null : meta.background,
+          posterShape: meta.posterShape || "landscape",
+          category: meta.category || "Divers",
+          genres: meta.genres || [],
+          type: meta.type,
+          language: meta.language || "FR",
+          sources: [],
+        })
+      }
 
-    const remainingChannels = data.metas
-      .filter((meta: any) => meta.type === "tv")
-      .slice(100)
-      .map((meta: any) => ({
+      const group = channelGroups.get(groupKey)!
+      group.sources.push({
         id: meta.id,
-        baseId: meta.id,
         name: meta.name,
-        baseName: meta.name,
-        poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
-        logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
-        background: isGenericPlaceholder(meta.background) ? null : meta.background,
-        posterShape: meta.posterShape || "landscape",
-        category: meta.category || "Divers",
-        genres: meta.genres || [],
-        type: meta.type,
-        language: meta.language || "FR",
-        sources: [
-          {
-            id: meta.id,
-            name: meta.name,
-            quality: "SD",
-            url: meta.id,
-          },
-        ],
-      }))
+        quality: quality,
+        url: meta.id,
+        priority: group.sources.length + 1,
+      })
 
-    const allChannels = [...channelsWithDetails, ...remainingChannels]
+      // Update logo/poster if this variant has a better one
+      if (!isGenericPlaceholder(meta.poster) && !group.poster) {
+        group.poster = meta.poster
+      }
+      if (!isGenericPlaceholder(meta.logo) && !group.logo) {
+        group.logo = meta.logo
+      }
+      if (!isGenericPlaceholder(meta.background) && !group.background) {
+        group.background = meta.background
+      }
+    }
 
-    console.log(`[v0] Successfully loaded ${allChannels.length} channels from external API`)
+    const allChannels = Array.from(channelGroups.values())
+    console.log(`[v0] Successfully loaded ${allChannels.length} grouped channels with multi-quality sources`)
     return allChannels
   } catch (error) {
     console.error("[v0] External API error:", error)
@@ -111,49 +103,14 @@ async function fetchFromExternalAPI() {
   }
 }
 
-async function fetchChannelDetails(channelId: string) {
-  // Check cache first
-  if (channelCache.has(channelId)) {
-    return channelCache.get(channelId)
-  }
-
-  try {
-    const apiUrl = `https://morning-wildflower-3cf3.wavewatchcontact.workers.dev/https://nakios.site/api/tv-live/channel/${channelId}`
-
-    const response = await fetch(apiUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-      next: { revalidate: 300 },
-    })
-
-    if (!response.ok) {
-      return null
-    }
-
-    const data = await response.json()
-
-    if (data.success && data.data) {
-      channelCache.set(channelId, data.data)
-      return data.data
-    }
-  } catch (error) {
-    console.error(`[v0] Failed to fetch details for ${channelId}:`, error)
-  }
-
-  return null
-}
-
 export async function GET() {
   try {
     console.log("[v0] Fetching channels from database cache...")
-
     const supabase = await createClient()
 
     const { data: channels, error } = await supabase.from("catalog_cache").select("*").eq("enabled", true).order("name")
 
     if (error) {
-      // If table doesn't exist (PGRST205), use external API
       if (error.code === "PGRST205" || error.message?.includes("Could not find the table")) {
         console.log("[v0] Cache table not found, using external API...")
         const externalChannels = await fetchFromExternalAPI()
@@ -184,7 +141,6 @@ export async function GET() {
       )
     }
 
-    // Transform database format to expected format
     const formattedChannels = channels.map((ch: any) => ({
       id: ch.id,
       baseId: ch.id,

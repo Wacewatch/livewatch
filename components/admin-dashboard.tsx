@@ -11,9 +11,7 @@ import {
   Activity,
   TrendingUp,
   Edit,
-  Trash2,
   Merge,
-  Check,
   Key,
   Copy,
   Home,
@@ -116,6 +114,16 @@ export function AdminDashboard() {
   const [newGeneratedKey, setNewGeneratedKey] = useState("")
   const [serverStats, setServerStats] = useState<ServerStats | null>(null)
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [createMode, setCreateMode] = useState<"create" | "merge">("create")
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    category: "",
+    language: "FR",
+    logo: "",
+    background: "",
+    sources: [] as any[],
+  })
 
   useEffect(() => {
     fetchDashboardData()
@@ -361,6 +369,59 @@ export function AdminDashboard() {
   const copyKeyToClipboard = () => {
     navigator.clipboard.writeText(newGeneratedKey)
     alert("Clé copiée dans le presse-papiers !")
+  }
+
+  const saveNewChannel = async () => {
+    if (!createForm.name) {
+      alert("Le nom de la chaîne est requis")
+      return
+    }
+
+    try {
+      await fetch("/api/admin/channels/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...createForm,
+          mergeIds: createMode === "merge" ? selectedChannels : [],
+        }),
+      })
+      setShowCreateDialog(false)
+      setSelectedChannels([])
+      setIsMergeMode(false)
+      fetchDashboardData()
+      alert("Chaîne créée avec succès !")
+    } catch (error) {
+      console.error("[v0] Failed to create channel:", error)
+      alert("Échec de la création de la chaîne")
+    }
+  }
+
+  const openCreateDialog = (mode: "create" | "merge") => {
+    setCreateMode(mode)
+    if (mode === "merge" && selectedChannels.length > 0) {
+      const primaryChannel = channels.find((ch) => ch.id === selectedChannels[0])
+      if (primaryChannel) {
+        setCreateForm({
+          name: primaryChannel.name,
+          category: primaryChannel.category || "",
+          language: primaryChannel.language || "FR",
+          logo: primaryChannel.logo || "",
+          background: primaryChannel.background || "",
+          sources: [],
+        })
+      }
+    } else {
+      setCreateForm({
+        name: "",
+        category: "",
+        language: "FR",
+        logo: "",
+        background: "",
+        sources: [],
+      })
+    }
+    setShowCreateDialog(true)
   }
 
   const filteredUsers = users.filter((user) => user.email.toLowerCase().includes(userSearch.toLowerCase()))
@@ -632,45 +693,39 @@ export function AdminDashboard() {
         </Card>
 
         {/* Channel Management */}
-        <Card className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Gestion des Chaînes</h2>
+        <Card className="lg:col-span-2 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Gestion des Chaînes</h2>
             <div className="flex gap-2">
+              {isMergeMode && selectedChannels.length > 1 && (
+                <Button
+                  onClick={() => openCreateDialog("merge")}
+                  size="sm"
+                  className="bg-purple-500 hover:bg-purple-600"
+                >
+                  <Merge className="mr-2 h-4 w-4" />
+                  Fusionner ({selectedChannels.length})
+                </Button>
+              )}
+              <Button onClick={() => openCreateDialog("create")} size="sm" className="bg-green-500 hover:bg-green-600">
+                Créer une chaîne
+              </Button>
               <Button
                 onClick={() => {
                   setIsMergeMode(!isMergeMode)
                   setSelectedChannels([])
                 }}
-                size="sm"
                 variant={isMergeMode ? "default" : "outline"}
+                size="sm"
               >
                 <Merge className="mr-2 h-4 w-4" />
-                {isMergeMode ? "Annuler" : "Fusionner"}
+                {isMergeMode ? "Annuler" : "Mode Fusion"}
               </Button>
-              <Button onClick={syncChannels} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
-                <TrendingUp className="mr-2 h-4 w-4" />
+              <Button onClick={syncCatalogNow} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
                 Synchroniser
               </Button>
             </div>
           </div>
-
-          {isMergeMode && selectedChannels.length > 0 && (
-            <div className="mb-4 flex gap-2">
-              <Badge variant="secondary">{selectedChannels.length} sélectionnées</Badge>
-              {selectedChannels.length >= 2 && (
-                <Button onClick={mergeChannels} size="sm" variant="default">
-                  <Check className="mr-2 h-4 w-4" />
-                  Fusionner ({selectedChannels.length})
-                </Button>
-              )}
-              <Button onClick={() => bulkToggleChannels(true)} size="sm" variant="outline">
-                Activer tout
-              </Button>
-              <Button onClick={() => bulkToggleChannels(false)} size="sm" variant="outline">
-                Désactiver tout
-              </Button>
-            </div>
-          )}
 
           <Input
             placeholder="Rechercher une chaîne..."
@@ -679,58 +734,34 @@ export function AdminDashboard() {
             className="mb-4"
           />
 
-          <div className="max-h-[400px] space-y-3 overflow-y-auto">
+          <div className="max-h-[600px] overflow-y-auto space-y-2">
             {filteredChannels.map((channel) => (
               <div
                 key={channel.id}
-                className={`flex items-center justify-between rounded-lg border bg-card p-3 transition-colors ${
-                  selectedChannels.includes(channel.id) ? "border-cyan-500 bg-cyan-500/10" : ""
-                } ${isMergeMode ? "cursor-pointer hover:border-cyan-500/50" : ""}`}
-                onClick={() => isMergeMode && toggleChannelSelection(channel.id)}
+                className={`flex items-center justify-between p-3 rounded-lg border ${
+                  selectedChannels.includes(channel.id) ? "bg-purple-500/20 border-purple-500" : "bg-card"
+                }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-1">
                   {isMergeMode && (
                     <Checkbox
                       checked={selectedChannels.includes(channel.id)}
                       onCheckedChange={() => toggleChannelSelection(channel.id)}
                     />
                   )}
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20">
-                    <TvMinimal className="h-5 w-5 text-cyan-500" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{channel.name}</p>
-                    <p className="text-xs text-muted-foreground">ID: {channel.id}</p>
+                  <TvMinimal className="h-5 w-5 text-cyan-500" />
+                  <div className="flex-1">
+                    <div className="font-medium">{channel.name}</div>
+                    <div className="text-xs text-muted-foreground">ID: {channel.id}</div>
                   </div>
                 </div>
-                {!isMergeMode && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openEditDialog(channel)
-                      }}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteChannel(channel.id)
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                    <Switch
-                      checked={channel.enabled}
-                      onCheckedChange={(checked) => toggleChannel(channel.id, checked)}
-                    />
-                  </div>
-                )}
+
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => openEditDialog(channel)} size="sm" variant="ghost">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Switch checked={channel.enabled} onCheckedChange={(checked) => toggleChannel(channel.id, checked)} />
+                </div>
               </div>
             ))}
           </div>
@@ -774,6 +805,82 @@ export function AdminDashboard() {
           ))}
         </div>
       </Card>
+
+      {/* Create/Merge Channel Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{createMode === "merge" ? "Fusionner des chaînes" : "Créer une nouvelle chaîne"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {createMode === "merge" && (
+              <div className="p-3 bg-purple-500/10 rounded-lg border border-purple-500">
+                <p className="text-sm font-medium mb-2">Chaînes à fusionner ({selectedChannels.length}):</p>
+                <div className="text-xs text-muted-foreground">
+                  {selectedChannels.map((id) => channels.find((ch) => ch.id === id)?.name).join(", ")}
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4">
+              <div>
+                <Label>Nom de la chaîne *</Label>
+                <Input
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  placeholder="Ex: EUROSPORT 1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Catégorie</Label>
+                  <Input
+                    value={createForm.category}
+                    onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
+                    placeholder="Ex: Sport"
+                  />
+                </div>
+                <div>
+                  <Label>Langue</Label>
+                  <Input
+                    value={createForm.language}
+                    onChange={(e) => setCreateForm({ ...createForm, language: e.target.value })}
+                    placeholder="Ex: FR"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>URL du logo</Label>
+                <Input
+                  value={createForm.logo}
+                  onChange={(e) => setCreateForm({ ...createForm, logo: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <Label>URL du fond</Label>
+                <Input
+                  value={createForm.background}
+                  onChange={(e) => setCreateForm({ ...createForm, background: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={saveNewChannel} className="bg-green-500 hover:bg-green-600">
+              {createMode === "merge" ? "Fusionner" : "Créer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Existing dialogs */}
       <Dialog open={!!editingChannel} onOpenChange={() => setEditingChannel(null)}>

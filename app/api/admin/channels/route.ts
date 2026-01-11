@@ -20,13 +20,13 @@ export async function GET() {
     }
 
     const { data: channels, error } = await supabase
-      .from("channels")
+      .from("catalog_cache")
       .select("*")
-      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
 
     if (error) throw error
 
-    return NextResponse.json({ channels })
+    return NextResponse.json({ channels: channels || [] })
   } catch (error) {
     console.error("[v0] Admin channels fetch error:", error)
     return NextResponse.json({ error: "Failed to fetch channels" }, { status: 500 })
@@ -51,13 +51,12 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const { id, enabled, sort_order } = await request.json()
+    const { id, enabled } = await request.json()
 
     const updates: any = { updated_at: new Date().toISOString() }
     if (typeof enabled === "boolean") updates.enabled = enabled
-    if (typeof sort_order === "number") updates.sort_order = sort_order
 
-    const { error } = await supabase.from("channels").update(updates).eq("id", id)
+    const { error } = await supabase.from("catalog_cache").update(updates).eq("id", id)
 
     if (error) throw error
 
@@ -89,7 +88,7 @@ export async function POST(request: Request) {
     const { channels } = await request.json()
 
     // Bulk upsert channels
-    const { error } = await supabase.from("channels").upsert(
+    const { error } = await supabase.from("catalog_cache").upsert(
       channels.map((ch: any, index: number) => ({
         id: ch.baseId || ch.baseName,
         name: ch.displayName,
@@ -132,10 +131,10 @@ export async function PATCH(request: Request) {
     if (name) updates.name = name
     if (category) updates.category = category
     if (language) updates.language = language
-    if (logo) updates.logo = logo
-    if (background) updates.background = background
+    if (logo !== undefined) updates.logo = logo
+    if (background !== undefined) updates.background = background
 
-    const { error } = await supabase.from("channels").update(updates).eq("id", id)
+    const { error } = await supabase.from("catalog_cache").update(updates).eq("id", id)
 
     if (error) throw error
 
@@ -171,7 +170,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Channel ID required" }, { status: 400 })
     }
 
-    const { error } = await supabase.from("channels").delete().eq("id", id)
+    const { error } = await supabase.from("catalog_cache").delete().eq("id", id)
 
     if (error) throw error
 
