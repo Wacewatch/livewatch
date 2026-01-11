@@ -18,13 +18,29 @@ export function getExternalId(internalId: string): string | undefined {
 }
 
 function getBaseName(name: string): string {
-  return name
-    .replace(/\s*(HD|FHD|4K|UHD|SD|HEVC|H\.264|H264).*$/i, "") // Remove quality indicators
-    .replace(/\s+\d+$/, "") // Remove trailing numbers
-    .replace(/[^\w\s]/g, "") // Remove special characters
-    .replace(/\s+/g, " ") // Normalize whitespace
-    .toUpperCase() // Normalize to uppercase for comparison
+  let normalized = name
+    // Remove quality suffixes only if they appear at the end
+    .replace(/\s+(HD|FHD|4K|UHD|SD|HEVC|H\.264|H264)\s*$/i, "")
+    // Remove "LIVE" suffix
+    .replace(/\s+LIVE\s*$/i, "")
+    // Normalize multiple spaces to single space
+    .replace(/\s+/g, " ")
+    // Remove leading/trailing spaces
     .trim()
+    // Uppercase for comparison
+    .toUpperCase()
+
+  // Remove all non-alphanumeric except spaces to normalize "13 EME RUE" and "13EME RUE"
+  normalized = normalized.replace(/[^A-Z0-9\s]/g, "")
+
+  // Normalize spacing around numbers (so "13EME" becomes "13 EME")
+  normalized = normalized.replace(/(\d)([A-Z])/g, "$1 $2")
+  normalized = normalized.replace(/([A-Z])(\d)/g, "$1 $2")
+
+  // Final whitespace normalization
+  normalized = normalized.replace(/\s+/g, " ").trim()
+
+  return normalized
 }
 
 export async function GET() {
