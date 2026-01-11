@@ -32,8 +32,52 @@ async function fetchFromExternalAPI() {
       throw new Error("Invalid API response structure")
     }
 
-    const channels = data.metas
+    console.log("[v0] Fetching detailed sources for channels...")
+    const channelsWithDetails = await Promise.all(
+      data.metas
+        .filter((meta: any) => meta.type === "tv")
+        .slice(0, 100) // Limit to 100 to avoid rate limiting
+        .map(async (meta: any) => {
+          const details = await fetchChannelDetails(meta.id)
+
+          const sources = details?.sources || [
+            {
+              id: meta.id,
+              name: meta.name,
+              quality: "SD",
+              url: meta.id,
+            },
+          ]
+
+          return {
+            id: meta.id,
+            baseId: meta.id,
+            name: meta.name,
+            baseName: meta.name,
+            poster: isGenericPlaceholder(details?.poster || meta.poster) ? null : details?.poster || meta.poster,
+            logo: isGenericPlaceholder(details?.logo || meta.logo) ? null : details?.logo || meta.logo,
+            background: isGenericPlaceholder(details?.background || meta.background)
+              ? null
+              : details?.background || meta.background,
+            posterShape: meta.posterShape || "landscape",
+            category: details?.category || meta.category || "Divers",
+            genres: meta.genres || [],
+            type: meta.type,
+            language: meta.language || "FR",
+            sources: sources.map((src: any, idx: number) => ({
+              id: meta.id,
+              name: src.name || meta.name,
+              quality: src.quality || "SD",
+              url: meta.id,
+              priority: src.priority || idx + 1,
+            })),
+          }
+        }),
+    )
+
+    const remainingChannels = data.metas
       .filter((meta: any) => meta.type === "tv")
+      .slice(100)
       .map((meta: any) => ({
         id: meta.id,
         baseId: meta.id,
@@ -52,13 +96,15 @@ async function fetchFromExternalAPI() {
             id: meta.id,
             name: meta.name,
             quality: "SD",
-            url: `https://nakios.site/api/tv-live/channel/${meta.id}`,
+            url: meta.id,
           },
         ],
       }))
 
-    console.log(`[v0] Successfully loaded ${channels.length} channels from external API`)
-    return channels
+    const allChannels = [...channelsWithDetails, ...remainingChannels]
+
+    console.log(`[v0] Successfully loaded ${allChannels.length} channels from external API`)
+    return allChannels
   } catch (error) {
     console.error("[v0] External API error:", error)
     return []
