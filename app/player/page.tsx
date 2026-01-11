@@ -16,18 +16,35 @@ function PlayerContent() {
 
     const fetchChannel = async () => {
       try {
+        console.log("[v0] Fetching channel with ID:", channelId)
         const response = await fetch("/api/catalog")
         const data = await response.json()
         const channels = data.channels || []
 
-        // Try to find channel by exact match or decoded match
-        let found = channels.find((c: Channel) => c.baseId === channelId || c.id === channelId)
+        const found = channels.find((c: Channel) => {
+          // Direct match
+          if (c.baseId === channelId || c.id === channelId) return true
 
-        // If not found, try decoding the channelId once
-        if (!found) {
-          const decodedId = decodeURIComponent(channelId)
-          found = channels.find((c: Channel) => c.baseId === decodedId || c.id === decodedId)
-        }
+          // Try decoding the channelId
+          try {
+            const decodedId = decodeURIComponent(channelId)
+            if (c.baseId === decodedId || c.id === decodedId) return true
+          } catch (e) {
+            // Ignore decode errors
+          }
+
+          // Try encoding the channel baseId
+          try {
+            const encodedBaseId = encodeURIComponent(c.baseId)
+            if (encodedBaseId === channelId) return true
+          } catch (e) {
+            // Ignore encode errors
+          }
+
+          return false
+        })
+
+        console.log("[v0] Channel found:", found ? found.baseName : "not found")
 
         if (found) {
           setChannel(found)

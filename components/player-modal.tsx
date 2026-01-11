@@ -327,7 +327,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const currentQuality = channel.sources[selectedSourceIndex]?.quality || "SD"
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
-  const playerLink = `${baseUrl}/player?url=${channel.baseId}`
+  const playerLink = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}`
 
   return (
     <>
