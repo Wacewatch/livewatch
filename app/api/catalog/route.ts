@@ -14,29 +14,38 @@ export async function GET() {
       next: { revalidate: 300 },
     })
 
-    const contentType = response.headers.get("content-type")
-    if (!contentType?.includes("application/json")) {
-      const text = await response.text()
-      console.error("[v0] Catalog API returned non-JSON:", text.substring(0, 100))
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
 
-      // Return cached/fallback data if rate limited
+    const text = await response.text()
+
+    try {
+      const data = JSON.parse(text)
+
+      const channels =
+        data.metas?.map((meta: any) => ({
+          id: meta.id,
+          name: meta.name,
+          logo: meta.poster,
+          group: meta.id.includes("|group:") ? meta.id.split("|group:")[1] : "Other",
+          type: meta.type || "tv",
+        })) || []
+
+      console.log("[v0] Successfully fetched", channels.length, "channels")
+
+      return NextResponse.json({ channels })
+    } catch (parseError) {
+      console.error("[v0] JSON parse error:", text.substring(0, 200))
       return NextResponse.json(
         {
-          error: "API temporarily unavailable",
-          message: text.substring(0, 100),
+          error: "Invalid JSON response",
+          message: "Unable to parse catalog data",
           channels: [],
         },
         { status: 503 },
       )
     }
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const data = await response.json()
-    console.log("[v0] Successfully fetched", data?.channels?.length || 0, "channels")
-    return NextResponse.json(data)
   } catch (error) {
     console.error("[v0] Catalog API error:", error)
     return NextResponse.json(

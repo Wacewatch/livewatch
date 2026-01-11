@@ -23,14 +23,14 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    if (isOpen) {
-      console.log("[v0] Opening player for channel:", channel?.name)
+    if (isOpen && channel) {
+      console.log("[v0] Opening player for channel:", channel.name)
       document.body.style.overflow = "hidden"
       setAdUnlocked(false)
       setStreamUrl(null)
       setError(null)
       setVideoLoaded(false)
-    } else {
+    } else if (!isOpen) {
       document.body.style.overflow = ""
       if (videoRef.current) {
         videoRef.current.pause()
@@ -221,7 +221,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
             <div className="text-center">
-              <div className="text-red-400 text-6xl mb-4">⚠️</div>
+              <div className="text-red-400 text-6xl mb-6 animate-pulse">⚠️</div>
               <p className="text-white text-lg mb-4">{error}</p>
               <button
                 onClick={handleReload}

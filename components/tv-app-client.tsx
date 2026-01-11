@@ -7,14 +7,14 @@ import { useFavorites } from "@/lib/hooks/use-favorites"
 import type { Channel, ChannelWithFavorite, SortType } from "@/lib/types"
 
 export function TVAppClient() {
-  const [channels, setChannels] = useState<ChannelWithFavorite[]>([])
+  const [channels, setChannels] = useState<Channel[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortType, setSortType] = useState<SortType>("name")
   const [selectedChannel, setSelectedChannel] = useState<ChannelWithFavorite | null>(null)
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
 
-  const { favorites, toggleFavorite, isFavorite, count: favoritesCount } = useFavorites()
+  const { favorites, toggleFavorite, count: favoritesCount } = useFavorites()
 
   useEffect(() => {
     const fetchChannels = async () => {
@@ -40,15 +40,8 @@ export function TVAppClient() {
         const channelsList: Channel[] = Array.isArray(data) ? data : data.metas || data.channels || data.data || []
 
         if (channelsList.length > 0) {
-          const channelsWithFav = channelsList.map((meta) => ({
-            id: meta.id,
-            name: meta.name,
-            category: meta.genres && meta.genres.length > 0 ? meta.genres[0] : "TV",
-            isFavorite: isFavorite(meta.id),
-          }))
-
-          console.log("[v0] Loaded channels:", channelsWithFav.length)
-          setChannels(channelsWithFav)
+          console.log("[v0] Loaded channels:", channelsList.length)
+          setChannels(channelsList)
         } else {
           console.error("[v0] No channels found in response")
         }
@@ -60,20 +53,17 @@ export function TVAppClient() {
     }
 
     fetchChannels()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Fetch channels only once on mount
+  }, [])
 
-  useEffect(() => {
-    setChannels((prev) =>
-      prev.map((ch) => ({
-        ...ch,
-        isFavorite: isFavorite(ch.id),
-      })),
-    )
-  }, [favorites, isFavorite]) // Update favorites status separately when favorites change
+  const channelsWithFavorites = useMemo(() => {
+    return channels.map((ch) => ({
+      ...ch,
+      isFavorite: favorites.includes(ch.id),
+    }))
+  }, [channels, favorites])
 
   const filteredChannels = useMemo(() => {
-    let filtered = channels
+    let filtered = channelsWithFavorites
 
     if (showOnlyFavorites) {
       filtered = filtered.filter((c) => c.isFavorite)
@@ -91,7 +81,7 @@ export function TVAppClient() {
     }
 
     return filtered
-  }, [channels, searchQuery, sortType, showOnlyFavorites])
+  }, [channelsWithFavorites, searchQuery, sortType, showOnlyFavorites])
 
   if (loading) {
     return (
