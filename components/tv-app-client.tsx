@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, Filter, Globe } from "lucide-react"
+import { Search, Star, Filter, Globe, LaptopMinimal as TvMinimal } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import type { GroupedChannel, SortType } from "@/lib/types"
@@ -18,7 +18,6 @@ export function TVAppClient() {
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [selectedLanguage, setSelectedLanguage] = useState<string>("all")
-  const [selectedQuality, setSelectedQuality] = useState<string>("all")
 
   const { favorites, toggleFavorite, count: favoritesCount } = useFavorites()
 
@@ -80,11 +79,6 @@ export function TVAppClient() {
     return ["all", ...Array.from(langs).sort()]
   }, [channels])
 
-  const qualities = useMemo(() => {
-    const quals = new Set(channels.flatMap((c) => c.sources.map((s) => s.quality)).filter(Boolean))
-    return ["all", ...Array.from(quals).sort()]
-  }, [channels])
-
   const filteredChannels = useMemo(() => {
     let filtered = channelsWithFavorites
 
@@ -98,10 +92,6 @@ export function TVAppClient() {
 
     if (selectedLanguage !== "all") {
       filtered = filtered.filter((c) => c.language === selectedLanguage)
-    }
-
-    if (selectedQuality !== "all") {
-      filtered = filtered.filter((c) => c.sources.some((s) => s.quality === selectedQuality))
     }
 
     if (searchQuery) {
@@ -120,15 +110,7 @@ export function TVAppClient() {
     }
 
     return filtered
-  }, [
-    channelsWithFavorites,
-    searchQuery,
-    sortType,
-    showOnlyFavorites,
-    selectedCategory,
-    selectedLanguage,
-    selectedQuality,
-  ])
+  }, [channelsWithFavorites, searchQuery, sortType, showOnlyFavorites, selectedCategory, selectedLanguage])
 
   if (loading) {
     return (
@@ -197,23 +179,39 @@ export function TVAppClient() {
 
       <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10">
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-2 flex-wrap gap-4"></div>
-          <div className="flex items-center gap-6 text-muted-foreground text-sm"></div>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <TvMinimal className="w-6 h-6 text-primary" />
+              <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+                Toutes les chaînes
+              </h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-6 text-muted-foreground text-sm">
+            <span className="flex items-center gap-2">
+              <TvMinimal className="w-4 h-4" />
+              {filteredChannels.length} chaînes
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              En direct
+            </span>
+          </div>
         </div>
 
-        <div className="mb-8 glass-card border border-border/50 rounded-2xl p-6">
+        <div className="mb-8 glass-card border border-border/50 rounded-2xl p-4 md:p-5 max-w-4xl mx-auto">
           <div className="flex items-center gap-2 mb-4">
             <Filter className="w-5 h-5 text-primary" />
             <h3 className="text-lg font-bold text-foreground">Filtres</h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">Catégorie</label>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               >
                 {categories.map((cat) => (
                   <option key={cat} value={cat} className="bg-card text-foreground">
@@ -228,26 +226,11 @@ export function TVAppClient() {
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               >
                 {languages.map((lang) => (
                   <option key={lang} value={lang} className="bg-card text-foreground">
                     {lang === "all" ? "Toutes les langues" : lang}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground mb-2 block">Qualité</label>
-              <select
-                value={selectedQuality}
-                onChange={(e) => setSelectedQuality(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary outline-none transition-all"
-              >
-                {qualities.map((qual) => (
-                  <option key={qual} value={qual} className="bg-card text-foreground">
-                    {qual === "all" ? "Toutes les qualités" : qual}
                   </option>
                 ))}
               </select>

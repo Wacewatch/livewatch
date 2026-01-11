@@ -223,9 +223,11 @@ export function AdminDashboard() {
         body: JSON.stringify({ id: channelId, enabled }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        console.error("[v0] Failed to toggle channel:", await response.text())
-        alert("Échec de la mise à jour de la chaîne")
+        console.error("[v0] Failed to toggle channel:", data)
+        alert(`Échec de la mise à jour de la chaîne: ${data.error || "Erreur inconnue"}`)
         return
       }
 
@@ -233,7 +235,7 @@ export function AdminDashboard() {
       await fetchDashboardData()
     } catch (error) {
       console.error("[v0] Failed to toggle channel:", error)
-      alert("Erreur lors de la mise à jour de la chaîne")
+      alert(`Erreur lors de la mise à jour de la chaîne: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
     }
   }
 
@@ -372,7 +374,11 @@ export function AdminDashboard() {
     }
 
     try {
-      console.log("[v0] Creating channel with merge IDs:", selectedChannels)
+      console.log("[v0] Creating channel with data:", {
+        ...createForm,
+        mergeIds: createMode === "merge" ? selectedChannels : [],
+      })
+
       const response = await fetch("/api/admin/channels/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -382,14 +388,14 @@ export function AdminDashboard() {
         }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const error = await response.text()
-        console.error("[v0] Failed to create channel:", error)
-        alert("Échec de la création de la chaîne: " + error)
+        console.error("[v0] Failed to create channel:", data)
+        alert(`Échec de la création de la chaîne: ${data.error || JSON.stringify(data)}`)
         return
       }
 
-      const data = await response.json()
       console.log("[v0] Channel created successfully:", data)
 
       setShowCreateDialog(false)
@@ -408,7 +414,7 @@ export function AdminDashboard() {
       alert("Chaîne créée avec succès !")
     } catch (error) {
       console.error("[v0] Failed to create channel:", error)
-      alert("Échec de la création de la chaîne")
+      alert(`Échec de la création de la chaîne: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
     }
   }
 
