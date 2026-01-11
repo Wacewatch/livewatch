@@ -1,18 +1,12 @@
 export interface Channel {
   id: string
   name: string
-  country: string
-  p?: number // priority field from Vavoo
+  category?: string
+  genres?: string[]
 }
 
-export interface GroupedChannel {
-  displayName: string
-  normalizedName: string
-  country: string
-  sources: {
-    id: string
-    originalName: string
-  }[]
+export interface ChannelWithFavorite extends Channel {
+  isFavorite: boolean
 }
 
 export type SortType = "name" | "trending"

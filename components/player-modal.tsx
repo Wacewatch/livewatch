@@ -1,69 +1,154 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { X, Maximize, Minimize, ExternalLink, RefreshCw, Cast, Loader2, Wifi, WifiOff } from "lucide-react"
-import type { GroupedChannel } from "@/lib/types"
+import { useState, useEffect, useRef } from "react"
+import { X, Maximize, Minimize, RefreshCw, Loader2, Lock, Unlock } from "lucide-react"
+import type { ChannelWithFavorite } from "@/lib/types"
 
 interface PlayerModalProps {
-  channel: GroupedChannel | null
+  channel: ChannelWithFavorite | null
   isOpen: boolean
   onClose: () => void
 }
 
+const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
+
 export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
-  const [selectedSource, setSelectedSource] = useState(0)
+  const [adUnlocked, setAdUnlocked] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [streamUrl, setStreamUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [playerStatus, setPlayerStatus] = useState<"loading" | "buffering" | "playing" | "error">("loading")
-  const [statusMessage, setStatusMessage] = useState("Initialisation...")
-  const retryCountRef = useRef(0)
-  const [playerKey, setPlayerKey] = useState(0)
+  const [videoLoaded, setVideoLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-
-  const getPlayerUrl = useCallback((sourceUrl: string, key: number) => {
-    const url = `/api/player?url=${encodeURIComponent(sourceUrl)}&k=${key}`
-    console.log("[v0] Generated player URL:", url)
-    console.log("[v0] Source URL:", sourceUrl)
-    return url
-  }, [])
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      console.log("[v0] Received postMessage:", event.data)
-      if (event.data?.type === "playerStatus") {
-        const { status, message } = event.data
-        console.log("[v0] Player status update:", status, message)
-        setPlayerStatus(status)
-        if (message) setStatusMessage(message)
-      }
-    }
-
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [])
-
-  useEffect(() => {
-    console.log("[v0] PlayerModal isOpen changed:", isOpen)
     if (isOpen) {
-      console.log("[v0] Opening player for channel:", channel?.displayName)
-      console.log("[v0] Channel sources:", channel?.sources)
+      console.log("[v0] Opening player for channel:", channel?.name)
       document.body.style.overflow = "hidden"
-      setSelectedSource(0)
-      retryCountRef.current = 0
-      const newKey = Date.now()
-      console.log("[v0] Setting player key:", newKey)
-      setPlayerKey(newKey)
-      setPlayerStatus("loading")
-      setStatusMessage("Initialisation...")
+      setAdUnlocked(false)
+      setStreamUrl(null)
+      setError(null)
+      setVideoLoaded(false)
     } else {
       document.body.style.overflow = ""
-      setPlayerKey(0)
+      if (videoRef.current) {
+        videoRef.current.pause()
+        videoRef.current.src = ""
+      }
     }
 
     return () => {
       document.body.style.overflow = ""
     }
   }, [isOpen, channel])
+
+  const unlockStream = () => {
+    console.log("[v0] Unlock button clicked")
+
+    // Open ad
+    try {
+      const popup = window.open(AD_URL, "_blank", "width=1024,height=768")
+
+      if (!popup || popup.closed || typeof popup.closed === "undefined") {
+        const link = document.createElement("a")
+        link.href = AD_URL
+        link.target = "_blank"
+        link.rel = "noopener noreferrer"
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
+    } catch (e) {
+      console.error("[v0] Failed to open ad:", e)
+    }
+
+    // Unlock player
+    setTimeout(() => {
+      setAdUnlocked(true)
+      loadStreamSource()
+    }, 1000)
+  }
+
+  const loadStreamSource = async () => {
+    if (!channel) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log("[v0] Fetching stream for channel:", channel.id)
+      const response = await fetch(`/api/stream?id=${encodeURIComponent(channel.id)}`)
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log("[v0] Stream data received:", data)
+
+      if (data.success && data.data && data.data.sources && data.data.sources.length > 0) {
+        const url = data.data.sources[0].url
+        console.log("[v0] Playing stream URL:", url)
+        setStreamUrl(url)
+        playSource(url)
+      } else {
+        throw new Error("Aucune source disponible")
+      }
+    } catch (err) {
+      console.error("[v0] Error loading stream:", err)
+      setError(err instanceof Error ? err.message : "Erreur de chargement")
+      setLoading(false)
+    }
+  }
+
+  const playSource = (url: string) => {
+    const video = videoRef.current
+    if (!video) return
+
+    console.log("[v0] Setting video source:", url)
+    video.src = url
+    video.load()
+
+    const loadTimeout = setTimeout(() => {
+      if (!videoLoaded) {
+        console.log("[v0] Video taking longer than expected...")
+      }
+    }, 15000)
+
+    video.onloadeddata = () => {
+      console.log("[v0] Video loaded")
+      clearTimeout(loadTimeout)
+      setVideoLoaded(true)
+      setLoading(false)
+      video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
+    }
+
+    video.oncanplay = () => {
+      console.log("[v0] Video can play")
+      clearTimeout(loadTimeout)
+      setVideoLoaded(true)
+      setLoading(false)
+    }
+
+    video.onerror = () => {
+      console.error("[v0] Video error")
+      clearTimeout(loadTimeout)
+      setError("Erreur de lecture du flux")
+      setLoading(false)
+    }
+  }
+
+  const handleReload = () => {
+    console.log("[v0] Reloading stream")
+    setVideoLoaded(false)
+    setError(null)
+    if (streamUrl) {
+      playSource(streamUrl)
+    } else {
+      loadStreamSource()
+    }
+  }
 
   const toggleFullscreen = () => {
     const container = containerRef.current
@@ -76,205 +161,94 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     }
   }
 
-  const handleReload = () => {
-    console.log("[v0] Reloading player...")
-    retryCountRef.current += 1
-    const newKey = Date.now()
-    console.log("[v0] New player key:", newKey)
-    setPlayerKey(newKey)
-    setPlayerStatus("loading")
-    setStatusMessage("Rechargement...")
-  }
-
-  const handleSourceChange = (index: number) => {
-    console.log("[v0] Changing source to index:", index)
-    console.log("[v0] New source URL:", channel?.sources[index]?.url)
-    setSelectedSource(index)
-    retryCountRef.current = 0
-    const newKey = Date.now()
-    console.log("[v0] New player key:", newKey)
-    setPlayerKey(newKey)
-    setPlayerStatus("loading")
-    setStatusMessage("Changement de source...")
-  }
-
-  const openDirectStream = () => {
-    const sourceUrl = channel?.sources[selectedSource]?.url
-    if (sourceUrl) {
-      window.open(sourceUrl, "_blank")
-    }
-  }
-
-  const openInVLC = () => {
-    const sourceUrl = channel?.sources[selectedSource]?.url
-    if (!sourceUrl || !channel) return
-
-    window.location.href = `vlc://${sourceUrl}`
-
-    setTimeout(() => {
-      const blob = new Blob([`#EXTM3U\n#EXTINF:-1,${channel.displayName}\n${sourceUrl}`], {
-        type: "application/x-mpegURL",
-      })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${channel.displayName}.m3u8`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    }, 500)
-  }
-
   if (!isOpen || !channel) return null
-
-  const currentSourceUrl = channel.sources[selectedSource]?.url
-  console.log("[v0] Current source URL:", currentSourceUrl)
-  console.log("[v0] Player key:", playerKey)
-
-  const getStatusIcon = () => {
-    switch (playerStatus) {
-      case "loading":
-        return <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-      case "buffering":
-        return <Wifi className="w-4 h-4 text-yellow-400 animate-pulse" />
-      case "playing":
-        return <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-      case "error":
-        return <WifiOff className="w-4 h-4 text-red-400" />
-      default:
-        return null
-    }
-  }
 
   return (
     <div ref={containerRef} className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header with controls */}
-      <div className="flex flex-col bg-gradient-to-b from-black to-transparent p-4 z-20">
-        {/* Top row - title and actions */}
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-white">{channel.displayName}</h2>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              EN DIRECT
-            </span>
-            {channel.sources.length > 1 && (
-              <span className="text-white/50 text-sm">
-                Source {selectedSource + 1}/{channel.sources.length}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleReload}
-              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
-              title="Recharger"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={openDirectStream}
-              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
-              title="Flux direct M3U8"
-            >
-              <ExternalLink className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={openInVLC}
-              className="p-2.5 rounded-full bg-orange-500/80 text-white hover:bg-orange-500 transition-all"
-              title="Ouvrir dans VLC"
-            >
-              <Cast className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={toggleFullscreen}
-              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
-            >
-              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-            </button>
-
-            <button
-              onClick={onClose}
-              className="p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-all"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+      {/* Header */}
+      <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black to-transparent z-20">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-white">{channel.name}</h2>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            EN DIRECT
+          </span>
         </div>
 
-        {channel.sources.length > 1 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-white/60 font-medium mr-1">Sources:</span>
-            {channel.sources.map((source, index) => (
-              <button
-                key={source.id}
-                onClick={() => handleSourceChange(index)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                  index === selectedSource
-                    ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/30"
-                    : "bg-white/10 text-white hover:bg-white/20"
-                }`}
-              >
-                Source {index + 1}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Video player area - iframe key only changes on explicit actions */}
-      <div className="flex-1 relative">
-        {currentSourceUrl && playerKey > 0 ? (
-          <iframe
-            ref={iframeRef}
-            key={playerKey}
-            src={getPlayerUrl(currentSourceUrl, playerKey)}
-            className="absolute inset-0 w-full h-full border-0"
-            allow="autoplay; fullscreen; encrypted-media"
-            allowFullScreen
-            onLoad={() => console.log("[v0] Iframe loaded successfully")}
-            onError={(e) => console.error("[v0] Iframe load error:", e)}
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-white">
-            <p>Aucune source disponible</p>
-          </div>
-        )}
-      </div>
-
-      {/* Status bar */}
-      <div className="bg-black/90 border-t border-white/10 px-4 py-3 flex items-center gap-3 z-20">
-        {getStatusIcon()}
-        <span
-          className={`text-sm font-medium ${
-            playerStatus === "playing"
-              ? "text-green-400"
-              : playerStatus === "error"
-                ? "text-red-400"
-                : playerStatus === "buffering"
-                  ? "text-yellow-400"
-                  : "text-cyan-400"
-          }`}
-        >
-          {statusMessage}
-        </span>
-
-        {playerStatus === "error" && (
+        <div className="flex items-center gap-2">
           <button
             onClick={handleReload}
-            className="ml-auto px-4 py-1.5 rounded-full text-xs font-semibold bg-cyan-500 text-black hover:bg-cyan-400 transition-all"
+            className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+            title="Recharger"
           >
-            Reessayer
+            <RefreshCw className="w-5 h-5" />
           </button>
+
+          <button
+            onClick={toggleFullscreen}
+            className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+          >
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+          </button>
+
+          <button
+            onClick={onClose}
+            className="p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-all"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Video player area */}
+      <div className="flex-1 relative">
+        <video
+          ref={videoRef}
+          controls
+          className="absolute inset-0 w-full h-full"
+          style={{ display: videoLoaded ? "block" : "none" }}
+        />
+
+        {/* Loading state */}
+        {loading && !error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+            <Loader2 className="w-16 h-16 text-cyan-400 animate-spin mb-4" />
+            <p className="text-white text-lg">Chargement du flux...</p>
+          </div>
         )}
 
-        {playerStatus === "buffering" && (
-          <span className="ml-auto text-xs text-white/40">Patientez, chargement en cours...</span>
+        {/* Error state */}
+        {error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+            <div className="text-center">
+              <div className="text-red-400 text-6xl mb-4">⚠️</div>
+              <p className="text-white text-lg mb-4">{error}</p>
+              <button
+                onClick={handleReload}
+                className="px-6 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all"
+              >
+                <RefreshCw className="w-5 h-5 inline mr-2" />
+                Réessayer
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Ad lock overlay */}
+        {!adUnlocked && !loading && !error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+            <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
+            <h3 className="text-3xl font-bold text-white mb-4">Stream verrouillé</h3>
+            <p className="text-white/70 text-lg mb-2">Regardez une courte publicité pour débloquer ce stream</p>
+            <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
+            <button
+              onClick={unlockStream}
+              className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
+            >
+              <Unlock className="w-6 h-6" />
+              <span>Débloquer le stream</span>
+            </button>
+          </div>
         )}
       </div>
     </div>
