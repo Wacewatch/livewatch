@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, LaptopMinimal as TvMinimal, Filter, Globe, Sparkles } from "lucide-react"
+import { Search, Star, Filter, Globe, Sparkles } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import { UserMenu } from "@/components/user-menu"
@@ -147,45 +147,42 @@ export function TVAppClient() {
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
-        <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-5 flex-wrap p-5 relative">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary blur-xl rounded-full opacity-50" />
-              <TvMinimal className="w-10 h-10 text-primary relative animate-float" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary">
-                LiveWatch
-              </h1>
-              <p className="text-xs text-muted-foreground font-medium">Premium TV Streaming</p>
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-3 md:gap-5 flex-wrap p-3 md:p-5 relative">
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="relative w-32 h-10 md:w-48 md:h-12">
+              <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" priority />
             </div>
           </div>
 
-          <div className="relative flex-1 max-w-2xl">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
+          <div className="relative flex-1 max-w-2xl order-last md:order-none w-full md:w-auto">
+            <Search className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-primary" />
             <input
               type="text"
               placeholder="Rechercher une chaîne..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-14 pr-5 py-4 rounded-2xl glass-card border border-border/50 text-foreground placeholder:text-muted-foreground focus:border-primary focus:shadow-lg focus:shadow-primary/20 transition-all outline-none"
+              className="w-full pl-10 md:pl-14 pr-3 md:pr-5 py-3 md:py-4 rounded-2xl glass-card border border-border/50 text-sm md:text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:shadow-lg focus:shadow-primary/20 transition-all outline-none"
             />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <UserMenu />
 
             <button
               onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-              className={`relative w-14 h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
+              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
                 showOnlyFavorites
                   ? "border-yellow-400/50 text-yellow-400 glow-accent scale-110"
                   : "border-border/50 text-foreground hover:border-primary/50 hover:scale-105"
               }`}
             >
-              <Star className="w-6 h-6" fill={showOnlyFavorites ? "currentColor" : "none"} strokeWidth={2} />
+              <Star
+                className="w-5 h-5 md:w-6 md:h-6"
+                fill={showOnlyFavorites ? "currentColor" : "none"}
+                strokeWidth={2}
+              />
               {favoritesCount > 0 && (
-                <span className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                <span className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-5 h-5 md:w-6 md:h-6 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-pulse">
                   {favoritesCount}
                 </span>
               )}
@@ -194,7 +191,7 @@ export function TVAppClient() {
         </div>
       </header>
 
-      <main className="max-w-screen-2xl mx-auto p-6 lg:p-10">
+      <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
             <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent flex items-center gap-3">
@@ -205,7 +202,7 @@ export function TVAppClient() {
                 </>
               ) : (
                 <>
-                  <TvMinimal className="w-8 h-8 text-primary" />
+                  <Image src="/livewatch-logo.png" alt="LiveWatch" width={48} height={12} className="object-contain" />
                   Toutes les chaînes
                 </>
               )}
@@ -213,7 +210,7 @@ export function TVAppClient() {
           </div>
           <div className="flex items-center gap-6 text-muted-foreground text-sm">
             <span className="flex items-center gap-2">
-              <TvMinimal className="w-4 h-4" />
+              <Image src="/livewatch-logo.png" alt="LiveWatch" width={24} height={6} className="object-contain" />
               <span className="font-semibold text-foreground">{filteredChannels.length}</span> chaînes
             </span>
             <span className="flex items-center gap-2">
@@ -278,14 +275,20 @@ export function TVAppClient() {
         </div>
 
         {filteredChannels.length === 0 ? (
-          <div className="text-center py-32 relative">
+          <div className="text-center py-16 md:py-32 relative">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 rounded-3xl" />
-            <TvMinimal className="w-32 h-32 text-muted-foreground/30 mx-auto mb-6 animate-float" />
+            <Image
+              src="/livewatch-logo.png"
+              alt="LiveWatch"
+              width={96}
+              height={24}
+              className="object-contain mx-auto mb-6 animate-float"
+            />
             <h3 className="text-3xl font-bold text-foreground mb-3">Aucune chaîne trouvée</h3>
             <p className="text-muted-foreground text-lg">Essayez une autre recherche</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fade-in">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6 animate-fade-in">
             {filteredChannels.map((channel) => (
               <div
                 key={channel.baseId}
@@ -319,7 +322,13 @@ export function TVAppClient() {
                       />
                     ) : (
                       <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center backdrop-blur-sm border border-primary/20">
-                        <TvMinimal className="w-10 h-10 text-primary" />
+                        <Image
+                          src="/livewatch-logo.png"
+                          alt="LiveWatch"
+                          width={20}
+                          height={10}
+                          className="object-contain"
+                        />
                       </div>
                     )}
                   </div>

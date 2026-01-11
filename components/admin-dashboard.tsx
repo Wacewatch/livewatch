@@ -34,6 +34,11 @@ interface Stats {
   totalFavorites: number
   vipUsers: number
   adminUsers: number
+  onlineUsers: number
+  liveViewers: number
+  topChannels: Array<{ channel_id: string; channel_name: string; view_count: number }>
+  currentlyWatching: Array<{ channel_id: string; channel_name: string; viewer_count: number }>
+  viewsPerDay: Record<string, number>
 }
 
 interface User {
@@ -86,6 +91,9 @@ export function AdminDashboard() {
 
   useEffect(() => {
     fetchDashboardData()
+
+    const interval = setInterval(fetchDashboardData, 10000)
+    return () => clearInterval(interval)
   }, [])
 
   const fetchDashboardData = async () => {
@@ -301,77 +309,120 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Administration</h1>
-        <p className="text-muted-foreground">Tableau de bord Admin</p>
+    <div className="min-h-screen bg-background p-3 md:p-6">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold">Administration</h1>
+        <p className="text-sm md:text-base text-muted-foreground">Tableau de bord Admin</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-4">
+      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Utilisateurs</p>
-              <p className="text-2xl font-bold">{stats?.totalUsers || 0}</p>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">Utilisateurs</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.totalUsers || 0}</p>
             </div>
-            <Users className="h-8 w-8 text-purple-500" />
+            <Users className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-cyan-500 bg-gradient-to-br from-cyan-500/10 to-transparent p-4">
+        <Card className="border-l-4 border-l-cyan-500 bg-gradient-to-br from-cyan-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Chaînes</p>
-              <p className="text-2xl font-bold">{stats?.totalChannels || 0}</p>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">Chaînes</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.totalChannels || 0}</p>
             </div>
-            <TvMinimal className="h-8 w-8 text-cyan-500" />
+            <TvMinimal className="h-6 w-6 md:h-8 md:w-8 text-cyan-500" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500 bg-gradient-to-br from-green-500/10 to-transparent p-4">
+        <Card className="border-l-4 border-l-green-500 bg-gradient-to-br from-green-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Actives</p>
-              <p className="text-2xl font-bold">{stats?.enabledChannels || 0}</p>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">Actives</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.enabledChannels || 0}</p>
             </div>
-            <Activity className="h-8 w-8 text-green-500" />
+            <Activity className="h-6 w-6 md:h-8 md:w-8 text-green-500" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-orange-500 bg-gradient-to-br from-orange-500/10 to-transparent p-4">
+        <Card className="border-l-4 border-l-orange-500 bg-gradient-to-br from-orange-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">VIP</p>
-              <p className="text-2xl font-bold">{stats?.vipUsers || 0}</p>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">VIP</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.vipUsers || 0}</p>
             </div>
-            <Crown className="h-8 w-8 text-orange-500" />
+            <Crown className="h-6 w-6 md:h-8 md:w-8 text-orange-500" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500 bg-gradient-to-br from-red-500/10 to-transparent p-4">
+        <Card className="border-l-4 border-l-red-500 bg-gradient-to-br from-red-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Admins</p>
-              <p className="text-2xl font-bold">{stats?.adminUsers || 0}</p>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">Admins</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.adminUsers || 0}</p>
             </div>
-            <Shield className="h-8 w-8 text-red-500" />
+            <Shield className="h-6 w-6 md:h-8 md:w-8 text-red-500" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-yellow-500 bg-gradient-to-br from-yellow-500/10 to-transparent p-4">
+        <Card className="border-l-4 border-l-yellow-500 bg-gradient-to-br from-yellow-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Favoris</p>
-              <p className="text-2xl font-bold">{stats?.totalFavorites || 0}</p>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">Favoris</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.totalFavorites || 0}</p>
             </div>
-            <Star className="h-8 w-8 text-yellow-500" />
+            <Star className="h-6 w-6 md:h-8 md:w-8 text-yellow-500" />
           </div>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/10 to-transparent p-3 md:p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">En ligne</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.onlineUsers || 0}</p>
+              <p className="text-xs text-muted-foreground">utilisateurs connectés</p>
+            </div>
+            <Activity className="h-6 w-6 md:h-8 md:w-8 text-blue-500 animate-pulse" />
+          </div>
+        </Card>
+
+        <Card className="border-l-4 border-l-pink-500 bg-gradient-to-br from-pink-500/10 to-transparent p-3 md:p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">En visionnage</p>
+              <p className="text-xl md:text-2xl font-bold">{stats?.liveViewers || 0}</p>
+              <p className="text-xs text-muted-foreground">regardent maintenant</p>
+            </div>
+            <TvMinimal className="h-6 w-6 md:h-8 md:w-8 text-pink-500 animate-pulse" />
+          </div>
+        </Card>
+
+        <Card className="col-span-1 md:col-span-2 p-3 md:p-4">
+          <h3 className="text-sm md:text-base font-bold mb-3">Top Chaînes en Direct</h3>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {stats?.currentlyWatching && stats.currentlyWatching.length > 0 ? (
+              stats.currentlyWatching.map((channel, index) => (
+                <div key={channel.channel_id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-muted-foreground">#{index + 1}</span>
+                    <span className="text-sm font-medium truncate">{channel.channel_name}</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    {channel.viewer_count} <Activity className="ml-1 h-3 w-3 inline" />
+                  </Badge>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">Aucun visionnage en cours</p>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* User Management */}
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">

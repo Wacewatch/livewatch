@@ -23,9 +23,12 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [videoLoaded, setVideoLoaded] = useState(false)
   const [selectedSourceIndex, setSelectedSourceIndex] = useState(0)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionStartTime, setSessionStartTime] = useState<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (isOpen && channel) {
@@ -46,6 +49,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       setSelectedSourceIndex(0)
     } else if (!isOpen) {
       document.body.style.overflow = ""
+      stopTrackingSession()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -58,12 +62,86 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
     return () => {
       document.body.style.overflow = ""
+      stopTrackingSession()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
       }
     }
   }, [isOpen, channel, isVip, isAdmin])
+
+  const startTrackingSession = async () => {
+    if (!channel) return
+
+    try {
+      const response = await fetch("/api/tracking/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelId: channel.baseId,
+          channelName: channel.baseName,
+        }),
+      })
+
+      const data = await response.json()
+      if (data.sessionId) {
+        setSessionId(data.sessionId)
+        setSessionStartTime(Date.now())
+        startHeartbeat(data.sessionId)
+        console.log("[v0] Session tracking started:", data.sessionId)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to start session tracking:", error)
+    }
+  }
+
+  const startHeartbeat = (sid: string) => {
+    // Clear any existing heartbeat
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current)
+    }
+
+    // Send heartbeat every 30 seconds
+    heartbeatIntervalRef.current = setInterval(async () => {
+      try {
+        await fetch("/api/tracking/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: sid }),
+        })
+      } catch (error) {
+        console.error("[v0] Heartbeat failed:", error)
+      }
+    }, 30000)
+  }
+
+  const stopTrackingSession = async () => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current)
+      heartbeatIntervalRef.current = null
+    }
+
+    if (sessionId) {
+      const durationSeconds = Math.floor((Date.now() - sessionStartTime) / 1000)
+
+      try {
+        await fetch("/api/tracking/stop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            durationSeconds,
+          }),
+        })
+        console.log("[v0] Session tracking stopped, duration:", durationSeconds, "seconds")
+      } catch (error) {
+        console.error("[v0] Failed to stop session tracking:", error)
+      }
+
+      setSessionId(null)
+      setSessionStartTime(0)
+    }
+  }
 
   const unlockStream = () => {
     console.log("[v0] Unlock button clicked")
@@ -156,6 +234,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         console.log("[v0] HLS manifest parsed")
         setVideoLoaded(true)
         setLoading(false)
+        startTrackingSession()
         video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
       })
 
@@ -173,6 +252,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         console.log("[v0] Video metadata loaded")
         setVideoLoaded(true)
         setLoading(false)
+        startTrackingSession()
         video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
       })
     } else {
@@ -185,6 +265,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     console.log("[v0] Reloading stream")
     setVideoLoaded(false)
     setError(null)
+    stopTrackingSession()
     if (streamUrl) {
       playSource(streamUrl)
     } else {
@@ -205,6 +286,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
   const switchSource = (index: number) => {
     setSelectedSourceIndex(index)
+    stopTrackingSession()
     loadStreamSource(index)
   }
 
@@ -273,7 +355,6 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         </div>
       </div>
 
-      {/* Video player area */}
       <div className="flex-1 relative">
         <video
           ref={videoRef}
@@ -282,7 +363,6 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
           style={{ display: videoLoaded ? "block" : "none" }}
         />
 
-        {/* Loading state */}
         {loading && !error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
             <Loader2 className="w-16 h-16 text-cyan-400 animate-spin mb-4" />
@@ -290,7 +370,6 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
           </div>
         )}
 
-        {/* Error state */}
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
             <div className="text-center">
@@ -307,7 +386,6 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
           </div>
         )}
 
-        {/* Ad lock overlay */}
         {!adUnlocked && !loading && !error && !isVip && !isAdmin && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
             <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />

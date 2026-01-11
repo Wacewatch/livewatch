@@ -144,14 +144,78 @@ export async function GET() {
 
     try {
       const supabase = await createClient()
-      const { data: enabledChannels } = await supabase.from("channels").select("id, enabled").eq("enabled", true)
 
-      if (enabledChannels && enabledChannels.length > 0) {
-        const enabledIds = new Set(enabledChannels.map((c) => c.id))
-        channels = channels.filter((ch) => enabledIds.has(ch.baseName) || enabledIds.has(ch.baseId))
+      // Get all channels from database with their custom data
+      const { data: dbChannels } = await supabase
+        .from("channels")
+        .select(`
+          id,
+          name,
+          category,
+          language,
+          logo,
+          background,
+          enabled
+        `)
+        .eq("enabled", true)
+
+      // Get all merged sources
+      const { data: channelSources } = await supabase.from("channel_sources").select("*")
+
+      if (dbChannels && dbChannels.length > 0) {
+        const dbChannelMap = new Map(dbChannels.map((ch) => [ch.id, ch]))
+        const sourcesMap = new Map<string, any[]>()
+
+        // Group sources by channel_id
+        if (channelSources) {
+          for (const source of channelSources) {
+            if (!sourcesMap.has(source.channel_id)) {
+              sourcesMap.set(source.channel_id, [])
+            }
+            sourcesMap.get(source.channel_id)!.push(source)
+          }
+        }
+
+        // Apply database overrides
+        channels = channels
+          .filter((ch) => {
+            // Check if this channel or any of its sources are in database
+            const dbCh = dbChannelMap.get(ch.baseId) || dbChannelMap.get(ch.baseName)
+            return dbCh !== undefined
+          })
+          .map((ch) => {
+            const dbCh = dbChannelMap.get(ch.baseId) || dbChannelMap.get(ch.baseName)
+
+            if (!dbCh) return ch
+
+            // Check if this channel has merged sources
+            const mergedSources = sourcesMap.get(dbCh.id)
+
+            return {
+              ...ch,
+              baseId: dbCh.id,
+              displayName: dbCh.name || ch.displayName,
+              category: dbCh.category || ch.category,
+              language: dbCh.language || ch.language,
+              logo: dbCh.logo || ch.logo,
+              background: dbCh.background || ch.background,
+              // Use merged sources if available, otherwise keep original sources
+              sources:
+                mergedSources && mergedSources.length > 0
+                  ? mergedSources
+                      .map((s) => ({
+                        id: s.source_id,
+                        name: s.source_name,
+                        quality: s.quality,
+                        priority: s.priority,
+                      }))
+                      .sort((a, b) => b.priority - a.priority)
+                  : ch.sources,
+            }
+          })
       }
     } catch (dbError) {
-      console.log("[v0] Database filter skipped (table may not exist yet):", dbError)
+      console.log("[v0] Database override skipped:", dbError)
     }
 
     console.log("[v0] Successfully fetched and grouped", channels.length, "unique channels")
