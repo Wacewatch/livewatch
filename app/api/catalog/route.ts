@@ -23,13 +23,16 @@ export async function GET() {
     try {
       const data = JSON.parse(text)
 
+      const isGenericPlaceholder = (url: string | undefined) => {
+        if (!url) return true
+        return url.includes("qwertyuiop8899") || url.includes("tvvoo.png")
+      }
+
       const channels =
         data.metas?.map((meta: any) => {
-          // Extract language from group name (e.g., "group:fr" -> "FR")
           const groupMatch = meta.id?.match(/group:(\w+)/)
           const language = groupMatch ? groupMatch[1].toUpperCase() : "FR"
 
-          // Check if channel name contains HD/4K indicators
           const hasHD = meta.name?.includes("HD")
           const has4K = meta.name?.includes("4K")
           const quality = has4K ? "4K" : hasHD ? "HD" : "SD"
@@ -37,9 +40,9 @@ export async function GET() {
           return {
             id: meta.id,
             name: meta.name,
-            poster: meta.poster,
-            logo: meta.logo,
-            background: meta.background,
+            poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
+            logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
+            background: isGenericPlaceholder(meta.background) ? null : meta.background,
             posterShape: meta.posterShape || "landscape",
             category: meta.genres?.[0] || "Divers",
             genres: meta.genres || [],

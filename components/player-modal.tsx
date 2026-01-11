@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { X, Maximize, Minimize, RefreshCw, Loader2, Lock, Unlock } from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
+import Hls from "hls.js"
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -21,6 +22,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const [videoLoaded, setVideoLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const hlsRef = useRef<any>(null)
 
   useEffect(() => {
     if (isOpen && channel) {
@@ -32,6 +34,10 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       setVideoLoaded(false)
     } else if (!isOpen) {
       document.body.style.overflow = ""
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
       if (videoRef.current) {
         videoRef.current.pause()
         videoRef.current.src = ""
@@ -40,13 +46,16 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
     return () => {
       document.body.style.overflow = ""
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
     }
   }, [isOpen, channel])
 
   const unlockStream = () => {
     console.log("[v0] Unlock button clicked")
 
-    // Open ad
     try {
       const popup = window.open(AD_URL, "_blank", "width=1024,height=768")
 
@@ -63,7 +72,6 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       console.error("[v0] Failed to open ad:", e)
     }
 
-    // Unlock player
     setTimeout(() => {
       setAdUnlocked(true)
       loadStreamSource()
@@ -90,7 +98,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       if (data.success && data.data && data.data.sources && data.data.sources.length > 0) {
         const originalUrl = data.data.sources[0].url
         const proxiedUrl = `/api/proxy-stream?url=${encodeURIComponent(originalUrl)}`
-        console.log("[v0] Playing proxied stream")
+        console.log("[v0] Playing proxied stream:", proxiedUrl)
         setStreamUrl(proxiedUrl)
         playSource(proxiedUrl)
       } else {
@@ -103,39 +111,57 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     }
   }
 
-  const playSource = (url: string) => {
+  const playSource = async (url: string) => {
     const video = videoRef.current
     if (!video) return
 
     console.log("[v0] Setting video source:", url)
-    video.src = url
-    video.load()
 
-    const loadTimeout = setTimeout(() => {
-      if (!videoLoaded) {
-        console.log("[v0] Video taking longer than expected...")
-      }
-    }, 15000)
-
-    video.onloadeddata = () => {
-      console.log("[v0] Video loaded")
-      clearTimeout(loadTimeout)
-      setVideoLoaded(true)
-      setLoading(false)
-      video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
+    if (hlsRef.current) {
+      hlsRef.current.destroy()
+      hlsRef.current = null
     }
 
-    video.oncanplay = () => {
-      console.log("[v0] Video can play")
-      clearTimeout(loadTimeout)
-      setVideoLoaded(true)
-      setLoading(false)
-    }
+    const isM3U8 = url.includes(".m3u8") || url.includes("m3u8")
 
-    video.onerror = () => {
-      console.error("[v0] Video error")
-      clearTimeout(loadTimeout)
-      setError("Erreur de lecture du flux")
+    if (isM3U8 && Hls.isSupported()) {
+      console.log("[v0] Using HLS.js for M3U8 stream")
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 90,
+      })
+
+      hlsRef.current = hls
+
+      hls.loadSource(url)
+      hls.attachMedia(video)
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log("[v0] HLS manifest parsed")
+        setVideoLoaded(true)
+        setLoading(false)
+        video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
+      })
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error("[v0] HLS error:", data)
+        if (data.fatal) {
+          setError("Erreur de lecture du flux")
+          setLoading(false)
+        }
+      })
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      console.log("[v0] Using native HLS support")
+      video.src = url
+      video.addEventListener("loadedmetadata", () => {
+        console.log("[v0] Video metadata loaded")
+        setVideoLoaded(true)
+        setLoading(false)
+        video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
+      })
+    } else {
+      setError("HLS non supporté par ce navigateur")
       setLoading(false)
     }
   }
