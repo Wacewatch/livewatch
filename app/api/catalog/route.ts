@@ -50,55 +50,77 @@ async function fetchFromExternalAPI() {
       throw new Error("Invalid API response structure")
     }
 
-    const channelGroups = new Map<string, any>()
+    const channelsWithSources = await Promise.all(
+      data.metas
+        .filter((m: any) => m.type === "tv")
+        .slice(0, 100)
+        .map(async (meta: any) => {
+          try {
+            const detailUrl = `https://morning-wildflower-3cf3.wavewatchcontact.workers.dev/https://nakios.site/api/tv-live/channel/${encodeURIComponent(meta.id)}`
+            const detailRes = await fetch(detailUrl, {
+              headers: { "User-Agent": "VAVOO/2.6" },
+            })
 
-    for (const meta of data.metas.filter((m: any) => m.type === "tv")) {
-      const baseName = getBaseName(meta.name)
-      const quality = extractQuality(meta.name)
-      const groupKey = `${baseName}_${meta.language || "FR"}`
+            if (detailRes.ok) {
+              const detailData = await detailRes.json()
+              if (detailData.success && detailData.data) {
+                const channelData = detailData.data
+                return {
+                  id: meta.id,
+                  baseId: meta.id,
+                  name: meta.name,
+                  baseName: meta.name,
+                  poster: isGenericPlaceholder(channelData.poster) ? null : channelData.poster,
+                  logo: isGenericPlaceholder(channelData.logo) ? null : channelData.logo,
+                  background: isGenericPlaceholder(channelData.poster) ? null : channelData.poster,
+                  posterShape: "landscape",
+                  category: channelData.category || meta.category || "Divers",
+                  genres: meta.genres || [],
+                  type: "tv",
+                  language: meta.language || "FR",
+                  sources: (channelData.sources || []).map((src: any, idx: number) => ({
+                    id: `${meta.id}_source_${idx}`,
+                    name: src.name || meta.name,
+                    quality: src.quality || "SD",
+                    url: src.url || meta.id,
+                    priority: src.priority || idx + 1,
+                  })),
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`[v0] Failed to fetch details for ${meta.id}:`, error)
+          }
 
-      if (!channelGroups.has(groupKey)) {
-        channelGroups.set(groupKey, {
-          id: `grouped_${baseName.toLowerCase().replace(/\s+/g, "_")}`,
-          baseId: meta.id,
-          name: baseName,
-          baseName: baseName,
-          poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
-          logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
-          background: isGenericPlaceholder(meta.background) ? null : meta.background,
-          posterShape: meta.posterShape || "landscape",
-          category: meta.category || "Divers",
-          genres: meta.genres || [],
-          type: meta.type,
-          language: meta.language || "FR",
-          sources: [],
-        })
-      }
+          // Fallback if detail fetch fails
+          return {
+            id: meta.id,
+            baseId: meta.id,
+            name: meta.name,
+            baseName: meta.name,
+            poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
+            logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
+            background: isGenericPlaceholder(meta.background) ? null : meta.background,
+            posterShape: "landscape",
+            category: meta.category || "Divers",
+            genres: meta.genres || [],
+            type: "tv",
+            language: meta.language || "FR",
+            sources: [
+              {
+                id: meta.id,
+                name: meta.name,
+                quality: extractQuality(meta.name),
+                url: meta.id,
+                priority: 1,
+              },
+            ],
+          }
+        }),
+    )
 
-      const group = channelGroups.get(groupKey)!
-      group.sources.push({
-        id: meta.id,
-        name: meta.name,
-        quality: quality,
-        url: meta.id,
-        priority: group.sources.length + 1,
-      })
-
-      // Update logo/poster if this variant has a better one
-      if (!isGenericPlaceholder(meta.poster) && !group.poster) {
-        group.poster = meta.poster
-      }
-      if (!isGenericPlaceholder(meta.logo) && !group.logo) {
-        group.logo = meta.logo
-      }
-      if (!isGenericPlaceholder(meta.background) && !group.background) {
-        group.background = meta.background
-      }
-    }
-
-    const allChannels = Array.from(channelGroups.values())
-    console.log(`[v0] Successfully loaded ${allChannels.length} grouped channels with multi-quality sources`)
-    return allChannels
+    console.log(`[v0] Successfully loaded ${channelsWithSources.length} channels with multi-quality sources`)
+    return channelsWithSources
   } catch (error) {
     console.error("[v0] External API error:", error)
     return []

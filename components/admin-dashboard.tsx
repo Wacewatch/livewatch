@@ -33,6 +33,8 @@ interface Stats {
   totalFavorites: number
   vipUsers: number
   adminUsers: number
+  membersOnline: number
+  guestsOnline: number
   onlineUsers: number
   liveViewers: number
   topChannels: Array<{ channel_id: string; channel_name: string; view_count: number }>
@@ -56,6 +58,7 @@ interface Channel {
   language?: string
   logo?: string
   background?: string
+  type: "external" | "custom"
 }
 
 interface VipKey {
@@ -618,14 +621,21 @@ export function AdminDashboard() {
       </div>
 
       <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/10 to-transparent p-3 md:p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">En ligne</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.onlineUsers || 0}</p>
-              <p className="text-xs text-muted-foreground">utilisateurs connectés</p>
+        <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/10 to-transparent p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold">En ligne</h3>
+            <Activity className="h-5 w-5 text-blue-500" />
+          </div>
+          <p className="text-3xl font-bold mb-2">{stats?.onlineUsers || 0}</p>
+          <div className="text-sm text-muted-foreground space-y-1">
+            <div className="flex justify-between">
+              <span>Membres:</span>
+              <span className="font-medium">{stats?.membersOnline || 0}</span>
             </div>
-            <Activity className="h-6 w-6 md:h-8 md:w-8 text-blue-500 animate-pulse" />
+            <div className="flex justify-between">
+              <span>Invités:</span>
+              <span className="font-medium">{stats?.guestsOnline || 0}</span>
+            </div>
           </div>
         </Card>
 
@@ -705,34 +715,33 @@ export function AdminDashboard() {
         </Card>
 
         {/* Channel Management */}
-        <Card className="lg:col-span-2 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold">Gestion des Chaînes</h2>
-            <div className="flex gap-2">
-              {isMergeMode && selectedChannels.length > 1 && (
-                <Button
-                  onClick={() => openCreateDialog("merge")}
-                  size="sm"
-                  className="bg-purple-500 hover:bg-purple-600"
-                >
-                  <Merge className="mr-2 h-4 w-4" />
-                  Fusionner ({selectedChannels.length})
-                </Button>
-              )}
+        <Card className="lg:col-span-2 p-4 md:p-6">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+            <h2 className="text-lg md:text-xl font-bold">Gestion des Chaînes</h2>
+            <div className="flex gap-2 flex-wrap">
               <Button onClick={() => openCreateDialog("create")} size="sm" className="bg-green-500 hover:bg-green-600">
                 Créer une chaîne
               </Button>
-              <Button
-                onClick={() => {
-                  setIsMergeMode(!isMergeMode)
-                  setSelectedChannels([])
-                }}
-                variant={isMergeMode ? "default" : "outline"}
-                size="sm"
-              >
-                <Merge className="mr-2 h-4 w-4" />
-                {isMergeMode ? "Annuler" : "Mode Fusion"}
-              </Button>
+              {isMergeMode ? (
+                <>
+                  <Button
+                    onClick={() => openCreateDialog("merge")}
+                    size="sm"
+                    variant="outline"
+                    disabled={selectedChannels.length < 2}
+                  >
+                    <Merge className="mr-2 h-4 w-4" />
+                    Fusionner ({selectedChannels.length})
+                  </Button>
+                  <Button onClick={() => setIsMergeMode(false)} size="sm" variant="ghost">
+                    Annuler
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => setIsMergeMode(true)} size="sm" variant="outline">
+                  Mode Fusion
+                </Button>
+              )}
               <Button onClick={syncCatalogNow} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
                 Synchroniser
               </Button>

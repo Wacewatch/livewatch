@@ -329,11 +329,18 @@ export function TVAppClient() {
                     <Star className="w-5 h-5" fill={channel.isFavorite ? "currentColor" : "none"} strokeWidth={2} />
                   </button>
 
-                  {channel.sources.length > 1 && (
-                    <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/90 text-white shadow-lg">
-                      {channel.sources.length} sources
-                    </div>
-                  )}
+                  <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                    {channel.sources.length > 1 && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/90 text-white shadow-lg">
+                        {channel.sources.length} sources
+                      </span>
+                    )}
+                    {channel.sources[0]?.quality && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-500/90 text-white shadow-lg">
+                        {channel.sources[0].quality}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="p-4 bg-gradient-to-b from-card/50 to-card">

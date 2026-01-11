@@ -43,8 +43,8 @@ export async function GET() {
       .select("user_id")
       .gte("last_heartbeat", fiveMinutesAgo)
 
-    const uniqueUsers = new Set(activeSessions?.map((s) => s.user_id).filter(Boolean))
-    const onlineUsers = uniqueUsers.size
+    const membersOnline = activeSessions?.filter((s) => s.user_id).length || 0
+    const guestsOnline = (activeSessions?.length || 0) - membersOnline
 
     const { count: liveViewers } = await supabase
       .from("active_sessions")
@@ -111,7 +111,9 @@ export async function GET() {
     }, {})
 
     console.log("[v0] Admin stats:", {
-      onlineUsers,
+      membersOnline,
+      guestsOnline,
+      onlineUsers: membersOnline + guestsOnline,
       liveViewers,
       currentlyWatchingCount: currentlyWatching.length,
     })
@@ -123,7 +125,9 @@ export async function GET() {
       totalFavorites: totalFavorites || 0,
       vipUsers: vipUsers || 0,
       adminUsers: adminUsers || 0,
-      onlineUsers,
+      membersOnline,
+      guestsOnline,
+      onlineUsers: membersOnline + guestsOnline,
       liveViewers: liveViewers || 0,
       topChannels,
       currentlyWatching,
