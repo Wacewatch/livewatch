@@ -66,40 +66,78 @@ export async function GET() {
       return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
     }
 
-    const channels =
-      data.metas?.map((meta: any) => {
-        const groupMatch = meta.id?.match(/group:(\w+)/)
-        const language = groupMatch ? groupMatch[1].toUpperCase() : "FR"
+    const channelGroups = new Map<string, any[]>()
 
-        const nameUpper = meta.name?.toUpperCase() || ""
-        const has4K = nameUpper.includes("4K") || nameUpper.includes("UHD")
-        const hasFHD = nameUpper.includes("FHD")
-        const hasHD = nameUpper.includes("HD") && !hasFHD
-        const quality = has4K ? "4K" : hasFHD ? "FHD" : hasHD ? "HD" : "SD"
+    data.metas?.forEach((meta: any) => {
+      const groupMatch = meta.id?.match(/group:(\w+)/)
+      const language = groupMatch ? groupMatch[1].toUpperCase() : "FR"
 
-        return {
-          id: meta.id,
-          name: meta.name,
-          poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
-          logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
-          background: isGenericPlaceholder(meta.background) ? null : meta.background,
-          posterShape: meta.posterShape || "landscape",
-          category: meta.genres?.[0] || "Divers",
-          genres: meta.genres || [],
-          type: meta.type || "tv",
-          language,
-          quality,
-          sources: [
-            {
-              id: meta.id,
-              name: meta.name,
-              quality,
-            },
-          ],
-        }
-      }) || []
+      const nameUpper = meta.name?.toUpperCase() || ""
+      const has4K = nameUpper.includes("4K") || nameUpper.includes("UHD")
+      const hasFHD = nameUpper.includes("FHD")
+      const hasHD = nameUpper.includes("HD") && !hasFHD
+      const quality = has4K ? "4K" : hasFHD ? "FHD" : hasHD ? "HD" : "SD"
 
-    console.log("[v0] Successfully fetched", channels.length, "channels")
+      const baseName = getBaseName(meta.name)
+      const groupKey = `${baseName}_${language}`
+
+      if (!channelGroups.has(groupKey)) {
+        channelGroups.set(groupKey, [])
+      }
+
+      channelGroups.get(groupKey)!.push({
+        id: meta.id,
+        name: meta.name,
+        poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
+        logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
+        background: isGenericPlaceholder(meta.background) ? null : meta.background,
+        posterShape: meta.posterShape || "landscape",
+        category: meta.genres?.[0] || "Divers",
+        genres: meta.genres || [],
+        type: meta.type || "tv",
+        language,
+        quality,
+        baseName,
+      })
+    })
+
+    const channels: any[] = []
+    channelGroups.forEach((variants) => {
+      // Sort variants by quality (4K > FHD > HD > SD)
+      const qualityOrder = { "4K": 4, FHD: 3, HD: 2, SD: 1 }
+      variants.sort(
+        (a, b) =>
+          (qualityOrder[b.quality as keyof typeof qualityOrder] || 0) -
+          (qualityOrder[a.quality as keyof typeof qualityOrder] || 0),
+      )
+
+      const primary = variants[0]
+      const bestLogo = variants.find((v) => v.logo)?.logo || primary.logo
+      const bestBackground = variants.find((v) => v.background)?.background || primary.background
+      const bestPoster = variants.find((v) => v.poster)?.poster || primary.poster
+
+      channels.push({
+        id: primary.id,
+        name: primary.name,
+        baseName: primary.baseName,
+        poster: bestPoster,
+        logo: bestLogo,
+        background: bestBackground,
+        posterShape: primary.posterShape,
+        category: primary.category,
+        genres: primary.genres,
+        type: primary.type,
+        language: primary.language,
+        quality: primary.quality,
+        sources: variants.map((v) => ({
+          id: v.id,
+          name: v.name,
+          quality: v.quality,
+        })),
+      })
+    })
+
+    console.log("[v0] Successfully grouped channels:", channels.length, "unique channels")
 
     return NextResponse.json({ channels })
   } catch (error) {

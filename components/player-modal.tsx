@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { X, Maximize, Minimize, RefreshCw, Loader2, Lock, Unlock, Crown } from "lucide-react"
+import { X, Maximize, Minimize, RefreshCw, Loader2, Lock, Unlock, Crown, Sparkles } from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
 import { useUserRole } from "@/lib/hooks/use-user-role"
+import { VipUpgradeModal } from "@/components/vip-upgrade-modal"
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -25,6 +26,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
   const [selectedSourceIndex, setSelectedSourceIndex] = useState(0)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionStartTime, setSessionStartTime] = useState<number>(0)
+  const [showVipModal, setShowVipModal] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
@@ -292,117 +294,147 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
 
   if (!isOpen || !channel) return null
 
+  const availableQualities = Array.from(new Set(channel.sources.map((s) => s.quality))).sort((a, b) => {
+    const order = { "4K": 4, FHD: 3, HD: 2, SD: 1 }
+    return (order[b as keyof typeof order] || 0) - (order[a as keyof typeof order] || 0)
+  })
+
+  const currentQuality = channel.sources[selectedSourceIndex]?.quality || "SD"
+
   return (
-    <div ref={containerRef} className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black to-transparent z-20">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-white">{channel.baseName}</h2>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white">
-            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            EN DIRECT
-          </span>
-          {isVip && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-black">
-              <Crown className="w-3 h-3" />
-              VIP
+    <>
+      <div ref={containerRef} className="fixed inset-0 z-50 bg-black flex flex-col">
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black to-transparent z-20">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-xl font-bold text-white">{channel.baseName}</h2>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              EN DIRECT
             </span>
-          )}
-          {isAdmin && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-500 text-black">
-              <Crown className="w-3 h-3" />
-              ADMIN
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {channel.sources.length > 1 && adUnlocked && (
-            <select
-              value={selectedSourceIndex}
-              onChange={(e) => switchSource(Number(e.target.value))}
-              className="px-4 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 transition-all outline-none"
-            >
-              {channel.sources.map((source, index) => (
-                <option key={source.id} value={index} className="bg-black text-white">
-                  {source.quality} - {source.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <button
-            onClick={handleReload}
-            className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
-            title="Recharger"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
-
-          <button
-            onClick={toggleFullscreen}
-            className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
-          >
-            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-          </button>
-
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-all"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 relative">
-        <video
-          ref={videoRef}
-          controls
-          className="absolute inset-0 w-full h-full"
-          style={{ display: videoLoaded ? "block" : "none" }}
-        />
-
-        {loading && !error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
-            <Loader2 className="w-16 h-16 text-cyan-400 animate-spin mb-4" />
-            <p className="text-white text-lg">Chargement du flux...</p>
+            {isVip && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-black">
+                <Crown className="w-3 h-3" />
+                VIP
+              </span>
+            )}
+            {isAdmin && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-500 text-black">
+                <Crown className="w-3 h-3" />
+                ADMIN
+              </span>
+            )}
           </div>
-        )}
 
-        {error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
-            <div className="text-center">
-              <div className="text-red-400 text-6xl mb-6 animate-pulse">⚠️</div>
-              <p className="text-white text-lg mb-4">{error}</p>
-              <button
-                onClick={handleReload}
-                className="px-6 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all"
-              >
-                <RefreshCw className="w-5 h-5 inline mr-2" />
-                Réessayer
-              </button>
-            </div>
-          </div>
-        )}
+          <div className="flex items-center gap-2">
+            {channel.sources.length > 1 && adUnlocked && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
+                {availableQualities.map((quality) => {
+                  const sourceIndex = channel.sources.findIndex((s) => s.quality === quality)
+                  const isActive = quality === currentQuality
+                  return (
+                    <button
+                      key={quality}
+                      onClick={() => switchSource(sourceIndex)}
+                      className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                        isActive
+                          ? "bg-cyan-500 text-black"
+                          : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      {quality}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
-        {!adUnlocked && !loading && !error && !isVip && !isAdmin && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
-            <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
-            <h3 className="text-3xl font-bold text-white mb-4">Stream verrouillé</h3>
-            <p className="text-white/70 text-lg mb-2">Regardez une courte publicité pour débloquer ce stream</p>
-            <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
             <button
-              onClick={unlockStream}
-              className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
+              onClick={handleReload}
+              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+              title="Recharger"
             >
-              <Unlock className="w-6 h-6" />
-              <span>Débloquer le stream</span>
+              <RefreshCw className="w-5 h-5" />
             </button>
-            <p className="text-white/50 text-sm mt-6">Ou devenez VIP pour 5€ à vie et profitez sans publicité !</p>
+
+            <button
+              onClick={toggleFullscreen}
+              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+            >
+              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        )}
+        </div>
+
+        <div className="flex-1 relative">
+          <video
+            ref={videoRef}
+            controls
+            className="absolute inset-0 w-full h-full"
+            style={{ display: videoLoaded ? "block" : "none" }}
+          />
+
+          {loading && !error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+              <Loader2 className="w-16 h-16 text-cyan-400 animate-spin mb-4" />
+              <p className="text-white text-lg">Chargement du flux...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
+              <div className="text-center">
+                <div className="text-red-400 text-6xl mb-6 animate-pulse">⚠️</div>
+                <p className="text-white text-lg mb-4">{error}</p>
+                <button
+                  onClick={handleReload}
+                  className="px-6 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all"
+                >
+                  <RefreshCw className="w-5 h-5 inline mr-2" />
+                  Réessayer
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!adUnlocked && !loading && !error && !isVip && !isAdmin && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black px-4">
+              <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
+              <h3 className="text-3xl font-bold text-white mb-4 text-center">Stream verrouillé</h3>
+              <p className="text-white/70 text-lg mb-2 text-center">
+                Regardez une courte publicité pour débloquer ce stream
+              </p>
+              <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
+              <button
+                onClick={unlockStream}
+                className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
+              >
+                <Unlock className="w-6 h-6" />
+                <span>Débloquer le stream</span>
+              </button>
+              <div className="mt-8 text-center">
+                <p className="text-white/50 text-sm mb-3">Ou profitez sans publicité !</p>
+                <button
+                  onClick={() => setShowVipModal(true)}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold hover:scale-105 transition-all shadow-lg shadow-amber-500/30 mx-auto"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  <span>Devenez VIP - 5€ à vie</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      <VipUpgradeModal isOpen={showVipModal} onClose={() => setShowVipModal(false)} />
+    </>
   )
 }

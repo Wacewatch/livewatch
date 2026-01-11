@@ -7,6 +7,8 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const { channelId, channelName } = await request.json()
 
+    console.log("[v0] Starting session for channel:", channelId, channelName)
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -15,8 +17,7 @@ export async function POST(request: Request) {
     const userAgent = headersList.get("user-agent") || "Unknown"
     const ipAddress = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "Unknown"
 
-    // Create active session
-    const { data: session } = await supabase
+    const { data: session, error } = await supabase
       .from("active_sessions")
       .insert({
         user_id: user?.id || null,
@@ -28,6 +29,12 @@ export async function POST(request: Request) {
       .select()
       .single()
 
+    if (error) {
+      console.error("[v0] Failed to create session:", error)
+      return NextResponse.json({ error: "Failed to create session" }, { status: 500 })
+    }
+
+    console.log("[v0] Session created successfully:", session?.id)
     return NextResponse.json({ sessionId: session?.id })
   } catch (error) {
     console.error("[v0] Start tracking error:", error)
