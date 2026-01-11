@@ -1,23 +1,17 @@
 import { NextResponse } from "next/server"
-import { getExternalId } from "../catalog/route"
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const internalId = searchParams.get("id")
+    const channelId = searchParams.get("id")
 
-    if (!internalId) {
+    if (!channelId) {
       return NextResponse.json({ error: "Channel ID required" }, { status: 400 })
     }
 
-    const externalId = getExternalId(internalId)
-    if (!externalId) {
-      return NextResponse.json({ error: "Invalid channel ID" }, { status: 404 })
-    }
+    const apiUrl = `https://morning-wildflower-3cf3.wavewatchcontact.workers.dev/https://nakios.site/api/tv-live/channel/${channelId}`
 
-    const apiUrl = `https://morning-wildflower-3cf3.wavewatchcontact.workers.dev/https://nakios.site/api/tv-live/channel/${externalId}`
-
-    console.log("[v0] Fetching stream for internal ID:", internalId)
+    console.log("[v0] Fetching stream for channel ID:", channelId)
 
     const response = await fetch(apiUrl, {
       headers: {
@@ -31,7 +25,7 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json()
-    console.log("[v0] Stream data received for internal ID")
+    console.log("[v0] Stream data received for channel:", channelId)
 
     return NextResponse.json(data)
   } catch (error) {

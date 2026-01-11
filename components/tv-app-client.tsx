@@ -111,7 +111,11 @@ export function TVAppClient() {
     }
 
     if (sortType === "name") {
-      filtered.sort((a, b) => a.baseName.localeCompare(b.baseName))
+      filtered.sort((a, b) => {
+        const nameA = a.baseName || a.name || ""
+        const nameB = b.baseName || b.name || ""
+        return nameA.localeCompare(nameB)
+      })
     }
 
     return filtered
