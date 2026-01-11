@@ -69,6 +69,31 @@ interface VipKey {
   created_at: string
 }
 
+interface SyncStatus {
+  cached_channels: number
+  last_sync: {
+    started_at: string
+    status: string
+  }
+}
+
+interface ServerStats {
+  cpu: {
+    usage: number
+    cores: number
+    model: string
+  }
+  memory: {
+    usagePercent: number
+    used: string
+    total: string
+  }
+  system: {
+    uptime: string
+    platform: string
+  }
+}
+
 export function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -89,11 +114,19 @@ export function AdminDashboard() {
   const [vipKeys, setVipKeys] = useState<VipKey[]>([])
   const [showVipKeyDialog, setShowVipKeyDialog] = useState(false)
   const [newGeneratedKey, setNewGeneratedKey] = useState("")
+  const [serverStats, setServerStats] = useState<ServerStats | null>(null)
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null)
 
   useEffect(() => {
     fetchDashboardData()
+    fetchServerStats()
+    fetchSyncStatus()
 
-    const interval = setInterval(fetchDashboardData, 10000)
+    const interval = setInterval(() => {
+      fetchDashboardData()
+      fetchServerStats()
+      fetchSyncStatus()
+    }, 10000)
     return () => clearInterval(interval)
   }, [])
 
@@ -129,6 +162,44 @@ export function AdminDashboard() {
       console.error("[v0] Failed to fetch dashboard data:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchServerStats = async () => {
+    try {
+      const res = await fetch("/api/admin/server-stats")
+      if (res.ok) {
+        const data = await res.json()
+        setServerStats(data)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to fetch server stats:", error)
+    }
+  }
+
+  const fetchSyncStatus = async () => {
+    try {
+      const res = await fetch("/api/admin/sync-catalog")
+      if (res.ok) {
+        const data = await res.json()
+        setSyncStatus(data)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to fetch sync status:", error)
+    }
+  }
+
+  const syncCatalogNow = async () => {
+    try {
+      const res = await fetch("/api/admin/sync-catalog", { method: "POST" })
+      if (res.ok) {
+        alert("Synchronisation terminée avec succès !")
+        fetchSyncStatus()
+        fetchDashboardData()
+      }
+    } catch (error) {
+      console.error("[v0] Failed to sync catalog:", error)
+      alert("Échec de la synchronisation")
     }
   }
 
@@ -323,6 +394,93 @@ export function AdminDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Server Monitoring Section */}
+      {serverStats && (
+        <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="border-l-4 border-l-blue-500 p-4">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-500" />
+              CPU
+            </h3>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Usage:</span>
+                <span className="font-bold">{serverStats.cpu.usage}%</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 transition-all" style={{ width: `${serverStats.cpu.usage}%` }} />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {serverStats.cpu.cores} cores • {serverStats.cpu.model.slice(0, 30)}...
+              </div>
+            </div>
+          </Card>
+
+          <Card className="border-l-4 border-l-purple-500 p-4">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-purple-500" />
+              RAM
+            </h3>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Usage:</span>
+                <span className="font-bold">{serverStats.memory.usagePercent}%</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 transition-all"
+                  style={{ width: `${serverStats.memory.usagePercent}%` }}
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {serverStats.memory.used} / {serverStats.memory.total}
+              </div>
+            </div>
+          </Card>
+
+          <Card className="border-l-4 border-l-green-500 p-4">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-500" />
+              Système
+            </h3>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Uptime:</span>
+                <span className="font-medium">{serverStats.system.uptime}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Platform:</span>
+                <span className="font-medium">{serverStats.system.platform}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Catalog Sync Status */}
+      {syncStatus && (
+        <Card className="mb-6 p-4 border-l-4 border-l-cyan-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold mb-1">Synchronisation du Catalogue</h3>
+              <div className="text-sm text-muted-foreground">
+                {syncStatus.cached_channels} chaînes en cache
+                {syncStatus.last_sync && (
+                  <span className="ml-2">
+                    • Dernière synchro: {new Date(syncStatus.last_sync.started_at).toLocaleString()}
+                    {syncStatus.last_sync.status === "success" && <span className="text-green-500 ml-1">✓</span>}
+                  </span>
+                )}
+              </div>
+            </div>
+            <Button onClick={syncCatalogNow} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
+              <TrendingUp className="mr-2 h-4 w-4" />
+              Synchroniser maintenant
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-3 md:p-4">
