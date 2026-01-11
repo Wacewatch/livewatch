@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { X, Maximize, Minimize, RefreshCw, Loader2, Lock, Unlock } from "lucide-react"
+import { X, Maximize, Minimize, RefreshCw, Loader2, Lock, Unlock, Crown } from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
+import { useUserRole } from "@/lib/hooks/use-user-role"
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -14,6 +15,7 @@ interface PlayerModalProps {
 const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
 
 export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
+  const { role, isVip } = useUserRole()
   const [adUnlocked, setAdUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
@@ -29,7 +31,15 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
     if (isOpen && channel) {
       console.log("[v0] Opening player for channel:", channel.baseName)
       document.body.style.overflow = "hidden"
-      setAdUnlocked(false)
+
+      if (isVip) {
+        console.log("[v0] VIP user detected, bypassing ad lock")
+        setAdUnlocked(true)
+        setTimeout(() => loadStreamSource(), 100)
+      } else {
+        setAdUnlocked(false)
+      }
+
       setStreamUrl(null)
       setError(null)
       setVideoLoaded(false)
@@ -53,7 +63,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         hlsRef.current = null
       }
     }
-  }, [isOpen, channel])
+  }, [isOpen, channel, isVip])
 
   const unlockStream = () => {
     console.log("[v0] Unlock button clicked")
@@ -210,6 +220,12 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             EN DIRECT
           </span>
+          {isVip && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-black">
+              <Crown className="w-3 h-3" />
+              VIP
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -286,7 +302,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         )}
 
         {/* Ad lock overlay */}
-        {!adUnlocked && !loading && !error && (
+        {!adUnlocked && !loading && !error && !isVip && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
             <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
             <h3 className="text-3xl font-bold text-white mb-4">Stream verrouillé</h3>

@@ -13,7 +13,9 @@ export default async function AdminPage() {
     redirect("/auth/login")
   }
 
-  if (!user.user_metadata?.is_admin) {
+  const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+
+  if (profile?.role !== "admin") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
