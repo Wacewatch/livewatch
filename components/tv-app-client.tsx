@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, LaptopMinimal as TvMinimal, SortAsc, Flame, Filter, Globe, Sparkles } from "lucide-react"
+import { Search, Star, LaptopMinimal as TvMinimal, Filter, Globe, Sparkles } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import type { GroupedChannel, SortType } from "@/lib/types"
@@ -192,6 +192,34 @@ export function TVAppClient() {
       </header>
 
       <main className="max-w-screen-2xl mx-auto p-6 lg:p-10">
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
+            <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent flex items-center gap-3">
+              {showOnlyFavorites ? (
+                <>
+                  <Star className="w-8 h-8 text-yellow-400" fill="currentColor" />
+                  Mes Favoris
+                </>
+              ) : (
+                <>
+                  <TvMinimal className="w-8 h-8 text-primary" />
+                  Toutes les chaînes
+                </>
+              )}
+            </h2>
+          </div>
+          <div className="flex items-center gap-6 text-muted-foreground text-sm">
+            <span className="flex items-center gap-2">
+              <TvMinimal className="w-4 h-4" />
+              <span className="font-semibold text-foreground">{filteredChannels.length}</span> chaînes
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+              En direct
+            </span>
+          </div>
+        </div>
+
         <div className="mb-8 glass-card border border-border/50 rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Filter className="w-5 h-5 text-primary" />
@@ -204,10 +232,10 @@ export function TVAppClient() {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary outline-none transition-all"
               >
                 {categories.map((cat) => (
-                  <option key={cat} value={cat}>
+                  <option key={cat} value={cat} className="bg-card text-foreground">
                     {cat === "all" ? "Toutes les catégories" : cat}
                   </option>
                 ))}
@@ -219,10 +247,10 @@ export function TVAppClient() {
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary outline-none transition-all"
               >
                 {languages.map((lang) => (
-                  <option key={lang} value={lang}>
+                  <option key={lang} value={lang} className="bg-card text-foreground">
                     {lang === "all" ? "Toutes les langues" : lang}
                   </option>
                 ))}
@@ -234,70 +262,14 @@ export function TVAppClient() {
               <select
                 value={selectedQuality}
                 onChange={(e) => setSelectedQuality(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary outline-none transition-all"
               >
                 {qualities.map((qual) => (
-                  <option key={qual} value={qual}>
+                  <option key={qual} value={qual} className="bg-card text-foreground">
                     {qual === "all" ? "Toutes les qualités" : qual}
                   </option>
                 ))}
               </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-            <div>
-              <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent mb-2 flex items-center gap-3">
-                {showOnlyFavorites ? (
-                  <>
-                    <Star className="w-8 h-8 text-yellow-400" fill="currentColor" />
-                    Mes Favoris
-                  </>
-                ) : (
-                  <>
-                    <TvMinimal className="w-8 h-8 text-primary" />
-                    Toutes les chaînes
-                  </>
-                )}
-              </h2>
-              <div className="flex items-center gap-6 text-muted-foreground text-sm">
-                <span className="flex items-center gap-2">
-                  <TvMinimal className="w-4 h-4" />
-                  <span className="font-semibold text-foreground">{filteredChannels.length}</span> chaînes
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                  En direct
-                </span>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setSortType("name")}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                  sortType === "name"
-                    ? "bg-gradient-to-r from-primary to-accent text-white shadow-lg glow-primary scale-105"
-                    : "glass-card border border-border/50 text-foreground hover:border-primary/50 hover:scale-105"
-                }`}
-              >
-                <SortAsc className="w-5 h-5" />
-                Nom
-              </button>
-
-              <button
-                onClick={() => setSortType("trending")}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                  sortType === "trending"
-                    ? "bg-gradient-to-r from-primary to-accent text-white shadow-lg glow-primary scale-105"
-                    : "glass-card border border-border/50 text-foreground hover:border-primary/50 hover:scale-105"
-                }`}
-              >
-                <Flame className="w-5 h-5" />
-                Trending
-              </button>
             </div>
           </div>
         </div>
