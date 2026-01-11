@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
 const channelMap = new Map<string, string>()
 let nextInternalId = 1
@@ -18,26 +19,23 @@ export function getExternalId(internalId: string): string | undefined {
 }
 
 function getBaseName(name: string): string {
-  let normalized = name
-    // Remove quality suffixes only if they appear at the end
-    .replace(/\s+(HD|FHD|4K|UHD|SD|HEVC|H\.264|H264)\s*$/i, "")
-    // Remove "LIVE" suffix
-    .replace(/\s+LIVE\s*$/i, "")
-    // Normalize multiple spaces to single space
-    .replace(/\s+/g, " ")
-    // Remove leading/trailing spaces
-    .trim()
-    // Uppercase for comparison
-    .toUpperCase()
+  let normalized = name.toUpperCase().trim()
 
-  // Remove all non-alphanumeric except spaces to normalize "13 EME RUE" and "13EME RUE"
-  normalized = normalized.replace(/[^A-Z0-9\s]/g, "")
+  // Remove combined quality + backup/evening suffixes first
+  normalized = normalized
+    .replace(/\s+(HD|FHD|4K|UHD|SD)\s+(BACKUP|EVENING|EVEN|EVENT|BACKUP2|BACKUP3)\s*$/i, "")
+    .replace(/\s+(BACKUP|EVENING|EVEN|EVENT|BACKUP2|BACKUP3)\s+(HD|FHD|4K|UHD|SD)\s*$/i, "")
 
-  // Normalize spacing around numbers (so "13EME" becomes "13 EME")
-  normalized = normalized.replace(/(\d)([A-Z])/g, "$1 $2")
-  normalized = normalized.replace(/([A-Z])(\d)/g, "$1 $2")
+  // Remove standalone backup/evening keywords
+  normalized = normalized.replace(/\s+(BACKUP|EVENING|EVEN|EVENT|BACKUP2|BACKUP3)\s*$/i, "")
 
-  // Final whitespace normalization
+  // Remove quality indicators at the end
+  normalized = normalized.replace(/\s+(HD|FHD|4K|UHD|SD|HEVC|H\.264|H264)\s*$/i, "")
+
+  // Remove special characters but keep alphanumeric and spaces
+  normalized = normalized.replace(/[^A-Z0-9\s]/g, " ")
+
+  // Normalize multiple spaces
   normalized = normalized.replace(/\s+/g, " ").trim()
 
   return normalized
@@ -62,113 +60,105 @@ export async function GET() {
     }
 
     const text = await response.text()
+    const data = JSON.parse(text)
 
-    try {
-      const data = JSON.parse(text)
+    const isGenericPlaceholder = (url: string | undefined) => {
+      if (!url) return true
+      return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
+    }
 
-      const isGenericPlaceholder = (url: string | undefined) => {
-        if (!url) return true
-        return url.includes("qwertyuiop8899") || url.includes("tvvoo.png") || url.includes("placeholder")
-      }
+    const channelsList =
+      data.metas?.map((meta: any) => {
+        const groupMatch = meta.id?.match(/group:(\w+)/)
+        const language = groupMatch ? groupMatch[1].toUpperCase() : "FR"
 
-      const channelsList =
-        data.metas?.map((meta: any) => {
-          const groupMatch = meta.id?.match(/group:(\w+)/)
-          const language = groupMatch ? groupMatch[1].toUpperCase() : "FR"
+        const nameUpper = meta.name?.toUpperCase() || ""
+        const has4K = nameUpper.includes("4K") || nameUpper.includes("UHD")
+        const hasFHD = nameUpper.includes("FHD")
+        const hasHD = nameUpper.includes("HD") && !hasFHD
+        const quality = has4K ? "4K" : hasFHD ? "FHD" : hasHD ? "HD" : "SD"
 
-          const nameUpper = meta.name?.toUpperCase() || ""
-          const has4K = nameUpper.includes("4K") || nameUpper.includes("UHD")
-          const hasFHD = nameUpper.includes("FHD")
-          const hasHD = nameUpper.includes("HD") && !hasFHD
-          const quality = has4K ? "4K" : hasFHD ? "FHD" : hasHD ? "HD" : "SD"
-
-          return {
-            id: getInternalId(meta.id),
-            externalId: meta.id,
-            name: meta.name,
-            baseName: getBaseName(meta.name),
-            poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
-            logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
-            background: isGenericPlaceholder(meta.background) ? null : meta.background,
-            posterShape: meta.posterShape || "landscape",
-            category: meta.genres?.[0] || "Divers",
-            genres: meta.genres || [],
-            type: meta.type || "tv",
-            language,
-            quality,
-            priority: has4K ? 4 : hasFHD ? 3 : hasHD ? 2 : 1,
-          }
-        }) || []
-
-      const groupedMap = new Map<string, any>()
-
-      for (const channel of channelsList) {
-        const key = `${channel.baseName}_${channel.language}`
-
-        if (!groupedMap.has(key)) {
-          groupedMap.set(key, {
-            baseId: channel.id,
-            baseName: channel.baseName,
-            displayName: channel.name, // Keep original display name
-            poster: channel.poster,
-            logo: channel.logo,
-            background: channel.background,
-            posterShape: channel.posterShape,
-            category: channel.category,
-            genres: channel.genres,
-            type: channel.type,
-            language: channel.language,
-            sources: [],
-          })
+        return {
+          id: getInternalId(meta.id),
+          externalId: meta.id,
+          name: meta.name,
+          baseName: getBaseName(meta.name),
+          poster: isGenericPlaceholder(meta.poster) ? null : meta.poster,
+          logo: isGenericPlaceholder(meta.logo) ? null : meta.logo,
+          background: isGenericPlaceholder(meta.background) ? null : meta.background,
+          posterShape: meta.posterShape || "landscape",
+          category: meta.genres?.[0] || "Divers",
+          genres: meta.genres || [],
+          type: meta.type || "tv",
+          language,
+          quality,
+          priority: has4K ? 4 : hasFHD ? 3 : hasHD ? 2 : 1,
         }
+      }) || []
 
-        const grouped = groupedMap.get(key)
+    const groupedMap = new Map<string, any>()
 
-        grouped.sources.push({
-          id: channel.id,
-          name: channel.name,
-          quality: channel.quality,
-          priority: channel.priority,
+    for (const channel of channelsList) {
+      const key = `${channel.baseName}_${channel.language}`
+
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, {
+          baseId: channel.id,
+          baseName: channel.baseName,
+          displayName: channel.name,
+          poster: channel.poster,
+          logo: channel.logo,
+          background: channel.background,
+          posterShape: channel.posterShape,
+          category: channel.category,
+          genres: channel.genres,
+          type: channel.type,
+          language: channel.language,
+          sources: [],
         })
-
-        if (channel.logo && !grouped.logo) grouped.logo = channel.logo
-        if (channel.background && !grouped.background) grouped.background = channel.background
-        if (channel.poster && !grouped.poster) grouped.poster = channel.poster
-
-        // Update display name to shortest variant (usually the cleanest)
-        if (channel.name.length < grouped.displayName.length) {
-          grouped.displayName = channel.name
-        }
       }
 
-      const channels = Array.from(groupedMap.values()).map((group) => {
-        group.sources.sort((a: any, b: any) => b.priority - a.priority)
-        return group
+      const grouped = groupedMap.get(key)
+      grouped.sources.push({
+        id: channel.id,
+        name: channel.name,
+        quality: channel.quality,
+        priority: channel.priority,
       })
 
-      console.log("[v0] Successfully fetched and grouped", channels.length, "channels")
-      console.log("[v0] Example grouped channel:", channels[0])
+      // Use best available images
+      if (channel.logo && !grouped.logo) grouped.logo = channel.logo
+      if (channel.background && !grouped.background) grouped.background = channel.background
+      if (channel.poster && !grouped.poster) grouped.poster = channel.poster
 
-      return NextResponse.json({ channels })
-    } catch (parseError) {
-      console.error("[v0] JSON parse error:", text.substring(0, 200))
-      return NextResponse.json(
-        {
-          error: "Invalid JSON response",
-          message: "Unable to parse catalog data",
-          channels: [],
-        },
-        { status: 503 },
-      )
+      // Use shortest name as display name (usually cleanest)
+      if (channel.name.length < grouped.displayName.length) {
+        grouped.displayName = channel.name
+      }
     }
+
+    let channels = Array.from(groupedMap.values()).map((group) => {
+      group.sources.sort((a: any, b: any) => b.priority - a.priority)
+      return group
+    })
+
+    try {
+      const supabase = await createClient()
+      const { data: enabledChannels } = await supabase.from("channels").select("id, enabled").eq("enabled", true)
+
+      if (enabledChannels && enabledChannels.length > 0) {
+        const enabledIds = new Set(enabledChannels.map((c) => c.id))
+        channels = channels.filter((ch) => enabledIds.has(ch.baseName) || enabledIds.has(ch.baseId))
+      }
+    } catch (dbError) {
+      console.log("[v0] Database filter skipped (table may not exist yet):", dbError)
+    }
+
+    console.log("[v0] Successfully fetched and grouped", channels.length, "unique channels")
+
+    return NextResponse.json({ channels })
   } catch (error) {
     console.error("[v0] Catalog API error:", error)
-    return NextResponse.json(
-      {
-        error: "Unable to fetch catalog",
-        channels: [],
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Unable to fetch catalog", channels: [] }, { status: 500 })
   }
 }
