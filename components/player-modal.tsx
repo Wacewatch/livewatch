@@ -88,10 +88,11 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       console.log("[v0] Stream data received:", data)
 
       if (data.success && data.data && data.data.sources && data.data.sources.length > 0) {
-        const url = data.data.sources[0].url
-        console.log("[v0] Playing stream URL:", url)
-        setStreamUrl(url)
-        playSource(url)
+        const originalUrl = data.data.sources[0].url
+        const proxiedUrl = `/api/proxy-stream?url=${encodeURIComponent(originalUrl)}`
+        console.log("[v0] Playing proxied stream")
+        setStreamUrl(proxiedUrl)
+        playSource(proxiedUrl)
       } else {
         throw new Error("Aucune source disponible")
       }
