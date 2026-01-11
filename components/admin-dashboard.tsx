@@ -14,6 +14,8 @@ import {
   Trash2,
   Merge,
   Check,
+  Key,
+  Copy,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -52,6 +54,15 @@ interface Channel {
   background?: string
 }
 
+interface VipKey {
+  id: string
+  key: string
+  used: boolean
+  used_by?: string
+  used_at?: string
+  created_at: string
+}
+
 export function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -69,6 +80,9 @@ export function AdminDashboard() {
     logo: "",
     background: "",
   })
+  const [vipKeys, setVipKeys] = useState<VipKey[]>([])
+  const [showVipKeyDialog, setShowVipKeyDialog] = useState(false)
+  const [newGeneratedKey, setNewGeneratedKey] = useState("")
 
   useEffect(() => {
     fetchDashboardData()
@@ -76,10 +90,11 @@ export function AdminDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, usersRes, channelsRes] = await Promise.all([
+      const [statsRes, usersRes, channelsRes, keysRes] = await Promise.all([
         fetch("/api/admin/stats"),
         fetch("/api/admin/users"),
         fetch("/api/admin/channels"),
+        fetch("/api/admin/vip-keys"),
       ])
 
       if (statsRes.ok) {
@@ -95,6 +110,11 @@ export function AdminDashboard() {
       if (channelsRes.ok) {
         const channelsData = await channelsRes.json()
         setChannels(channelsData.channels || [])
+      }
+
+      if (keysRes.ok) {
+        const keysData = await keysRes.json()
+        setVipKeys(keysData.keys || [])
       }
     } catch (error) {
       console.error("[v0] Failed to fetch dashboard data:", error)
@@ -151,11 +171,11 @@ export function AdminDashboard() {
   const openEditDialog = (channel: Channel) => {
     setEditingChannel(channel)
     setEditForm({
-      name: channel.name,
-      category: (channel as any).category || "",
-      language: (channel as any).language || "",
-      logo: (channel as any).logo || "",
-      background: (channel as any).background || "",
+      name: channel.name || "",
+      category: channel.category || "",
+      language: channel.language || "",
+      logo: channel.logo || "",
+      background: channel.background || "",
     })
   }
 
@@ -240,6 +260,27 @@ export function AdminDashboard() {
     } catch (error) {
       console.error("[v0] Failed to bulk update channels:", error)
     }
+  }
+
+  const generateVipKey = async () => {
+    try {
+      const res = await fetch("/api/admin/vip-keys", {
+        method: "POST",
+      })
+      const data = await res.json()
+      if (data.key) {
+        setNewGeneratedKey(data.key)
+        setShowVipKeyDialog(true)
+        fetchDashboardData()
+      }
+    } catch (error) {
+      console.error("[v0] Failed to generate VIP key:", error)
+    }
+  }
+
+  const copyKeyToClipboard = () => {
+    navigator.clipboard.writeText(newGeneratedKey)
+    alert("Clé copiée dans le presse-papiers !")
   }
 
   const filteredUsers = users.filter((user) => user.email.toLowerCase().includes(userSearch.toLowerCase()))
@@ -478,6 +519,45 @@ export function AdminDashboard() {
         </Card>
       </div>
 
+      {/* VIP Keys Management Section */}
+      <Card className="mt-6 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Key className="h-5 w-5 text-amber-500" />
+            Gestion des Clés VIP
+          </h2>
+          <Button onClick={generateVipKey} className="bg-amber-500 hover:bg-amber-600">
+            <Key className="mr-2 h-4 w-4" />
+            Générer une Clé
+          </Button>
+        </div>
+
+        <div className="max-h-[300px] space-y-3 overflow-y-auto">
+          {vipKeys.map((key) => (
+            <div
+              key={key.id}
+              className={`flex items-center justify-between rounded-lg border p-3 ${
+                key.used ? "bg-muted/50" : "bg-card"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Key className={`h-5 w-5 ${key.used ? "text-muted-foreground" : "text-amber-500"}`} />
+                <div>
+                  <p className="font-mono text-sm font-medium">{key.key}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {key.used
+                      ? `Utilisée le ${new Date(key.used_at!).toLocaleDateString()}`
+                      : `Créée le ${new Date(key.created_at).toLocaleDateString()}`}
+                  </p>
+                </div>
+              </div>
+              <Badge variant={key.used ? "secondary" : "default"}>{key.used ? "Utilisée" : "Disponible"}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Existing dialogs */}
       <Dialog open={!!editingChannel} onOpenChange={() => setEditingChannel(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -534,6 +614,31 @@ export function AdminDashboard() {
             <Button onClick={saveChannelEdit} className="bg-cyan-500 hover:bg-cyan-600">
               Enregistrer
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showVipKeyDialog} onOpenChange={setShowVipKeyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-amber-500" />
+              Nouvelle Clé VIP Générée
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Cette clé peut être utilisée une seule fois pour activer le statut VIP (5€ à vie).
+            </p>
+            <div className="flex items-center gap-2">
+              <Input value={newGeneratedKey} readOnly className="font-mono" />
+              <Button onClick={copyKeyToClipboard} size="icon">
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowVipKeyDialog(false)}>Fermer</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

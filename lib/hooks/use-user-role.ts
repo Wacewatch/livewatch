@@ -27,12 +27,11 @@ export function useUserRole() {
           return
         }
 
-        // Fetch role from user_profiles table
         const { data, error } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
 
         if (error) {
           console.error("[v0] Error fetching user role:", error)
-          setRole("member") // Default to member if error
+          setRole("member")
         } else {
           setRole((data?.role as UserRole) || "member")
         }
@@ -46,7 +45,6 @@ export function useUserRole() {
 
     fetchRole()
 
-    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
@@ -58,5 +56,11 @@ export function useUserRole() {
     }
   }, [supabase])
 
-  return { role, loading, isAdmin: role === "admin", isVip: role === "vip", isMember: role === "member" }
+  return {
+    role,
+    loading,
+    isAdmin: role === "admin",
+    isVip: role === "vip" || role === "admin", // Admins have VIP benefits
+    isMember: role === "member",
+  }
 }
