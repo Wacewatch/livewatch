@@ -211,22 +211,26 @@ export function AdminDashboard() {
     }
   }
 
-  const syncChannels = async () => {
+  const toggleChannel = async (channelId: string, enabled: boolean) => {
     try {
-      const catalogRes = await fetch("/api/catalog")
-      const catalogData = await catalogRes.json()
-
-      const syncRes = await fetch("/api/admin/channels", {
-        method: "POST",
+      console.log("[v0] Toggling channel:", channelId, "to", enabled)
+      const response = await fetch("/api/admin/channels", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channels: catalogData.channels }),
+        body: JSON.stringify({ id: channelId, enabled }),
       })
 
-      if (syncRes.ok) {
-        fetchDashboardData()
+      if (!response.ok) {
+        console.error("[v0] Failed to toggle channel:", await response.text())
+        alert("Échec de la mise à jour de la chaîne")
+        return
       }
+
+      console.log("[v0] Channel toggled successfully")
+      await fetchDashboardData()
     } catch (error) {
-      console.error("[v0] Failed to sync channels:", error)
+      console.error("[v0] Failed to toggle channel:", error)
+      alert("Erreur lors de la mise à jour de la chaîne")
     }
   }
 
@@ -240,19 +244,6 @@ export function AdminDashboard() {
       fetchDashboardData()
     } catch (error) {
       console.error("[v0] Failed to update user role:", error)
-    }
-  }
-
-  const toggleChannel = async (channelId: string, enabled: boolean) => {
-    try {
-      await fetch("/api/admin/channels", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: channelId, enabled }),
-      })
-      fetchDashboardData()
-    } catch (error) {
-      console.error("[v0] Failed to toggle channel:", error)
     }
   }
 
@@ -378,7 +369,8 @@ export function AdminDashboard() {
     }
 
     try {
-      await fetch("/api/admin/channels/create", {
+      console.log("[v0] Creating channel with merge IDs:", selectedChannels)
+      const response = await fetch("/api/admin/channels/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -386,10 +378,30 @@ export function AdminDashboard() {
           mergeIds: createMode === "merge" ? selectedChannels : [],
         }),
       })
+
+      if (!response.ok) {
+        const error = await response.text()
+        console.error("[v0] Failed to create channel:", error)
+        alert("Échec de la création de la chaîne: " + error)
+        return
+      }
+
+      const data = await response.json()
+      console.log("[v0] Channel created successfully:", data)
+
       setShowCreateDialog(false)
       setSelectedChannels([])
       setIsMergeMode(false)
-      fetchDashboardData()
+      setCreateForm({
+        name: "",
+        category: "",
+        language: "FR",
+        logo: "",
+        background: "",
+        sources: [],
+      })
+
+      await fetchDashboardData()
       alert("Chaîne créée avec succès !")
     } catch (error) {
       console.error("[v0] Failed to create channel:", error)

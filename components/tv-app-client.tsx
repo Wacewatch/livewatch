@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo } from "react"
 import { Search, Star, Filter, Globe } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
-import { UserMenu } from "@/components/user-menu"
 import type { GroupedChannel, SortType } from "@/lib/types"
 import Image from "next/image"
 import Link from "next/link"
+import { UserMenu } from "@/components/user-menu" // Declare the UserMenu component
 
 export function TVAppClient() {
   const [channels, setChannels] = useState<GroupedChannel[]>([])
@@ -171,8 +171,7 @@ export function TVAppClient() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
-            <UserMenu />
-
+            <UserMenu /> {/* Insert the UserMenu component here */}
             <button
               onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
               className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
@@ -278,7 +277,9 @@ export function TVAppClient() {
                 className="group glass-card border border-border/50 rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
               >
                 <div className="relative h-40 overflow-hidden">
-                  {channel.background ? (
+                  {channel.background &&
+                  !channel.background.includes("tvvoo") &&
+                  !channel.background.includes("qwertyuiop8899") ? (
                     <Image
                       src={channel.background || "/placeholder.svg"}
                       alt=""
