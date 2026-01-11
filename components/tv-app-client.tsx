@@ -153,7 +153,7 @@ export function TVAppClient() {
 
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-3 md:gap-5 flex-wrap p-3 md:p-5 relative">
           <div className="flex items-center gap-2 md:gap-4">
-            <div className="relative w-32 h-10 md:w-48 md:h-12">
+            <div className="relative w-48 h-12 md:w-64 md:h-16">
               <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" priority />
             </div>
           </div>
@@ -197,31 +197,8 @@ export function TVAppClient() {
 
       <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10">
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
-            <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent flex items-center gap-3">
-              {showOnlyFavorites ? (
-                <>
-                  <Star className="w-8 h-8 text-yellow-400" fill="currentColor" />
-                  Mes Favoris
-                </>
-              ) : (
-                <>
-                  <Image src="/livewatch-logo.png" alt="LiveWatch" width={48} height={12} className="object-contain" />
-                  Toutes les chaînes
-                </>
-              )}
-            </h2>
-          </div>
-          <div className="flex items-center gap-6 text-muted-foreground text-sm">
-            <span className="flex items-center gap-2">
-              <Image src="/livewatch-logo.png" alt="LiveWatch" width={24} height={6} className="object-contain" />
-              <span className="font-semibold text-foreground">{filteredChannels.length}</span> chaînes
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-              En direct
-            </span>
-          </div>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-4"></div>
+          <div className="flex items-center gap-6 text-muted-foreground text-sm"></div>
         </div>
 
         <div className="mb-8 glass-card border border-border/50 rounded-2xl p-6">
@@ -364,8 +341,8 @@ export function TVAppClient() {
                 </div>
 
                 <div className="p-4 bg-gradient-to-b from-card/50 to-card">
-                  <h3 className="font-bold text-lg text-foreground mb-2 truncate group-hover:text-primary transition-colors">
-                    {channel.baseName}
+                  <h3 className="font-bold text-lg md:text-xl text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors leading-tight">
+                    {channel.baseName || channel.name || "Chaîne TV"}
                   </h3>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
