@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { Search, Star, LaptopMinimal as TvMinimal, Filter, Globe, Sparkles } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
+import { UserMenu } from "@/components/user-menu"
 import type { GroupedChannel, SortType } from "@/lib/types"
 import Image from "next/image"
 
@@ -172,6 +173,8 @@ export function TVAppClient() {
           </div>
 
           <div className="flex items-center gap-3">
+            <UserMenu />
+
             <button
               onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
               className={`relative w-14 h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
