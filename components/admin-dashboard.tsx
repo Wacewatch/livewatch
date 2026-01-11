@@ -1,13 +1,29 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Users, LaptopMinimal as TvMinimal, Star, Shield, Crown, UserCircle, Activity, TrendingUp } from "lucide-react"
+import {
+  Users,
+  LaptopMinimal as TvMinimal,
+  Star,
+  Shield,
+  Crown,
+  UserCircle,
+  Activity,
+  TrendingUp,
+  Edit,
+  Trash2,
+  Merge,
+  Check,
+} from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Stats {
   totalUsers: number
@@ -30,6 +46,10 @@ interface Channel {
   name: string
   enabled: boolean
   sort_order: number
+  category?: string
+  language?: string
+  logo?: string
+  background?: string
 }
 
 export function AdminDashboard() {
@@ -39,6 +59,16 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [userSearch, setUserSearch] = useState("")
   const [channelSearch, setChannelSearch] = useState("")
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([])
+  const [isMergeMode, setIsMergeMode] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: "",
+    category: "",
+    language: "",
+    logo: "",
+    background: "",
+  })
 
   useEffect(() => {
     fetchDashboardData()
@@ -115,6 +145,100 @@ export function AdminDashboard() {
       fetchDashboardData()
     } catch (error) {
       console.error("[v0] Failed to toggle channel:", error)
+    }
+  }
+
+  const openEditDialog = (channel: Channel) => {
+    setEditingChannel(channel)
+    setEditForm({
+      name: channel.name,
+      category: (channel as any).category || "",
+      language: (channel as any).language || "",
+      logo: (channel as any).logo || "",
+      background: (channel as any).background || "",
+    })
+  }
+
+  const saveChannelEdit = async () => {
+    if (!editingChannel) return
+
+    try {
+      await fetch("/api/admin/channels", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingChannel.id,
+          ...editForm,
+        }),
+      })
+      setEditingChannel(null)
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to update channel:", error)
+    }
+  }
+
+  const deleteChannel = async (channelId: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette chaîne ?")) return
+
+    try {
+      await fetch(`/api/admin/channels?id=${channelId}`, {
+        method: "DELETE",
+      })
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to delete channel:", error)
+    }
+  }
+
+  const toggleChannelSelection = (channelId: string) => {
+    setSelectedChannels((prev) =>
+      prev.includes(channelId) ? prev.filter((id) => id !== channelId) : [...prev, channelId],
+    )
+  }
+
+  const mergeChannels = async () => {
+    if (selectedChannels.length < 2) {
+      alert("Sélectionnez au moins 2 chaînes à fusionner")
+      return
+    }
+
+    const primaryChannel = channels.find((ch) => ch.id === selectedChannels[0])
+    if (!primaryChannel) return
+
+    try {
+      await fetch("/api/admin/channels/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          primaryId: selectedChannels[0],
+          mergeIds: selectedChannels.slice(1),
+        }),
+      })
+      setIsMergeMode(false)
+      setSelectedChannels([])
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to merge channels:", error)
+    }
+  }
+
+  const bulkToggleChannels = async (enabled: boolean) => {
+    if (selectedChannels.length === 0) return
+
+    try {
+      await fetch("/api/admin/channels/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedChannels,
+          enabled,
+        }),
+      })
+      setSelectedChannels([])
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to bulk update channels:", error)
     }
   }
 
@@ -252,11 +376,42 @@ export function AdminDashboard() {
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold">Gestion des Chaînes</h2>
-            <Button onClick={syncChannels} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Synchroniser
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setIsMergeMode(!isMergeMode)
+                  setSelectedChannels([])
+                }}
+                size="sm"
+                variant={isMergeMode ? "default" : "outline"}
+              >
+                <Merge className="mr-2 h-4 w-4" />
+                {isMergeMode ? "Annuler" : "Fusionner"}
+              </Button>
+              <Button onClick={syncChannels} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
+                <TrendingUp className="mr-2 h-4 w-4" />
+                Synchroniser
+              </Button>
+            </div>
           </div>
+
+          {isMergeMode && selectedChannels.length > 0 && (
+            <div className="mb-4 flex gap-2">
+              <Badge variant="secondary">{selectedChannels.length} sélectionnées</Badge>
+              {selectedChannels.length >= 2 && (
+                <Button onClick={mergeChannels} size="sm" variant="default">
+                  <Check className="mr-2 h-4 w-4" />
+                  Fusionner ({selectedChannels.length})
+                </Button>
+              )}
+              <Button onClick={() => bulkToggleChannels(true)} size="sm" variant="outline">
+                Activer tout
+              </Button>
+              <Button onClick={() => bulkToggleChannels(false)} size="sm" variant="outline">
+                Désactiver tout
+              </Button>
+            </div>
+          )}
 
           <Input
             placeholder="Rechercher une chaîne..."
@@ -267,8 +422,20 @@ export function AdminDashboard() {
 
           <div className="max-h-[400px] space-y-3 overflow-y-auto">
             {filteredChannels.map((channel) => (
-              <div key={channel.id} className="flex items-center justify-between rounded-lg border bg-card p-3">
+              <div
+                key={channel.id}
+                className={`flex items-center justify-between rounded-lg border bg-card p-3 transition-colors ${
+                  selectedChannels.includes(channel.id) ? "border-cyan-500 bg-cyan-500/10" : ""
+                } ${isMergeMode ? "cursor-pointer hover:border-cyan-500/50" : ""}`}
+                onClick={() => isMergeMode && toggleChannelSelection(channel.id)}
+              >
                 <div className="flex items-center gap-3">
+                  {isMergeMode && (
+                    <Checkbox
+                      checked={selectedChannels.includes(channel.id)}
+                      onCheckedChange={() => toggleChannelSelection(channel.id)}
+                    />
+                  )}
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20">
                     <TvMinimal className="h-5 w-5 text-cyan-500" />
                   </div>
@@ -277,12 +444,99 @@ export function AdminDashboard() {
                     <p className="text-xs text-muted-foreground">ID: {channel.id}</p>
                   </div>
                 </div>
-                <Switch checked={channel.enabled} onCheckedChange={(checked) => toggleChannel(channel.id, checked)} />
+                {!isMergeMode && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openEditDialog(channel)
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteChannel(channel.id)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                    <Switch
+                      checked={channel.enabled}
+                      onCheckedChange={(checked) => toggleChannel(channel.id, checked)}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </Card>
       </div>
+
+      <Dialog open={!!editingChannel} onOpenChange={() => setEditingChannel(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Modifier la chaîne</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nom de la chaîne</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="Nom de la chaîne"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Catégorie</Label>
+                <Input
+                  value={editForm.category}
+                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                  placeholder="Sport, News, Entertainment..."
+                />
+              </div>
+              <div>
+                <Label>Langue</Label>
+                <Input
+                  value={editForm.language}
+                  onChange={(e) => setEditForm({ ...editForm, language: e.target.value })}
+                  placeholder="FR, EN, ES..."
+                />
+              </div>
+            </div>
+            <div>
+              <Label>URL du logo</Label>
+              <Input
+                value={editForm.logo}
+                onChange={(e) => setEditForm({ ...editForm, logo: e.target.value })}
+                placeholder="https://example.com/logo.png"
+              />
+            </div>
+            <div>
+              <Label>URL du fond</Label>
+              <Input
+                value={editForm.background}
+                onChange={(e) => setEditForm({ ...editForm, background: e.target.value })}
+                placeholder="https://example.com/background.jpg"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingChannel(null)}>
+              Annuler
+            </Button>
+            <Button onClick={saveChannelEdit} className="bg-cyan-500 hover:bg-cyan-600">
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
