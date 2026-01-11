@@ -5,12 +5,18 @@ export async function GET() {
   try {
     const supabase = await createClient()
 
-    // Check if user is admin
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user || !user.user_metadata?.is_admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+
+    if (profile?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { data: channels, error } = await supabase
@@ -31,12 +37,18 @@ export async function PUT(request: Request) {
   try {
     const supabase = await createClient()
 
-    // Check if user is admin
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user || !user.user_metadata?.is_admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+
+    if (profile?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { id, enabled, sort_order } = await request.json()
@@ -60,12 +72,18 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
 
-    // Check if user is admin
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user || !user.user_metadata?.is_admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+
+    if (profile?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { channels } = await request.json()
@@ -73,7 +91,7 @@ export async function POST(request: Request) {
     // Bulk upsert channels
     const { error } = await supabase.from("channels").upsert(
       channels.map((ch: any, index: number) => ({
-        id: ch.baseName || ch.baseId,
+        id: ch.baseId || ch.baseName,
         name: ch.displayName,
         enabled: true,
         sort_order: index,

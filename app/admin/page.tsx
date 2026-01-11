@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { AdminPanel } from "@/components/admin-panel"
+import { AdminDashboard } from "@/components/admin-dashboard"
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -19,12 +19,12 @@ export default async function AdminPage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-500">Access Denied</h1>
-          <p className="mt-2 text-muted-foreground">You do not have admin privileges.</p>
+          <h1 className="text-2xl font-bold text-red-500">Accès Refusé</h1>
+          <p className="mt-2 text-muted-foreground">Vous n'avez pas les privilèges administrateur.</p>
         </div>
       </div>
     )
   }
 
-  return <AdminPanel />
+  return <AdminDashboard />
 }
