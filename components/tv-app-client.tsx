@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, LaptopMinimal as TvMinimal, SortAsc, Flame } from "lucide-react"
+import { Search, Star, LaptopMinimal as TvMinimal, SortAsc, Flame, Filter, Globe, Sparkles } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import type { Channel, ChannelWithFavorite, SortType } from "@/lib/types"
+import Image from "next/image"
 
 export function TVAppClient() {
   const [channels, setChannels] = useState<Channel[]>([])
@@ -13,6 +14,9 @@ export function TVAppClient() {
   const [sortType, setSortType] = useState<SortType>("name")
   const [selectedChannel, setSelectedChannel] = useState<ChannelWithFavorite | null>(null)
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("all")
+  const [selectedQuality, setSelectedQuality] = useState<string>("all")
 
   const { favorites, toggleFavorite, count: favoritesCount } = useFavorites()
 
@@ -62,11 +66,38 @@ export function TVAppClient() {
     }))
   }, [channels, favorites])
 
+  const categories = useMemo(() => {
+    const cats = new Set(channels.map((c) => c.category).filter(Boolean))
+    return ["all", ...Array.from(cats).sort()]
+  }, [channels])
+
+  const languages = useMemo(() => {
+    const langs = new Set(channels.map((c) => c.language).filter(Boolean))
+    return ["all", ...Array.from(langs).sort()]
+  }, [channels])
+
+  const qualities = useMemo(() => {
+    const quals = new Set(channels.map((c) => c.quality).filter(Boolean))
+    return ["all", ...Array.from(quals).sort()]
+  }, [channels])
+
   const filteredChannels = useMemo(() => {
     let filtered = channelsWithFavorites
 
     if (showOnlyFavorites) {
       filtered = filtered.filter((c) => c.isFavorite)
+    }
+
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter((c) => c.category === selectedCategory)
+    }
+
+    if (selectedLanguage !== "all") {
+      filtered = filtered.filter((c) => c.language === selectedLanguage)
+    }
+
+    if (selectedQuality !== "all") {
+      filtered = filtered.filter((c) => c.quality === selectedQuality)
     }
 
     if (searchQuery) {
@@ -81,7 +112,15 @@ export function TVAppClient() {
     }
 
     return filtered
-  }, [channelsWithFavorites, searchQuery, sortType, showOnlyFavorites])
+  }, [
+    channelsWithFavorites,
+    searchQuery,
+    sortType,
+    showOnlyFavorites,
+    selectedCategory,
+    selectedLanguage,
+    selectedQuality,
+  ])
 
   if (loading) {
     return (
@@ -151,6 +190,60 @@ export function TVAppClient() {
       </header>
 
       <main className="max-w-screen-2xl mx-auto p-6 lg:p-10">
+        <div className="mb-8 glass-card border border-border/50 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-bold text-foreground">Filtres</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">Catégorie</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none transition-all"
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat === "all" ? "Toutes les catégories" : cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">Langue</label>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none transition-all"
+              >
+                {languages.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang === "all" ? "Toutes les langues" : lang}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">Qualité</label>
+              <select
+                value={selectedQuality}
+                onChange={(e) => setSelectedQuality(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none transition-all"
+              >
+                {qualities.map((qual) => (
+                  <option key={qual} value={qual}>
+                    {qual === "all" ? "Toutes les qualités" : qual}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div className="mb-10">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div>
@@ -222,30 +315,79 @@ export function TVAppClient() {
                 onClick={() => setSelectedChannel(channel)}
                 className="group glass-card border border-border/50 rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
               >
-                <div className="relative h-40 bg-gradient-to-br from-secondary to-secondary-light flex items-center justify-center">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
-                  <TvMinimal className="w-16 h-16 text-primary relative z-10" />
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white">
+                <div className="relative h-40 overflow-hidden">
+                  {channel.background ? (
+                    <Image
+                      src={channel.background || "/placeholder.svg"}
+                      alt=""
+                      fill
+                      className="object-cover opacity-40 group-hover:scale-110 transition-transform duration-500"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20" />
+                  )}
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+
+                  <div className="absolute inset-0 flex items-center justify-center p-4">
+                    {channel.logo || channel.poster ? (
+                      <Image
+                        src={channel.logo || channel.poster || ""}
+                        alt={channel.name}
+                        width={120}
+                        height={60}
+                        className="object-contain max-h-16 drop-shadow-2xl group-hover:scale-110 transition-transform duration-300"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center backdrop-blur-sm border border-primary/20">
+                        <TvMinimal className="w-10 h-10 text-primary" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                     LIVE
                   </div>
+
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       toggleFavorite(channel.id)
                     }}
-                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                      channel.isFavorite ? "bg-yellow-400 text-black" : "bg-black/40 text-white hover:bg-black/60"
+                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                      channel.isFavorite
+                        ? "bg-yellow-400 text-black scale-110"
+                        : "bg-black/60 backdrop-blur-sm text-white hover:bg-black/80"
                     }`}
                   >
                     <Star className="w-5 h-5" fill={channel.isFavorite ? "currentColor" : "none"} strokeWidth={2} />
                   </button>
                 </div>
-                <div className="p-4">
-                  <h3 className="font-bold text-lg text-foreground mb-2 truncate">{channel.name}</h3>
-                  <span className="inline-block px-3 py-1 rounded-lg text-xs font-semibold bg-primary/20 text-primary">
-                    {channel.category || "Divers"}
-                  </span>
+
+                <div className="p-4 bg-gradient-to-b from-card/50 to-card">
+                  <h3 className="font-bold text-lg text-foreground mb-2 truncate group-hover:text-primary transition-colors">
+                    {channel.name}
+                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
+                      {channel.category || "Divers"}
+                    </span>
+                    {channel.language && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                        <Globe className="w-3 h-3" />
+                        {channel.language}
+                      </span>
+                    )}
+                    {channel.quality && channel.quality !== "SD" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30">
+                        <Sparkles className="w-3 h-3" />
+                        {channel.quality}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

@@ -2,13 +2,36 @@ import type { NextRequest } from "next/server"
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
-  const url = searchParams.get("url")
+  const channelId = searchParams.get("channelId")
+  const skipAd = searchParams.get("skipAd") === "true"
 
-  console.log("[v0] Player route called with URL:", url)
+  console.log("[v0] Player route called with channelId:", channelId, "skipAd:", skipAd)
 
-  if (!url) {
-    console.error("[v0] Player route: Missing URL parameter")
-    return new Response("Missing URL parameter", { status: 400 })
+  if (!channelId) {
+    console.error("[v0] Player route: Missing channelId parameter")
+    return new Response("Missing channelId parameter", { status: 400 })
+  }
+
+  let streamUrl = ""
+  try {
+    const streamResponse = await fetch(
+      `${request.nextUrl.origin}/api/stream?channelId=${encodeURIComponent(channelId)}`,
+    )
+    if (streamResponse.ok) {
+      const streamData = await streamResponse.json()
+      streamUrl = streamData.url || ""
+      console.log("[v0] Stream URL fetched:", streamUrl)
+    } else {
+      console.error("[v0] Failed to fetch stream URL:", streamResponse.status)
+      return new Response("Stream not available", { status: 404 })
+    }
+  } catch (error) {
+    console.error("[v0] Error fetching stream:", error)
+    return new Response("Error fetching stream", { status: 500 })
+  }
+
+  if (!streamUrl) {
+    return new Response("No stream URL available", { status: 404 })
   }
 
   console.log("[v0] Player route: Generating HTML for stream")
@@ -77,7 +100,7 @@ export async function GET(request: NextRequest) {
   <script>
     const video = document.getElementById('video');
     const statusEl = document.getElementById('status');
-    const streamUrl = ${JSON.stringify(url)};
+    const streamUrl = ${JSON.stringify(streamUrl)};
     let hls = null;
 
     console.log('[v0] Player iframe loaded');
