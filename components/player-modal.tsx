@@ -24,11 +24,12 @@ interface PlayerModalProps {
   channel: ChannelWithFavorite | null
   isOpen: boolean
   onClose: () => void
+  forceNoAds?: boolean // Added prop to force bypass ads for VIP player page
 }
 
 const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
 
-export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
+export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
   const [adUnlocked, setAdUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -52,8 +53,8 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
       console.log("[v0] Opening player for channel:", channel.baseName)
       document.body.style.overflow = "hidden"
 
-      if (isVip || isAdmin) {
-        console.log("[v0] VIP/Admin user detected, bypassing ad lock")
+      if (isVip || isAdmin || forceNoAds) {
+        console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
         setAdUnlocked(true)
         setTimeout(() => loadStreamSource(), 100)
       } else {
@@ -85,7 +86,7 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
         hlsRef.current = null
       }
     }
-  }, [isOpen, channel, isVip, isAdmin])
+  }, [isOpen, channel, isVip, isAdmin, forceNoAds]) // Added forceNoAds to dependencies
 
   const startTrackingSession = async () => {
     if (!channel) return
@@ -491,33 +492,38 @@ export function PlayerModal({ channel, isOpen, onClose }: PlayerModalProps) {
             </div>
           )}
 
-          {!adUnlocked && !loading && !error && !isVip && !isAdmin && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black px-4">
-              <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
-              <h3 className="text-3xl font-bold text-white mb-4 text-center">Stream verrouillé</h3>
-              <p className="text-white/70 text-lg mb-2 text-center">
-                Regardez une courte publicité pour débloquer ce stream
-              </p>
-              <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
-              <button
-                onClick={unlockStream}
-                className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
-              >
-                <Unlock className="w-6 h-6" />
-                <span>Débloquer le stream</span>
-              </button>
-              <div className="mt-8 text-center">
-                <p className="text-white/50 text-sm mb-3">Ou profitez sans publicité !</p>
+          {!adUnlocked &&
+            !loading &&
+            !error &&
+            !isVip &&
+            !isAdmin &&
+            !forceNoAds && ( // Added forceNoAds check
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black px-4">
+                <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
+                <h3 className="text-3xl font-bold text-white mb-4 text-center">Stream verrouillé</h3>
+                <p className="text-white/70 text-lg mb-2 text-center">
+                  Regardez une courte publicité pour débloquer ce stream
+                </p>
+                <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
                 <button
-                  onClick={() => setShowVipModal(true)}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold hover:scale-105 transition-all shadow-lg shadow-amber-500/30 mx-auto"
+                  onClick={unlockStream}
+                  className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
                 >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Devenez VIP - 5€ à vie</span>
+                  <Unlock className="w-6 h-6" />
+                  <span>Débloquer le stream</span>
                 </button>
+                <div className="mt-8 text-center">
+                  <p className="text-white/50 text-sm mb-3">Ou profitez sans publicité !</p>
+                  <button
+                    onClick={() => setShowVipModal(true)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold hover:scale-105 transition-all shadow-lg shadow-amber-500/30 mx-auto"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    <span>Devenez VIP - 5€ à vie</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       </div>
 
