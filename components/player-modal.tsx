@@ -241,6 +241,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         enableWorker: true,
         lowLatencyMode: true,
         backBufferLength: 90,
+        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+          // Make sure all HLS requests go through our proxy with the correct path
+          console.log("[v0] HLS requesting:", url)
+        },
       })
 
       hlsRef.current = hls

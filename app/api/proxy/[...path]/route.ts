@@ -254,8 +254,9 @@ function rewriteM3U8(content: string, baseUrl: string, origin: string): string {
         absoluteUrl = new URL(trimmed, base).href
       }
 
-      return `${origin}/api/proxy/url/${encodeUrl(absoluteUrl)}`
-    } catch {
+      return `/api/proxy/url/${encodeUrl(absoluteUrl)}`
+    } catch (error) {
+      console.error("[v0] Failed to rewrite URL:", trimmed, error)
       return line
     }
   })
