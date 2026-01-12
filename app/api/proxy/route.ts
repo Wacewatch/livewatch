@@ -1,148 +1,125 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-export const dynamic = "force-dynamic"
-export const maxDuration = 60
-
-const VAVOO_HEADERS = {
-  "User-Agent": "VAVOO/2.6",
-  Accept: "*/*",
-  "Accept-Language": "en-US,en;q=0.9",
-}
-
-const BROWSER_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  Accept: "*/*",
-  "Accept-Language": "en-US,en;q=0.9",
-}
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const url = searchParams.get("url")
 
   if (!url) {
-    return NextResponse.json({ error: "URL parameter required" }, { status: 400 })
+    console.error("[v0] Proxy error: URL parameter missing")
+    return NextResponse.json({ error: "URL parameter is required" }, { status: 400 })
   }
 
   try {
-    console.log("[v0] Proxying URL:", url)
+    console.log("[v0] Proxying request to:", url)
 
-    // Determine if this is a video segment
-    const isSegment =
-      url.endsWith(".ts") ||
-      url.endsWith(".aac") ||
-      url.endsWith(".m4s") ||
-      url.includes("/seg-") ||
-      url.includes("_seg")
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
     const response = await fetch(url, {
-      method: "GET",
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        Referer: new URL(url).origin,
+        Accept: "*/*",
+        "Accept-Encoding": "identity",
+      },
+      signal: controller.signal,
     })
 
+    clearTimeout(timeoutId)
+
     if (!response.ok) {
-      console.error("[v0] Fetch error:", response.status, url)
-      return NextResponse.json({ error: `Fetch error: ${response.status}` }, { status: response.status })
+      console.error("[v0] Proxy fetch failed:", {
+        url: url,
+        status: response.status,
+        statusText: response.statusText,
+      })
+      return NextResponse.json(
+        {
+          error: `Failed to fetch: ${response.statusText}`,
+          status: response.status,
+          url: url,
+        },
+        { status: response.status },
+      )
     }
 
     const contentType = response.headers.get("content-type") || ""
 
-    // Handle video/audio segments - stream directly
-    if (
-      isSegment ||
-      contentType.includes("video/") ||
-      contentType.includes("audio/") ||
-      contentType.includes("octet-stream") ||
-      contentType.includes("mp2t")
-    ) {
-      return new NextResponse(response.body, {
-        status: 200,
-        headers: {
-          "Content-Type": contentType || "video/mp2t",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "*",
-          "Cache-Control": "public, max-age=3600",
-        },
-      })
-    }
+    if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
+      const text = await response.text()
+      console.log("[v0] Rewriting M3U8 manifest URLs")
 
-    // Handle M3U8 playlists - rewrite URLs
-    const content = await response.text()
+      const baseUrl = new URL(url)
+      const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
 
-    if (content.startsWith("#EXTM3U") || content.includes("#EXTINF") || content.includes("#EXT-X-")) {
-      const baseUrl = url.substring(0, url.lastIndexOf("/") + 1)
-      const rewrittenContent = rewriteM3U8(content, baseUrl, request.nextUrl.origin)
+      const rewrittenManifest = text
+        .split("\n")
+        .map((line) => {
+          if (line.startsWith("#") || line.trim() === "") {
+            return line
+          }
 
-      return new NextResponse(rewrittenContent, {
+          if (line.trim().length > 0 && !line.startsWith("#")) {
+            let absoluteUrl = line.trim()
+
+            if (!absoluteUrl.startsWith("http://") && !absoluteUrl.startsWith("https://")) {
+              absoluteUrl = baseUrlStr + absoluteUrl
+            }
+
+            return `/api/proxy?url=${encodeURIComponent(absoluteUrl)}`
+          }
+
+          return line
+        })
+        .join("\n")
+
+      console.log("[v0] M3U8 manifest rewritten successfully")
+
+      return new NextResponse(rewrittenManifest, {
         status: 200,
         headers: {
           "Content-Type": "application/vnd.apple.mpegurl",
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "*",
-          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Cache-Control": "no-cache",
         },
       })
     }
 
-    // Other content types
-    return new NextResponse(content, {
+    const data = await response.arrayBuffer()
+
+    console.log("[v0] Proxy successful:", {
+      contentType: contentType,
+      size: data.byteLength,
+      url: url.substring(0, 100), // Log first 100 chars of URL
+    })
+
+    return new NextResponse(data, {
       status: 200,
       headers: {
-        "Content-Type": contentType || "text/plain",
+        "Content-Type": contentType || "application/octet-stream",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Cache-Control": "no-cache",
       },
     })
   } catch (error) {
-    console.error("[v0] Proxy error:", error)
+    console.error("[v0] Proxy error details:", {
+      url: url,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.json(
-      { error: "Proxy error", message: error instanceof Error ? error.message : "Unknown error" },
+      {
+        error: "Failed to fetch stream",
+        details: error instanceof Error ? error.message : String(error),
+        url: url,
+      },
       { status: 500 },
     )
   }
-}
-
-function rewriteM3U8(content: string, baseUrl: string, origin: string): string {
-  const lines = content.split("\n")
-  const rewrittenLines = lines.map((line) => {
-    const trimmed = line.trim()
-
-    // Skip comments and empty lines
-    if (trimmed.startsWith("#") || trimmed === "") {
-      return line
-    }
-
-    try {
-      let absoluteUrl: string
-
-      // Handle absolute URLs
-      if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-        absoluteUrl = trimmed
-      }
-      // Handle absolute paths
-      else if (trimmed.startsWith("/")) {
-        const baseUrlObj = new URL(baseUrl)
-        absoluteUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}${trimmed}`
-      }
-      // Handle relative URLs
-      else {
-        const base = baseUrl.endsWith("/") ? baseUrl : baseUrl.substring(0, baseUrl.lastIndexOf("/") + 1)
-        absoluteUrl = new URL(trimmed, base).href
-      }
-
-      // Return proxy URL with query parameter
-      return `/api/proxy?url=${encodeURIComponent(absoluteUrl)}`
-    } catch (error) {
-      console.error("[v0] Failed to rewrite URL:", trimmed, error)
-      return line
-    }
-  })
-
-  return rewrittenLines.join("\n")
 }
 
 export async function OPTIONS() {
@@ -151,7 +128,7 @@ export async function OPTIONS() {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Allow-Headers": "Content-Type",
     },
   })
 }
