@@ -1,21 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 export const runtime = "nodejs"
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const url = searchParams.get("url")
 
   if (!url) {
-    console.error("[v0] Proxy error: URL parameter missing")
     return NextResponse.json({ error: "URL parameter is required" }, { status: 400 })
   }
 
   try {
-    console.log("[v0] Proxying request to:", url.substring(0, 100))
-
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     let response
     try {
@@ -31,17 +29,12 @@ export async function GET(request: NextRequest) {
       })
     } catch (fetchError) {
       clearTimeout(timeoutId)
-      console.error("[v0] Fetch error:", fetchError)
       throw fetchError
     }
 
     clearTimeout(timeoutId)
 
     if (!response.ok) {
-      console.error("[v0] Proxy fetch failed:", {
-        status: response.status,
-        statusText: response.statusText,
-      })
       return NextResponse.json(
         {
           error: `Failed to fetch: ${response.statusText}`,
@@ -55,7 +48,6 @@ export async function GET(request: NextRequest) {
 
     if (contentType.includes("mpegurl") || contentType.includes("x-mpegURL") || url.includes(".m3u8")) {
       const text = await response.text()
-      console.log("[v0] Rewriting M3U8 manifest")
 
       const baseUrl = new URL(url)
       const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
@@ -106,11 +98,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("[v0] Proxy error:", {
-      message: error instanceof Error ? error.message : String(error),
-      name: error instanceof Error ? error.name : "Unknown",
-    })
-
     if (error instanceof Error && error.name === "AbortError") {
       return NextResponse.json(
         {
