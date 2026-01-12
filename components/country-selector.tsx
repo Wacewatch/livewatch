@@ -6,23 +6,23 @@ import Link from "next/link"
 import { UserMenu } from "@/components/user-menu"
 
 const COUNTRIES = [
-  { name: "France", flag: "🇫🇷", code: "fr" },
-  { name: "Italy", flag: "🇮🇹", code: "it" },
-  { name: "Spain", flag: "🇪🇸", code: "es" },
-  { name: "Portugal", flag: "🇵🇹", code: "pt" },
-  { name: "Germany", flag: "🇩🇪", code: "de" },
-  { name: "United Kingdom", flag: "🇬🇧", code: "uk" },
-  { name: "Belgium", flag: "🇧🇪", code: "be" },
-  { name: "Netherlands", flag: "🇳🇱", code: "nl" },
-  { name: "Switzerland", flag: "🇨🇭", code: "ch" },
-  { name: "Albania", flag: "🇦🇱", code: "al" },
-  { name: "Turkey", flag: "🇹🇷", code: "tr" },
-  { name: "Arabia", flag: "🇸🇦", code: "ar" },
-  { name: "Balkans", flag: "🏴", code: "rs" },
-  { name: "Russia", flag: "🇷🇺", code: "ru" },
-  { name: "Romania", flag: "🇷🇴", code: "ro" },
-  { name: "Poland", flag: "🇵🇱", code: "pl" },
-  { name: "Bulgaria", flag: "🇧🇬", code: "bg" },
+  { name: "France", code: "fr" },
+  { name: "Italy", code: "it" },
+  { name: "Spain", code: "es" },
+  { name: "Portugal", code: "pt" },
+  { name: "Germany", code: "de" },
+  { name: "United Kingdom", code: "gb" },
+  { name: "Belgium", code: "be" },
+  { name: "Netherlands", code: "nl" },
+  { name: "Switzerland", code: "ch" },
+  { name: "Albania", code: "al" },
+  { name: "Turkey", code: "tr" },
+  { name: "Arabia", code: "sa" },
+  { name: "Balkans", code: "rs" },
+  { name: "Russia", code: "ru" },
+  { name: "Romania", code: "ro" },
+  { name: "Poland", code: "pl" },
+  { name: "Bulgaria", code: "bg" },
 ]
 
 export function CountrySelector() {
@@ -60,8 +60,14 @@ export function CountrySelector() {
               href={`/channels/${encodeURIComponent(country.name)}`}
               className="group glass-card border border-border/50 rounded-2xl p-6 md:p-8 hover:border-primary/50 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
             >
-              <div className="text-6xl md:text-7xl group-hover:scale-110 transition-transform duration-300">
-                {country.flag}
+              <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Image
+                  src={`https://flagcdn.com/w160/${country.code}.png`}
+                  alt={`${country.name} flag`}
+                  fill
+                  className="object-cover"
+                  loading="lazy"
+                />
               </div>
               <h3 className="text-lg md:text-xl font-bold text-foreground text-center group-hover:text-primary transition-colors">
                 {country.name}

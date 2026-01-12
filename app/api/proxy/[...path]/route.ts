@@ -29,7 +29,7 @@ const CACHE_TTL = 30000 // 30 secondes
 
 export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
   const resolvedParams = await params
-  const path = resolvedParams.path.join("/")
+  const path = resolvedParams.path.map((segment) => decodeURIComponent(segment)).join("/")
 
   try {
     let targetUrl: string
@@ -254,7 +254,7 @@ function rewriteM3U8(content: string, baseUrl: string, origin: string): string {
         absoluteUrl = new URL(trimmed, base).href
       }
 
-      return `/api/proxy/url/${encodeUrl(absoluteUrl)}`
+      return `/api/proxy/url/${encodeURIComponent(absoluteUrl)}`
     } catch (error) {
       console.error("[v0] Failed to rewrite URL:", trimmed, error)
       return line
