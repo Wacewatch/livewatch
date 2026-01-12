@@ -1,10 +1,5 @@
-import { Suspense } from "react"
-import { TVAppClient } from "@/components/tv-app-client"
+import { CountrySelector } from "@/components/country-selector"
 
-export default function TVStreamingPage() {
-  return (
-    <Suspense fallback={null}>
-      <TVAppClient />
-    </Suspense>
-  )
+export default function HomePage() {
+  return <CountrySelector />
 }

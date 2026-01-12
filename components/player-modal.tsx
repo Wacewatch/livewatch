@@ -25,11 +25,12 @@ interface PlayerModalProps {
   isOpen: boolean
   onClose: () => void
   forceNoAds?: boolean // Added prop to force bypass ads for VIP player page
+  country?: string // Added country prop for TvVoo API
 }
 
 const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
 
-export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false }: PlayerModalProps) {
+export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
   const [adUnlocked, setAdUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -50,7 +51,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false }: Pl
 
   useEffect(() => {
     if (isOpen && channel) {
-      console.log("[v0] Opening player for channel:", channel.baseName)
+      console.log("[v0] Opening player for channel:", channel.baseName, "country:", country)
       document.body.style.overflow = "hidden"
 
       if (isVip || isAdmin || forceNoAds) {
@@ -86,7 +87,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false }: Pl
         hlsRef.current = null
       }
     }
-  }, [isOpen, channel, isVip, isAdmin, forceNoAds]) // Added forceNoAds to dependencies
+  }, [isOpen, channel, isVip, isAdmin, forceNoAds, country]) // Added forceNoAds and country to dependencies
 
   const startTrackingSession = async () => {
     if (!channel) return
@@ -187,31 +188,30 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false }: Pl
   }
 
   const loadStreamSource = async (sourceIndex: number = selectedSourceIndex) => {
-    if (!channel || !channel.sources[sourceIndex]) return
+    if (!channel) return
 
     setLoading(true)
     setError(null)
     setVideoLoaded(false)
 
     try {
-      const selectedSource = channel.sources[sourceIndex]
-      console.log("[v0] Fetching stream for source:", selectedSource.name, selectedSource.id)
+      console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
 
-      const response = await fetch(`/api/stream?id=${encodeURIComponent(selectedSource.id)}`)
+      const response = await fetch(
+        `/api/tvvoo/stream?channel=${encodeURIComponent(channel.baseId)}&countries=${encodeURIComponent(country)}`,
+      )
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
 
       const data = await response.json()
-      console.log("[v0] Stream data received")
+      console.log("[v0] TvVoo stream data received")
 
-      if (data.success && data.data && data.data.sources && data.data.sources.length > 0) {
-        const originalUrl = data.data.sources[0].url
-        const proxiedUrl = `/api/proxy-stream?url=${encodeURIComponent(originalUrl)}`
+      if (data.streamUrl) {
         console.log("[v0] Playing stream via proxy")
-        setStreamUrl(proxiedUrl)
-        playSource(proxiedUrl)
+        setStreamUrl(data.streamUrl)
+        playSource(data.streamUrl)
       } else {
         throw new Error("Aucune source disponible")
       }
@@ -319,13 +319,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false }: Pl
   }
 
   if (!isOpen || !channel) return null
-
-  const availableQualities = Array.from(new Set(channel.sources.map((s) => s.quality))).sort((a, b) => {
-    const order = { "4K": 4, FHD: 3, HD: 2, SD: 1 }
-    return (order[b as keyof typeof order] || 0) - (order[a as keyof typeof order] || 0)
-  })
-
-  const currentQuality = channel.sources[selectedSourceIndex]?.quality || "SD"
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
   const playerLink = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}`
