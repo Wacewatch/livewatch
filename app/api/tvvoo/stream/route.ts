@@ -23,10 +23,20 @@ export async function GET(request: NextRequest) {
 
     console.log("[v0] Stream URL obtained:", streamUrl)
 
-    const proxyUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`
+    // Check if the stream is from TvVoo (contains specific domains)
+    if (streamUrl.includes("sunshine") || streamUrl.includes("http")) {
+      // Return the proxy path using the new proxy route structure
+      const proxyUrl = `/api/proxy/url/${encodeURIComponent(streamUrl)}`
 
+      return NextResponse.json({
+        streamUrl: proxyUrl,
+        originalUrl: streamUrl,
+      })
+    }
+
+    // For other streams, return as-is
     return NextResponse.json({
-      streamUrl: proxyUrl,
+      streamUrl: streamUrl,
       originalUrl: streamUrl,
     })
   } catch (error) {
