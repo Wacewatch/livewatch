@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "URL parameter is required" }, { status: 400 })
   }
 
+  console.log("[v0] Proxy request for URL:", url)
+
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
@@ -29,10 +31,13 @@ export async function GET(request: NextRequest) {
       })
     } catch (fetchError) {
       clearTimeout(timeoutId)
+      console.error("[v0] Fetch error:", fetchError)
       throw fetchError
     }
 
     clearTimeout(timeoutId)
+
+    console.log("[v0] Proxy response status:", response.status, "Content-Type:", response.headers.get("content-type"))
 
     if (!response.ok) {
       return NextResponse.json(
@@ -48,6 +53,17 @@ export async function GET(request: NextRequest) {
 
     if (contentType.includes("mpegurl") || contentType.includes("x-mpegURL") || url.includes(".m3u8")) {
       const text = await response.text()
+
+      if (!text.includes("#EXTM3U")) {
+        console.error("[v0] Invalid M3U8 file - missing #EXTM3U header. First 500 chars:", text.substring(0, 500))
+        return NextResponse.json(
+          {
+            error: "Invalid M3U8 file - stream may be offline or blocked",
+            details: "The stream URL did not return a valid HLS playlist",
+          },
+          { status: 502 },
+        )
+      }
 
       const baseUrl = new URL(url)
       const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
@@ -72,6 +88,8 @@ export async function GET(request: NextRequest) {
           return line
         })
         .join("\n")
+
+      console.log("[v0] Successfully rewrote M3U8 manifest")
 
       return new NextResponse(rewrittenManifest, {
         status: 200,
@@ -99,6 +117,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      console.error("[v0] Request timeout for URL:", url)
       return NextResponse.json(
         {
           error: "Request timeout - stream took too long to respond",
@@ -107,6 +126,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    console.error("[v0] Proxy error:", error)
     return NextResponse.json(
       {
         error: "Failed to fetch stream",

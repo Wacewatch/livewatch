@@ -263,7 +263,19 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.error("[v0] HLS error:", data)
         if (data.fatal) {
-          setError("Erreur de lecture du flux")
+          let errorMessage = "Erreur de lecture du flux"
+
+          if (data.details === "manifestParsingError") {
+            errorMessage =
+              "Le flux est actuellement indisponible. Veuillez réessayer plus tard ou essayer une autre chaîne."
+            console.error("[v0] Stream URL is not returning valid M3U8 - likely offline or blocked")
+          } else if (data.type === "networkError") {
+            errorMessage = "Erreur réseau - le flux est peut-être temporairement indisponible"
+          } else if (data.details === "manifestLoadError") {
+            errorMessage = "Impossible de charger le flux - l'URL peut être invalide"
+          }
+
+          setError(errorMessage)
           setLoading(false)
         }
       })
@@ -276,6 +288,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         setLoading(false)
         startTrackingSession()
         video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
+      })
+      video.addEventListener("error", (e) => {
+        console.error("[v0] Video error:", e)
+        setError("Erreur de lecture - le flux est peut-être indisponible")
+        setLoading(false)
       })
     } else {
       setError("HLS non supporté par ce navigateur")
