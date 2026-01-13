@@ -10,26 +10,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log("[v0] Proxying request to:", url)
+    console.log("[v0] Proxying request to:", url.substring(0, 100))
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
 
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Referer: new URL(url).origin,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Referer: "https://tvvoo.live/",
         Accept: "*/*",
         "Accept-Encoding": "identity",
+        Origin: "https://tvvoo.live",
       },
       signal: controller.signal,
+      cache: "no-store",
     })
 
     clearTimeout(timeoutId)
 
     if (!response.ok) {
       console.error("[v0] Proxy fetch failed:", {
-        url: url,
+        url: url.substring(0, 100),
         status: response.status,
         statusText: response.statusText,
       })
@@ -37,7 +40,6 @@ export async function GET(request: NextRequest) {
         {
           error: `Failed to fetch: ${response.statusText}`,
           status: response.status,
-          url: url,
         },
         { status: response.status },
       )
@@ -81,8 +83,10 @@ export async function GET(request: NextRequest) {
           "Content-Type": "application/vnd.apple.mpegurl",
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-          "Cache-Control": "no-cache",
+          "Access-Control-Allow-Headers": "Content-Type, Range",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         },
       })
     }
@@ -92,7 +96,6 @@ export async function GET(request: NextRequest) {
     console.log("[v0] Proxy successful:", {
       contentType: contentType,
       size: data.byteLength,
-      url: url.substring(0, 100), // Log first 100 chars of URL
     })
 
     return new NextResponse(data, {
@@ -101,23 +104,27 @@ export async function GET(request: NextRequest) {
         "Content-Type": contentType || "application/octet-stream",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Cache-Control": "no-cache",
+        "Access-Control-Allow-Headers": "Content-Type, Range",
+        "Cache-Control": "public, max-age=3600",
+        "Accept-Ranges": "bytes",
       },
     })
   } catch (error) {
-    console.error("[v0] Proxy error details:", {
-      url: url,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const isTimeout = errorMessage.includes("aborted") || errorMessage.includes("timeout")
+
+    console.error("[v0] Proxy error:", {
+      url: url.substring(0, 100),
+      error: errorMessage,
+      isTimeout,
     })
+
     return NextResponse.json(
       {
-        error: "Failed to fetch stream",
-        details: error instanceof Error ? error.message : String(error),
-        url: url,
+        error: isTimeout ? "Request timeout" : "Failed to fetch stream",
+        details: errorMessage,
       },
-      { status: 500 },
+      { status: isTimeout ? 504 : 500 },
     )
   }
 }
@@ -128,7 +135,7 @@ export async function OPTIONS() {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Range",
     },
   })
 }
