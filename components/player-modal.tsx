@@ -375,7 +375,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       if (proxyType === "external") {
         console.log("[v0] Fetching Nakios stream via Cloudflare Worker for channel:", channel.baseId)
 
-        const workerUrl = `https://nakios-proxy.your-domain.workers.dev/?channel=${encodeURIComponent(channel.baseId)}`
+        const workerUrl = `https://fancy-bar-4282.wavewatchcontact.workers.dev/?channel=${encodeURIComponent(channel.baseId)}`
         const response = await fetch(workerUrl)
 
         if (!response.ok) {
