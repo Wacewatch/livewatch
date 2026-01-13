@@ -63,6 +63,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const [loadingStatus, setLoadingStatus] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  // Corrected hlsRef declaration to match the rest of the code
   const hlsRef = useRef<any>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hiddenLinkRef = useRef<HTMLAnchorElement>(null)
@@ -328,13 +329,16 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = currentProxy) => {
     if (!channel) return
 
+    console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : "2"}`)
+
     setLoading(true)
     setError(null)
     setVideoLoaded(false)
+    setCurrentProxy(proxyType)
     startLoadingAnimation()
 
     try {
-      console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country, "proxy:", proxyType)
+      console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
 
       const response = await fetch(
         `/api/tvvoo/stream?channel=${encodeURIComponent(channel.baseId)}&countries=${encodeURIComponent(country)}`,
@@ -353,11 +357,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
         let finalUrl: string
         if (proxyType === "external") {
-          finalUrl = EXTERNAL_PROXY_BASE + encodeURIComponent(data.originalUrl)
-          console.log("[v0] Using DIRECT external proxy (movix.club):", finalUrl)
+          finalUrl = data.originalUrl
+          console.log("[v0] Using Source 2 (External proxy via HLS custom loader)")
         } else {
           finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
-          console.log("[v0] Using default proxy")
+          console.log("[v0] Using Source 1 (Default proxy)")
         }
 
         setStreamUrl(finalUrl)
@@ -380,7 +384,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const switchProxySource = (proxyType: ProxyType) => {
     if (proxyType === currentProxy) return
 
-    console.log("[v0] Switching proxy to:", proxyType)
+    console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : "2"}`)
     setCurrentProxy(proxyType)
 
     // ✅ CORRECTION: Vérifier si originalStreamUrl existe, sinon recharger complètement
@@ -393,11 +397,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
       let finalUrl: string
       if (proxyType === "external") {
-        finalUrl = EXTERNAL_PROXY_BASE + encodeURIComponent(originalStreamUrl)
-        console.log("[v0] Switching to DIRECT external proxy:", finalUrl)
+        finalUrl = originalStreamUrl
+        console.log("[v0] Switching to Source 2 (External proxy)")
       } else {
         finalUrl = `/api/proxy?url=${encodeURIComponent(originalStreamUrl)}`
-        console.log("[v0] Switching to default proxy:", finalUrl)
+        console.log("[v0] Switching to Source 1 (Default proxy)")
       }
 
       setStreamUrl(finalUrl)
@@ -414,7 +418,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     const video = videoRef.current
     if (!video) return
 
-    console.log("[v0] Setting video source:", url, "proxyType:", proxyType)
+    console.log(`[v0] Démarrage lecture avec Source ${proxyType === "default" ? "1" : "2"}:`, url)
 
     if (hlsRef.current) {
       hlsRef.current.destroy()
@@ -432,49 +436,43 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         lowLatencyMode: false,
         backBufferLength: 90,
         // Buffer adaptatif pour démarrage rapide
-        maxBufferLength: 20, // Reduced buffer for faster start
-        maxMaxBufferLength: 40, // Reduced max buffer
-        maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer size
+        maxBufferLength: 30, // Reduced buffer for faster start
+        maxMaxBufferLength: 60, // Reduced max buffer
+        maxBufferSize: 80 * 1000 * 1000, // 80MB max buffer size
         maxBufferHole: 0.5, // Allow small buffer holes
         // Timeouts généreux
         fragLoadingTimeOut: 60000, // 60 seconds for fragment loading
-        fragLoadingMaxRetry: 8, // Increased retries for fragments
-        fragLoadingRetryDelay: 500, // Shorter delay between retries
+        fragLoadingMaxRetry: 10, // Increased retries for fragments
+        fragLoadingRetryDelay: 300, // Shorter delay between retries
         manifestLoadingTimeOut: 30000, // 30 seconds for manifest loading
-        manifestLoadingMaxRetry: 6, // Increased retries for manifests
+        manifestLoadingMaxRetry: 8, // Increased retries for manifests
         levelLoadingTimeOut: 30000, // 30 seconds for level loading
-        levelLoadingMaxRetry: 6, // Increased retries for levels
+        levelLoadingMaxRetry: 8, // Increased retries for levels
         // Démarrage rapide
         startLevel: -1, // Start with automatic level selection
         autoStartLoad: true, // Automatically start loading
         startFragPrefetch: true, // Prefetch first fragment
         // ABR adaptatif
-        abrEwmaDefaultEstimate: 500000, // Default bandwidth estimate (500kbps)
+        abrEwmaDefaultEstimate: 1000000, // Default bandwidth estimate (1Mbps)
         abrBandWidthFactor: 0.95, // Bandwidth factor for ABR
         abrBandWidthUpFactor: 0.7, // Bandwidth factor for increasing quality
       }
 
-      // ✅ CORRECTION: Amélioration du loader custom pour le proxy externe
       if (proxyType === "external") {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
           console.log("[v0] HLS external requesting:", xhrUrl)
           xhr.withCredentials = false // Ensure no credentials are sent
+          xhr.timeout = 60000 // Generous timeout for external proxy requests
         }
 
         hlsConfig.loader = class CustomLoader extends Hls.DefaultConfig.loader {
           load(context: any, config: any, callbacks: any) {
-            // ✅ Proxy tous les segments .ts ET les playlists .m3u8 sauf si déjà proxyfié
+            // Proxifier tous les segments .ts et playlists via movix.club
+            // We check if the URL is not already from movix.club to prevent double proxying
             if (context.url && !context.url.includes("movix.club")) {
-              const needsProxy =
-                context.url.includes(".ts") ||
-                context.type === "fragment" ||
-                (context.url.includes(".m3u8") && context.type === "level")
-
-              if (needsProxy) {
-                const originalUrl = context.url
-                context.url = EXTERNAL_PROXY_BASE + encodeURIComponent(originalUrl)
-                console.log("[v0] Proxying via movix:", originalUrl, "->", context.url)
-              }
+              const originalUrl = context.url
+              context.url = EXTERNAL_PROXY_BASE + encodeURIComponent(originalUrl)
+              console.log("[v0] Movix proxy:", originalUrl.substring(0, 80) + "...") // Log truncated URL for brevity
             }
             super.load(context, config, callbacks)
           }
@@ -482,6 +480,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       } else {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
           console.log("[v0] HLS default requesting:", xhrUrl)
+          xhr.timeout = 60000 // Generous timeout for default proxy requests
         }
       }
 
@@ -493,17 +492,22 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
         console.log("[v0] HLS manifest parsed, levels:", data.levels?.length)
-        setLoadingProgress(100)
-        setLoadingStatus("Prêt!")
-        clearLoadingInterval()
+        setLoadingProgress(95)
+        setLoadingStatus("Presque prêt...")
       })
 
       video.addEventListener(
         "canplay",
         () => {
-          setVideoLoaded(true)
-          setLoading(false)
-          startTrackingSession()
+          console.log("[v0] Video ready to play (canplay event)")
+          setLoadingProgress(100)
+          setLoadingStatus("Lecture...")
+          clearLoadingInterval()
+          setTimeout(() => {
+            setVideoLoaded(true)
+            setLoading(false)
+            startTrackingSession()
+          }, 300)
         },
         { once: true },
       )
@@ -546,12 +550,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       video.addEventListener(
         "canplay",
         () => {
-          console.log("[v0] Video metadata loaded")
+          console.log("[v0] Video ready to play (native HLS)")
           setLoadingProgress(100)
           clearLoadingInterval()
-          setVideoLoaded(true)
-          setLoading(false)
-          startTrackingSession()
+          setTimeout(() => {
+            setVideoLoaded(true)
+            setLoading(false)
+            startTrackingSession()
+          }, 300)
         },
         { once: true },
       )
@@ -593,23 +599,29 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     const video = videoRef.current
     if (!video) return
 
-    // Check if Cast API is available (Web Cast API for Chromecast)
-    if ("RemotePlayback" in HTMLVideoElement.prototype) {
+    // Check for Remote Playback API (Chromecast)
+    if ("remote" in video && (video as any).remote) {
       const remotePlayback = (video as any).remote
       remotePlayback
         .prompt()
         .then(() => {
-          console.log("[v0] Cast initiated")
+          console.log("[v0] Cast initiated successfully")
         })
         .catch((err: Error) => {
-          console.log("[v0] Cast cancelled or failed:", err)
+          console.log("[v0] Cast prompt cancelled or failed:", err.message)
+          // Ne pas afficher d'alerte, juste logger l'erreur
         })
     }
-    // Fallback for Safari/AirPlay
+    // Fallback pour Safari/AirPlay
     else if ((video as any).webkitShowPlaybackTargetPicker) {
-      ;(video as any).webkitShowPlaybackTargetPicker()
+      try {
+        ;(video as any).webkitShowPlaybackTargetPicker()
+        console.log("[v0] AirPlay picker shown")
+      } catch (e) {
+        console.log("[v0] AirPlay not available:", e)
+      }
     } else {
-      alert("La fonctionnalité Cast n'est pas disponible sur cet appareil")
+      console.log("[v0] Cast not supported on this device")
     }
   }
 
@@ -815,30 +827,60 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           {loading && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
               <div className="relative mb-8">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center mb-4">
-                  <div className="text-4xl font-black text-white tracking-tighter">LW</div>
+                <div className="flex flex-col items-center gap-4 mb-6">
+                  <svg
+                    width="180"
+                    height="50"
+                    viewBox="0 0 180 50"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="drop-shadow-2xl"
+                  >
+                    <text
+                      x="0"
+                      y="35"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                      fontSize="32"
+                      fontWeight="900"
+                      letterSpacing="-0.05em"
+                    >
+                      <tspan fill="url(#gradient1)">LIVE</tspan>
+                      <tspan fill="url(#gradient2)">WATCH</tspan>
+                    </text>
+                    <defs>
+                      <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style={{ stopColor: "#06b6d4", stopOpacity: 1 }} />
+                        <stop offset="100%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
+                      </linearGradient>
+                      <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
+                        <stop offset="100%" style={{ stopColor: "#8b5cf6", stopOpacity: 1 }} />
+                      </linearGradient>
+                    </defs>
+                  </svg>
                 </div>
+
                 <div className="w-20 h-20 mx-auto rounded-full border-4 border-white/10 flex items-center justify-center">
                   <div className="relative">
                     <div className="flex items-center justify-center gap-1">
                       <div
-                        className="w-1 h-6 bg-white/80 rounded-full animate-pulse"
+                        className="w-1 h-6 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "0ms" }}
                       />
                       <div
-                        className="w-1 h-8 bg-white/80 rounded-full animate-pulse"
+                        className="w-1 h-8 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "150ms" }}
                       />
                       <div
-                        className="w-1 h-10 bg-white rounded-full animate-pulse"
+                        className="w-1 h-10 bg-cyan-400 rounded-full animate-pulse"
                         style={{ animationDelay: "300ms" }}
                       />
                       <div
-                        className="w-1 h-8 bg-white/80 rounded-full animate-pulse"
+                        className="w-1 h-8 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "450ms" }}
                       />
                       <div
-                        className="w-1 h-6 bg-white/80 rounded-full animate-pulse"
+                        className="w-1 h-6 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "600ms" }}
                       />
                     </div>
