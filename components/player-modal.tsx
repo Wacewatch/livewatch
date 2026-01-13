@@ -340,25 +340,25 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
     try {
       if (proxyType === "external") {
-        console.log("[v0] Fetching Nakios stream via backend API for channel:", channel.baseId)
+        console.log("[v0] Fetching alternative stream via worker for channel:", channel.baseId)
 
-        const response = await fetch(`/api/nakios/stream?channel=${encodeURIComponent(channel.baseId)}`)
+        const response = await fetch(`/api/stream-alt?channel=${encodeURIComponent(channel.baseId)}`)
 
         if (!response.ok) {
-          throw new Error(`Erreur Nakios: HTTP ${response.status}`)
+          throw new Error(`Erreur source alternative: HTTP ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("[v0] Nakios response:", data)
+        console.log("[v0] Alternative stream response:", data)
 
         if (data.success && data.streamUrl) {
           const streamUrl = data.streamUrl
-          console.log("[v0] Nakios stream URL:", streamUrl)
+          console.log("[v0] Alternative stream URL:", streamUrl)
           setOriginalStreamUrl(streamUrl)
           setStreamUrl(streamUrl)
           playSource(streamUrl, proxyType)
         } else {
-          throw new Error("Aucune source Nakios disponible")
+          throw new Error("Aucune source alternative disponible")
         }
       } else {
         console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
