@@ -14,6 +14,7 @@ import {
   Link2,
   Copy,
   Check,
+  Radio,
 } from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
@@ -30,6 +31,8 @@ interface PlayerModalProps {
 
 const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
 
+type ProxyType = "default" | "external"
+
 export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
   const [adUnlocked, setAdUnlocked] = useState(false)
@@ -44,6 +47,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const [showVipModal, setShowVipModal] = useState(false)
   const [showShareLinks, setShowShareLinks] = useState(false)
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
+  const [currentProxy, setCurrentProxy] = useState<ProxyType>("default")
+  const [originalStreamUrl, setOriginalStreamUrl] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
@@ -63,9 +68,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       }
 
       setStreamUrl(null)
+      setOriginalStreamUrl(null)
       setError(null)
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
+      setCurrentProxy("default")
     } else if (!isOpen) {
       document.body.style.overflow = ""
       stopTrackingSession()
@@ -187,7 +194,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     }, 1000)
   }
 
-  const loadStreamSource = async (sourceIndex: number = selectedSourceIndex) => {
+  const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = currentProxy) => {
     if (!channel) return
 
     setLoading(true)
@@ -195,7 +202,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setVideoLoaded(false)
 
     try {
-      console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
+      console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country, "proxy:", proxyType)
 
       const response = await fetch(
         `/api/tvvoo/stream?channel=${encodeURIComponent(channel.baseId)}&countries=${encodeURIComponent(country)}`,
@@ -208,8 +215,23 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       const data = await response.json()
       console.log("[v0] TvVoo stream data received")
 
-      if (data.streamUrl) {
-        console.log("[v0] Playing stream via proxy")
+      if (data.originalUrl) {
+        // Store the original URL for source switching
+        setOriginalStreamUrl(data.originalUrl)
+
+        // Build the proxy URL based on proxy type
+        let finalUrl: string
+        if (proxyType === "external") {
+          finalUrl = `/api/proxy-external?url=${encodeURIComponent(data.originalUrl)}`
+          console.log("[v0] Using external proxy (movix.club)")
+        } else {
+          finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
+          console.log("[v0] Using default proxy")
+        }
+
+        setStreamUrl(finalUrl)
+        playSource(finalUrl)
+      } else if (data.streamUrl) {
         setStreamUrl(data.streamUrl)
         playSource(data.streamUrl)
       } else {
@@ -219,6 +241,35 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.error("[v0] Error loading stream:", err)
       setError(err instanceof Error ? err.message : "Erreur de chargement")
       setLoading(false)
+    }
+  }
+
+  const switchProxySource = (proxyType: ProxyType) => {
+    if (proxyType === currentProxy) return
+
+    console.log("[v0] Switching proxy to:", proxyType)
+    setCurrentProxy(proxyType)
+
+    // If we have the original URL, switch directly without re-fetching
+    if (originalStreamUrl) {
+      setLoading(true)
+      setError(null)
+      setVideoLoaded(false)
+      stopTrackingSession()
+
+      let finalUrl: string
+      if (proxyType === "external") {
+        finalUrl = `/api/proxy-external?url=${encodeURIComponent(originalStreamUrl)}`
+      } else {
+        finalUrl = `/api/proxy?url=${encodeURIComponent(originalStreamUrl)}`
+      }
+
+      setStreamUrl(finalUrl)
+      playSource(finalUrl)
+    } else {
+      // Otherwise, reload from scratch
+      stopTrackingSession()
+      loadStreamSource(selectedSourceIndex, proxyType)
     }
   }
 
@@ -242,7 +293,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         lowLatencyMode: true,
         backBufferLength: 90,
         xhrSetup: (xhr: XMLHttpRequest, url: string) => {
-          // Make sure all HLS requests go through our proxy with the correct path
           console.log("[v0] HLS requesting:", url)
         },
       })
@@ -309,7 +359,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const switchSource = (index: number) => {
     setSelectedSourceIndex(index)
     stopTrackingSession()
-    loadStreamSource(index)
+    loadStreamSource(index, currentProxy)
   }
 
   const copyToClipboard = async (link: string, type: string) => {
@@ -362,9 +412,37 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               <Link2 className="w-5 h-5" />
             </button>
 
+            {adUnlocked && (
+              <div className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
+                <Radio className="w-4 h-4 text-white/60 mr-1" />
+                <button
+                  onClick={() => switchProxySource("default")}
+                  className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                    currentProxy === "default"
+                      ? "bg-cyan-500 text-black shadow-lg"
+                      : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                  }`}
+                  title="Source 1 (Proxy par défaut)"
+                >
+                  Source 1
+                </button>
+                <button
+                  onClick={() => switchProxySource("external")}
+                  className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                    currentProxy === "external"
+                      ? "bg-emerald-500 text-black shadow-lg"
+                      : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                  }`}
+                  title="Source 2 (Proxy externe Movix)"
+                >
+                  Source 2
+                </button>
+              </div>
+            )}
+
             {channel.sources.length > 1 && adUnlocked && (
               <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
-                <span className="text-xs text-white/60 font-medium mr-1">Sources:</span>
+                <span className="text-xs text-white/60 font-medium mr-1">Qualité:</span>
                 {channel.sources.map((source, index) => {
                   const isActive = index === selectedSourceIndex
                   return (
@@ -418,7 +496,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             </h3>
 
             <div className="space-y-4">
-              {/* Regular player link */}
               <div>
                 <p className="text-white/70 text-sm mb-2 flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
@@ -470,6 +547,9 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
               <Loader2 className="w-16 h-16 text-cyan-400 animate-spin mb-4" />
               <p className="text-white text-lg">Chargement du flux...</p>
+              <p className="text-white/50 text-sm mt-2">
+                {currentProxy === "external" ? "Source 2 (Proxy externe)" : "Source 1 (Proxy par défaut)"}
+              </p>
             </div>
           )}
 
@@ -478,49 +558,54 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               <div className="text-center">
                 <div className="text-red-400 text-6xl mb-6 animate-pulse">⚠️</div>
                 <p className="text-white text-lg mb-4">{error}</p>
-                <button
-                  onClick={handleReload}
-                  className="px-6 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all"
-                >
-                  <RefreshCw className="w-5 h-5 inline mr-2" />
-                  Réessayer
-                </button>
+                <p className="text-white/50 text-sm mb-6">Essayez une autre source si le problème persiste</p>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <button
+                    onClick={handleReload}
+                    className="px-6 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all"
+                  >
+                    <RefreshCw className="w-5 h-5 inline mr-2" />
+                    Réessayer
+                  </button>
+                  <button
+                    onClick={() => switchProxySource(currentProxy === "default" ? "external" : "default")}
+                    className="px-6 py-3 rounded-xl bg-emerald-500 text-black font-bold hover:bg-emerald-400 transition-all"
+                  >
+                    <Radio className="w-5 h-5 inline mr-2" />
+                    {currentProxy === "default" ? "Essayer Source 2" : "Essayer Source 1"}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {!adUnlocked &&
-            !loading &&
-            !error &&
-            !isVip &&
-            !isAdmin &&
-            !forceNoAds && ( // Added forceNoAds check
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black px-4">
-                <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
-                <h3 className="text-3xl font-bold text-white mb-4 text-center">Stream verrouillé</h3>
-                <p className="text-white/70 text-lg mb-2 text-center">
-                  Regardez une courte publicité pour débloquer ce stream
-                </p>
-                <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
+          {!adUnlocked && !loading && !error && !isVip && !isAdmin && !forceNoAds && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black px-4">
+              <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
+              <h3 className="text-3xl font-bold text-white mb-4 text-center">Stream verrouillé</h3>
+              <p className="text-white/70 text-lg mb-2 text-center">
+                Regardez une courte publicité pour débloquer ce stream
+              </p>
+              <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
+              <button
+                onClick={unlockStream}
+                className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
+              >
+                <Unlock className="w-6 h-6" />
+                <span>Débloquer le stream</span>
+              </button>
+              <div className="mt-8 text-center">
+                <p className="text-white/50 text-sm mb-3">Ou profitez sans publicité !</p>
                 <button
-                  onClick={unlockStream}
-                  className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
+                  onClick={() => setShowVipModal(true)}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold hover:scale-105 transition-all shadow-lg shadow-amber-500/30 mx-auto"
                 >
-                  <Unlock className="w-6 h-6" />
-                  <span>Débloquer le stream</span>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Devenez VIP - 5€ à vie</span>
                 </button>
-                <div className="mt-8 text-center">
-                  <p className="text-white/50 text-sm mb-3">Ou profitez sans publicité !</p>
-                  <button
-                    onClick={() => setShowVipModal(true)}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold hover:scale-105 transition-all shadow-lg shadow-amber-500/30 mx-auto"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    <span>Devenez VIP - 5€ à vie</span>
-                  </button>
-                </div>
               </div>
-            )}
+            </div>
+          )}
         </div>
       </div>
 
