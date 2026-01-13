@@ -18,34 +18,31 @@ export async function GET() {
   }
 
   try {
-    // Get process stats (this Next.js app)
     const processMemory = process.memoryUsage()
     const processUptime = process.uptime()
 
-    // Get CPU usage for this process
     const cpuUsage = process.cpuUsage()
     const cpuPercent = ((cpuUsage.user + cpuUsage.system) / 1000000 / processUptime / 1000) * 100
 
-    // Get active connections (estimate based on active sessions)
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     const { count: activeConnections } = await supabase
       .from("active_sessions")
       .select("id", { count: "exact", head: true })
-      .gte("last_heartbeat", fiveMinutesAgo)
+      .gte("last_heartbeat", twoMinutesAgo)
 
-    // Get network stats from tracking
-    const { data: recentSessions } = await supabase
-      .from("channel_views")
-      .select("id")
-      .gte("viewed_at", new Date(Date.now() - 60 * 1000).toISOString())
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
+    const { data: recentViews } = await supabase.from("channel_views").select("id").gte("viewed_at", oneMinuteAgo)
 
-    const requestsPerMinute = recentSessions?.length || 0
+    const requestsPerMinute = recentViews?.length || 0
+
+    const estimatedBandwidthMBps = (activeConnections || 0) * 2.5
+    const estimatedBandwidthGBph = (estimatedBandwidthMBps * 60 * 60) / 1024
 
     return NextResponse.json({
       cpu: {
         model: "Next.js App Process",
         cores: 1,
-        usage: Math.min(cpuPercent.toFixed(2), 100),
+        usage: Math.min(Number(cpuPercent.toFixed(2)), 100),
       },
       memory: {
         total: (processMemory.heapTotal / 1024 / 1024).toFixed(2) + " MB",
@@ -56,7 +53,7 @@ export async function GET() {
       network: {
         activeConnections: activeConnections || 0,
         requestsPerMinute,
-        bandwidthEstimate: `~${((requestsPerMinute * 2.5) / 1024).toFixed(2)} GB/h`,
+        bandwidthEstimate: estimatedBandwidthGBph > 0 ? `~${estimatedBandwidthGBph.toFixed(2)} GB/h` : "0.00 GB/h",
       },
       system: {
         platform: process.platform,

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) {
+    if (!user || !user.email) {
       return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
     }
 
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       .update({
         used: true,
         used_by: user.id,
+        used_by_email: user.email,
         used_at: new Date().toISOString(),
       })
       .eq("key", key)
@@ -49,6 +50,8 @@ export async function POST(request: Request) {
       console.error("[v0] Error updating user profile:", updateProfileError)
       return NextResponse.json({ success: false, error: "Erreur lors de la mise à niveau" }, { status: 500 })
     }
+
+    console.log(`[v0] VIP key ${key} redeemed by ${user.email}`)
 
     return NextResponse.json({ success: true })
   } catch (error) {

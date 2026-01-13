@@ -23,6 +23,7 @@ import Hls from "hls.js"
 import { useUserRole } from "@/lib/hooks/use-user-role"
 import { VipUpgradeModal } from "@/components/vip-upgrade-modal"
 import Image from "next/image"
+import { useToast } from "@/hooks/use-toast"
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -45,6 +46,7 @@ type ProxyType = "default" | "external"
 
 export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
+  const { toast } = useToast()
   const [adUnlocked, setAdUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
@@ -607,22 +609,46 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         .prompt()
         .then(() => {
           console.log("[v0] Cast initiated successfully")
+          toast({
+            title: "Cast démarré",
+            description: "La diffusion vers votre appareil a commencé",
+          })
         })
         .catch((err: Error) => {
-          console.log("[v0] Cast prompt cancelled or failed:", err.message)
-          // Ne pas afficher d'alerte, juste logger l'erreur
+          if (err.name !== "AbortError") {
+            console.log("[v0] Cast error:", err.message)
+            toast({
+              title: "Cast non disponible",
+              description: "Aucun appareil de diffusion détecté",
+              variant: "destructive",
+            })
+          }
         })
     }
-    // Fallback pour Safari/AirPlay
+    // Fallback for Safari/AirPlay
     else if ((video as any).webkitShowPlaybackTargetPicker) {
       try {
         ;(video as any).webkitShowPlaybackTargetPicker()
         console.log("[v0] AirPlay picker shown")
+        toast({
+          title: "AirPlay",
+          description: "Sélectionnez votre appareil AirPlay",
+        })
       } catch (e) {
         console.log("[v0] AirPlay not available:", e)
+        toast({
+          title: "AirPlay non disponible",
+          description: "AirPlay n'est pas pris en charge",
+          variant: "destructive",
+        })
       }
     } else {
       console.log("[v0] Cast not supported on this device")
+      toast({
+        title: "Cast non supporté",
+        description: "La diffusion n'est pas disponible sur cet appareil",
+        variant: "destructive",
+      })
     }
   }
 
@@ -647,7 +673,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         ref={hiddenLinkRef}
         href={AD_URLS[0]}
         target="_blank"
-        rel="noreferrer noopener"
+        rel="noopener noreferrer"
         style={{ position: "absolute", left: "-9999px", opacity: 0, pointerEvents: "none" }}
         aria-hidden="true"
       />
