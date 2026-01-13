@@ -62,9 +62,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const [adAttempted, setAdAttempted] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [loadingStatus, setLoadingStatus] = useState("")
-  const [autoSwitchTimeout, setAutoSwitchTimeout] = useState<NodeJS.Timeout | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
-  const [maxRetries] = useState(3)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
@@ -93,19 +90,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setCurrentProxy("default")
       setLoadingProgress(0)
       setLoadingStatus("")
-      setRetryCount(0)
-      if (autoSwitchTimeout) {
-        clearTimeout(autoSwitchTimeout)
-        setAutoSwitchTimeout(null)
-      }
     } else if (!isOpen) {
       document.body.style.overflow = ""
       stopTrackingSession()
       clearLoadingInterval()
-      if (autoSwitchTimeout) {
-        clearTimeout(autoSwitchTimeout)
-        setAutoSwitchTimeout(null)
-      }
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -120,9 +108,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       document.body.style.overflow = ""
       stopTrackingSession()
       clearLoadingInterval()
-      if (autoSwitchTimeout) {
-        clearTimeout(autoSwitchTimeout)
-      }
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -340,41 +325,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     }
   }
 
-  const autoSwitchSource = () => {
-    if (retryCount >= maxRetries) {
-      console.log("[v0] Max retries reached, stopping auto-switch")
-      setError("Impossible de charger le flux après plusieurs tentatives")
-      setLoading(false)
-      clearLoadingInterval()
-      if (autoSwitchTimeout) {
-        clearTimeout(autoSwitchTimeout)
-        setAutoSwitchTimeout(null)
-      }
-      return
-    }
-
-    console.log(`[v0] Auto-switching to next source (attempt ${retryCount + 1}/${maxRetries})`)
-    const nextProxy: ProxyType = currentProxy === "default" ? "external" : "default"
-
-    setRetryCount((prev) => prev + 1)
-
-    toast({
-      title: "Changement automatique de source",
-      description: `Passage à la Source ${nextProxy === "default" ? "1" : "2"} (tentative ${retryCount + 1}/${maxRetries})`,
-    })
-
-    switchProxySource(nextProxy)
-  }
-
   const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = "default") => {
     if (!channel) return
 
     console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : "2"}`)
-
-    if (autoSwitchTimeout) {
-      clearTimeout(autoSwitchTimeout)
-      setAutoSwitchTimeout(null)
-    }
 
     setLoading(true)
     setError(null)
@@ -382,35 +336,28 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setCurrentProxy(proxyType)
     startLoadingAnimation()
 
-    const timeout = setTimeout(() => {
-      console.log("[v0] Source loading timeout - triggering auto-switch")
-      autoSwitchSource()
-    }, 10000)
-    setAutoSwitchTimeout(timeout)
-
     try {
       if (proxyType === "external") {
-        console.log("[v0] Fetching Nakios stream via Cloudflare Worker for channel:", channel.baseId)
+        console.log("[v0] Fetching alternative stream via Cloudflare Worker for channel:", channel.baseId)
 
         const workerUrl = `https://fancy-bar-4282.wavewatchcontact.workers.dev/?channel=${encodeURIComponent(channel.baseId)}`
         const response = await fetch(workerUrl)
 
         if (!response.ok) {
-          throw new Error(`Erreur Worker Nakios: HTTP ${response.status}`)
+          throw new Error(`Erreur serveur externe: HTTP ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("[v0] Nakios Worker response:", data)
+        console.log("[v0] Alternative Worker response:", data)
 
         if (data.success && data.streamUrl) {
-          setRetryCount(0)
           const streamUrl = data.streamUrl
-          console.log("[v0] Nakios stream URL:", streamUrl)
+          console.log("[v0] Alternative stream URL:", streamUrl)
           setOriginalStreamUrl(streamUrl)
           setStreamUrl(streamUrl)
           playSource(streamUrl, proxyType)
         } else {
-          throw new Error(data.error || "Aucune source Nakios disponible")
+          throw new Error(data.error || "Aucune source alternative disponible")
         }
       } else {
         console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
@@ -427,13 +374,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         console.log("[v0] TvVoo stream data received")
 
         if (data.originalUrl) {
-          setRetryCount(0)
           setOriginalStreamUrl(data.originalUrl)
           const finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
           setStreamUrl(finalUrl)
           playSource(finalUrl, proxyType)
         } else if (data.streamUrl) {
-          setRetryCount(0)
           setOriginalStreamUrl(data.streamUrl)
           setStreamUrl(data.streamUrl)
           playSource(data.streamUrl, proxyType)
@@ -446,12 +391,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setError(err instanceof Error ? err.message : "Erreur de chargement")
       setLoading(false)
       clearLoadingInterval()
-      if (autoSwitchTimeout) {
-        clearTimeout(autoSwitchTimeout)
-      }
-      if (retryCount < maxRetries) {
-        setTimeout(() => autoSwitchSource(), 2000)
-      }
     }
   }
 
@@ -525,10 +464,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
         console.log("[v0] HLS manifest parsed, levels:", data.levels?.length)
-        if (autoSwitchTimeout) {
-          clearTimeout(autoSwitchTimeout)
-          setAutoSwitchTimeout(null)
-        }
         setLoadingProgress(95)
         setLoadingStatus("Presque prêt...")
       })
@@ -537,10 +472,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         "canplay",
         () => {
           console.log("[v0] Video ready to play (canplay event)")
-          if (autoSwitchTimeout) {
-            clearTimeout(autoSwitchTimeout)
-            setAutoSwitchTimeout(null)
-          }
           setLoadingProgress(100)
           setLoadingStatus("Lecture...")
           clearLoadingInterval()
@@ -561,21 +492,16 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         console.error("[v0] HLS error:", data.type, data.details, data)
         if (data.fatal) {
           clearLoadingInterval()
-          if (autoSwitchTimeout) {
-            clearTimeout(autoSwitchTimeout)
-            setAutoSwitchTimeout(null)
-          }
 
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log("[v0] Network error, auto-switching source...")
+              console.log("[v0] Network error")
               if (
                 data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
                 data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
               ) {
-                setError("Impossible de charger le flux. Changement de source...")
+                setError("Impossible de charger le flux. Essayez l'autre source.")
                 setLoading(false)
-                setTimeout(() => autoSwitchSource(), 2000)
               } else {
                 hls.startLoad()
               }
@@ -585,9 +511,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               hls.recoverMediaError()
               break
             default:
-              setError("Erreur de lecture du flux. Changement de source...")
+              setError("Erreur de lecture du flux. Essayez l'autre source.")
               setLoading(false)
-              setTimeout(() => autoSwitchSource(), 2000)
               break
           }
         }
@@ -599,10 +524,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         "canplay",
         () => {
           console.log("[v0] Video ready to play (native HLS)")
-          if (autoSwitchTimeout) {
-            clearTimeout(autoSwitchTimeout)
-            setAutoSwitchTimeout(null)
-          }
           setLoadingProgress(100)
           clearLoadingInterval()
           setTimeout(() => {
@@ -615,10 +536,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       )
     } else {
       clearLoadingInterval()
-      if (autoSwitchTimeout) {
-        clearTimeout(autoSwitchTimeout)
-        setAutoSwitchTimeout(null)
-      }
       setError("HLS non supporté par ce navigateur")
       setLoading(false)
     }
@@ -627,7 +544,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
   const handleReload = () => {
     console.log("[v0] Reloading stream")
-    setRetryCount(0)
     setVideoLoaded(false)
     setError(null)
     stopTrackingSession()
