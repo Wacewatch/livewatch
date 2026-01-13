@@ -128,7 +128,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     let progress = 0
     loadingIntervalRef.current = setInterval(() => {
       progress += Math.random() * 15
-      if (progress > 90) progress = 90 // Cap at 90% until actual load
+      if (progress > 90) progress = 90
       setLoadingProgress(Math.min(progress, 90))
 
       if (progress < 30) {
@@ -346,11 +346,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.log("[v0] TvVoo stream data received")
 
       if (data.originalUrl) {
+        // ✅ CORRECTION: Toujours sauvegarder l'URL originale
         setOriginalStreamUrl(data.originalUrl)
 
         let finalUrl: string
         if (proxyType === "external") {
-          // Direct call to external proxy - no server middleman
           finalUrl = EXTERNAL_PROXY_BASE + encodeURIComponent(data.originalUrl)
           console.log("[v0] Using DIRECT external proxy (movix.club):", finalUrl)
         } else {
@@ -361,6 +361,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         setStreamUrl(finalUrl)
         playSource(finalUrl, proxyType)
       } else if (data.streamUrl) {
+        setOriginalStreamUrl(data.streamUrl)
         setStreamUrl(data.streamUrl)
         playSource(data.streamUrl, proxyType)
       } else {
@@ -380,6 +381,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     console.log("[v0] Switching proxy to:", proxyType)
     setCurrentProxy(proxyType)
 
+    // ✅ CORRECTION: Vérifier si originalStreamUrl existe, sinon recharger complètement
     if (originalStreamUrl) {
       setLoading(true)
       setError(null)
@@ -393,11 +395,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         console.log("[v0] Switching to DIRECT external proxy:", finalUrl)
       } else {
         finalUrl = `/api/proxy?url=${encodeURIComponent(originalStreamUrl)}`
+        console.log("[v0] Switching to default proxy:", finalUrl)
       }
 
       setStreamUrl(finalUrl)
       playSource(finalUrl, proxyType)
     } else {
+      // ✅ CORRECTION: Si pas d'URL originale, recharger depuis l'API
+      console.log("[v0] No original URL, reloading from API with proxy:", proxyType)
       stopTrackingSession()
       loadStreamSource(selectedSourceIndex, proxyType)
     }
@@ -436,23 +441,26 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         levelLoadingMaxRetry: 4,
       }
 
+      // ✅ CORRECTION: Amélioration du loader custom pour le proxy externe
       if (proxyType === "external") {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
           console.log("[v0] HLS external requesting:", xhrUrl)
         }
 
-        // Custom loader to proxy .ts segments through movix
         hlsConfig.loader = class CustomLoader extends Hls.DefaultConfig.loader {
           load(context: any, config: any, callbacks: any) {
-            // If it's a segment (.ts) URL and we're using external proxy
-            if (
-              context.url &&
-              !context.url.includes("movix.club") &&
-              (context.url.includes(".ts") || context.type === "fragment")
-            ) {
-              // Proxy the segment through movix
-              context.url = EXTERNAL_PROXY_BASE + encodeURIComponent(context.url)
-              console.log("[v0] Proxying segment via movix:", context.url)
+            // ✅ Proxy tous les segments .ts ET les playlists .m3u8 sauf si déjà proxyfié
+            if (context.url && !context.url.includes("movix.club")) {
+              const needsProxy = 
+                context.url.includes(".ts") || 
+                context.type === "fragment" ||
+                (context.url.includes(".m3u8") && context.type === "level")
+              
+              if (needsProxy) {
+                const originalUrl = context.url
+                context.url = EXTERNAL_PROXY_BASE + encodeURIComponent(originalUrl)
+                console.log("[v0] Proxying via movix:", originalUrl, "->", context.url)
+              }
             }
             super.load(context, config, callbacks)
           }
@@ -491,7 +499,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.log("[v0] Network error, trying to recover...")
-              // Try to recover
               if (
                 data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
                 data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
@@ -537,11 +544,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setVideoLoaded(false)
     setError(null)
     stopTrackingSession()
-    if (originalStreamUrl) {
-      loadStreamSource(selectedSourceIndex, currentProxy)
-    } else {
-      loadStreamSource()
-    }
+    loadStreamSource(selectedSourceIndex, currentProxy)
   }
 
   const toggleFullscreen = () => {
@@ -611,7 +614,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Share button */}
             <button
               onClick={() => setShowShareLinks(!showShareLinks)}
               className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
@@ -753,11 +755,9 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
           {loading && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
-              {/* Animated signal icon */}
               <div className="relative mb-8">
                 <div className="w-20 h-20 rounded-full border-4 border-white/10 flex items-center justify-center">
                   <div className="relative">
-                    {/* Signal waves animation */}
                     <div className="flex items-center justify-center gap-1">
                       <div
                         className="w-1 h-6 bg-white/80 rounded-full animate-pulse"
@@ -782,15 +782,12 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     </div>
                   </div>
                 </div>
-                {/* Rotating ring */}
                 <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin" />
               </div>
 
-              {/* Progress text */}
               <p className="text-white text-lg font-medium mb-2">Chargement du flux...</p>
               <p className="text-white/50 text-sm mb-6">{loadingStatus}</p>
 
-              {/* Progress bar */}
               <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-full transition-all duration-300"
@@ -798,7 +795,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                 />
               </div>
 
-              {/* Source indicator */}
               <p className="text-white/40 text-xs mt-4">
                 {currentProxy === "external" ? "Source 2 (Proxy externe)" : "Source 1 (Proxy par défaut)"}
               </p>
@@ -808,7 +804,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
               <div className="text-center max-w-md px-6">
-                {/* Error icon with pulse */}
                 <div className="relative mb-6">
                   <div className="w-20 h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
                     <div className="w-12 h-12 rounded-full border-4 border-red-500 flex items-center justify-center">
