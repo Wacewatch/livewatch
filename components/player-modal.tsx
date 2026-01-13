@@ -64,6 +64,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const [loadingStatus, setLoadingStatus] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  // Corrected hlsRef declaration to match the rest of the code
   const hlsRef = useRef<any>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hiddenLinkRef = useRef<HTMLAnchorElement>(null)
@@ -77,6 +78,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       if (isVip || isAdmin || forceNoAds) {
         console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
         setAdUnlocked(true)
+        // Call loadStreamSource after a short delay to ensure DOM is ready
         setTimeout(() => loadStreamSource(), 100)
       } else {
         setAdUnlocked(false)
@@ -87,7 +89,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setError(null)
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
-      setCurrentProxy("default")
+      setCurrentProxy("default") // Always start with Source 1
       setLoadingProgress(0)
       setLoadingStatus("")
     } else if (!isOpen) {
@@ -338,26 +340,25 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
     try {
       if (proxyType === "external") {
-        console.log("[v0] Fetching alternative stream via Cloudflare Worker for channel:", channel.baseId)
+        console.log("[v0] Fetching Nakios stream via backend API for channel:", channel.baseId)
 
-        const workerUrl = `https://fancy-bar-4282.wavewatchcontact.workers.dev/?channel=${encodeURIComponent(channel.baseId)}`
-        const response = await fetch(workerUrl)
+        const response = await fetch(`/api/nakios/stream?channel=${encodeURIComponent(channel.baseId)}`)
 
         if (!response.ok) {
-          throw new Error(`Erreur serveur externe: HTTP ${response.status}`)
+          throw new Error(`Erreur Nakios: HTTP ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("[v0] Alternative Worker response:", data)
+        console.log("[v0] Nakios response:", data)
 
         if (data.success && data.streamUrl) {
           const streamUrl = data.streamUrl
-          console.log("[v0] Alternative stream URL:", streamUrl)
+          console.log("[v0] Nakios stream URL:", streamUrl)
           setOriginalStreamUrl(streamUrl)
           setStreamUrl(streamUrl)
           playSource(streamUrl, proxyType)
         } else {
-          throw new Error(data.error || "Aucune source alternative disponible")
+          throw new Error("Aucune source Nakios disponible")
         }
       } else {
         console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
@@ -492,10 +493,9 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         console.error("[v0] HLS error:", data.type, data.details, data)
         if (data.fatal) {
           clearLoadingInterval()
-
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log("[v0] Network error")
+              console.log("[v0] Network error, trying to recover...")
               if (
                 data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
                 data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
@@ -511,7 +511,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               hls.recoverMediaError()
               break
             default:
-              setError("Erreur de lecture du flux. Essayez l'autre source.")
+              setError("Erreur de lecture du flux")
               setLoading(false)
               break
           }
@@ -539,6 +539,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setError("HLS non supporté par ce navigateur")
       setLoading(false)
     }
+    // Attempt to play video after setting source
     video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
   }
 
