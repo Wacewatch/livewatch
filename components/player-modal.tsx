@@ -1,12 +1,13 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useRef } from "react"
 import {
   X,
   Maximize,
   Minimize,
   RefreshCw,
-  Loader2,
   Lock,
   Unlock,
   Crown,
@@ -25,11 +26,18 @@ interface PlayerModalProps {
   channel: ChannelWithFavorite | null
   isOpen: boolean
   onClose: () => void
-  forceNoAds?: boolean // Added prop to force bypass ads for VIP player page
-  country?: string // Added country prop for TvVoo API
+  forceNoAds?: boolean
+  country?: string
 }
 
 const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
+
+const AD_URLS = [
+  "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8",
+  "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8",
+]
+
+const EXTERNAL_PROXY_BASE = "https://proxiesembed.movix.club/proxy?url="
 
 type ProxyType = "default" | "external"
 
@@ -49,10 +57,15 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
   const [currentProxy, setCurrentProxy] = useState<ProxyType>("default")
   const [originalStreamUrl, setOriginalStreamUrl] = useState<string | null>(null)
+  const [adAttempted, setAdAttempted] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [loadingStatus, setLoadingStatus] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const hiddenLinkRef = useRef<HTMLAnchorElement>(null)
+  const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (isOpen && channel) {
@@ -73,9 +86,12 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
       setCurrentProxy("default")
+      setLoadingProgress(0)
+      setLoadingStatus("")
     } else if (!isOpen) {
       document.body.style.overflow = ""
       stopTrackingSession()
+      clearLoadingInterval()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -89,12 +105,41 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     return () => {
       document.body.style.overflow = ""
       stopTrackingSession()
+      clearLoadingInterval()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
       }
     }
-  }, [isOpen, channel, isVip, isAdmin, forceNoAds, country]) // Added forceNoAds and country to dependencies
+  }, [isOpen, channel, isVip, isAdmin, forceNoAds, country])
+
+  const clearLoadingInterval = () => {
+    if (loadingIntervalRef.current) {
+      clearInterval(loadingIntervalRef.current)
+      loadingIntervalRef.current = null
+    }
+  }
+
+  const startLoadingAnimation = () => {
+    clearLoadingInterval()
+    setLoadingProgress(0)
+    setLoadingStatus("Connexion au serveur...")
+
+    let progress = 0
+    loadingIntervalRef.current = setInterval(() => {
+      progress += Math.random() * 15
+      if (progress > 90) progress = 90 // Cap at 90% until actual load
+      setLoadingProgress(Math.min(progress, 90))
+
+      if (progress < 30) {
+        setLoadingStatus("Connexion au serveur...")
+      } else if (progress < 60) {
+        setLoadingStatus("Récupération du flux...")
+      } else {
+        setLoadingStatus("Chargement des segments...")
+      }
+    }, 500)
+  }
 
   const startTrackingSession = async () => {
     if (!channel) return
@@ -122,12 +167,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   }
 
   const startHeartbeat = (sid: string) => {
-    // Clear any existing heartbeat
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current)
     }
 
-    // Send heartbeat every 30 seconds
     heartbeatIntervalRef.current = setInterval(async () => {
       try {
         await fetch("/api/tracking/heartbeat", {
@@ -170,28 +213,114 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   }
 
   const unlockStream = () => {
-    console.log("[v0] Unlock button clicked")
+    console.log("[v0] Unlock button clicked - attempting multiple methods")
+    setAdAttempted(true)
+
+    const adUrl = AD_URLS[Math.floor(Math.random() * AD_URLS.length)]
+    let adOpened = false
 
     try {
-      const popup = window.open(AD_URL, "_blank", "width=1024,height=768")
-
-      if (!popup || popup.closed || typeof popup.closed === "undefined") {
-        const link = document.createElement("a")
-        link.href = AD_URL
-        link.target = "_blank"
-        link.rel = "noopener noreferrer"
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
+      const win = window.open(adUrl, "_blank")
+      if (win && !win.closed) {
+        adOpened = true
+        console.log("[v0] Ad opened via window.open")
       }
     } catch (e) {
-      console.error("[v0] Failed to open ad:", e)
+      console.log("[v0] window.open failed:", e)
+    }
+
+    if (!adOpened) {
+      try {
+        const link = document.createElement("a")
+        link.href = adUrl
+        link.target = "_blank"
+        link.rel = "noopener"
+        link.setAttribute("data-bypass", "true")
+        link.style.display = "none"
+        document.body.appendChild(link)
+
+        const clickEvent = new MouseEvent("click", {
+          view: window,
+          bubbles: true,
+          cancelable: true,
+        })
+        link.dispatchEvent(clickEvent)
+
+        setTimeout(() => {
+          document.body.removeChild(link)
+        }, 100)
+
+        adOpened = true
+        console.log("[v0] Ad opened via created link click")
+      } catch (e) {
+        console.log("[v0] Link click method failed:", e)
+      }
+    }
+
+    if (!adOpened && hiddenLinkRef.current) {
+      try {
+        hiddenLinkRef.current.href = adUrl
+        hiddenLinkRef.current.click()
+        adOpened = true
+        console.log("[v0] Ad opened via hidden link ref")
+      } catch (e) {
+        console.log("[v0] Hidden link ref failed:", e)
+      }
+    }
+
+    if (!adOpened) {
+      try {
+        const form = document.createElement("form")
+        form.method = "GET"
+        form.action = adUrl
+        form.target = "_blank"
+        form.style.display = "none"
+        document.body.appendChild(form)
+        form.submit()
+        setTimeout(() => {
+          document.body.removeChild(form)
+        }, 100)
+        adOpened = true
+        console.log("[v0] Ad opened via form submission")
+      } catch (e) {
+        console.log("[v0] Form submission failed:", e)
+      }
+    }
+
+    if (!adOpened) {
+      try {
+        const newWin = window.open("about:blank", "_blank")
+        if (newWin) {
+          newWin.location.href = adUrl
+          adOpened = true
+          console.log("[v0] Ad opened via location assign")
+        }
+      } catch (e) {
+        console.log("[v0] Location assign failed:", e)
+      }
+    }
+
+    if (!adOpened) {
+      setTimeout(() => {
+        try {
+          window.open(adUrl, "_blank", "noopener,noreferrer")
+          console.log("[v0] Ad opened via delayed window.open")
+        } catch (e) {
+          console.log("[v0] Delayed open failed:", e)
+        }
+      }, 50)
     }
 
     setTimeout(() => {
       setAdUnlocked(true)
       loadStreamSource()
-    }, 1000)
+    }, 800)
+  }
+
+  const handleUnlockMouseDown = (e: React.MouseEvent) => {
+    if (hiddenLinkRef.current) {
+      hiddenLinkRef.current.href = AD_URLS[0]
+    }
   }
 
   const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = currentProxy) => {
@@ -200,6 +329,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setLoading(true)
     setError(null)
     setVideoLoaded(false)
+    startLoadingAnimation()
 
     try {
       console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country, "proxy:", proxyType)
@@ -216,24 +346,23 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.log("[v0] TvVoo stream data received")
 
       if (data.originalUrl) {
-        // Store the original URL for source switching
         setOriginalStreamUrl(data.originalUrl)
 
-        // Build the proxy URL based on proxy type
         let finalUrl: string
         if (proxyType === "external") {
-          finalUrl = `/api/proxy-external?url=${encodeURIComponent(data.originalUrl)}`
-          console.log("[v0] Using external proxy (movix.club)")
+          // Direct call to external proxy - no server middleman
+          finalUrl = EXTERNAL_PROXY_BASE + encodeURIComponent(data.originalUrl)
+          console.log("[v0] Using DIRECT external proxy (movix.club):", finalUrl)
         } else {
           finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
           console.log("[v0] Using default proxy")
         }
 
         setStreamUrl(finalUrl)
-        playSource(finalUrl)
+        playSource(finalUrl, proxyType)
       } else if (data.streamUrl) {
         setStreamUrl(data.streamUrl)
-        playSource(data.streamUrl)
+        playSource(data.streamUrl, proxyType)
       } else {
         throw new Error("Aucune source disponible")
       }
@@ -241,6 +370,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.error("[v0] Error loading stream:", err)
       setError(err instanceof Error ? err.message : "Erreur de chargement")
       setLoading(false)
+      clearLoadingInterval()
     }
   }
 
@@ -250,71 +380,137 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     console.log("[v0] Switching proxy to:", proxyType)
     setCurrentProxy(proxyType)
 
-    // If we have the original URL, switch directly without re-fetching
     if (originalStreamUrl) {
       setLoading(true)
       setError(null)
       setVideoLoaded(false)
       stopTrackingSession()
+      startLoadingAnimation()
 
       let finalUrl: string
       if (proxyType === "external") {
-        finalUrl = `/api/proxy-external?url=${encodeURIComponent(originalStreamUrl)}`
+        finalUrl = EXTERNAL_PROXY_BASE + encodeURIComponent(originalStreamUrl)
+        console.log("[v0] Switching to DIRECT external proxy:", finalUrl)
       } else {
         finalUrl = `/api/proxy?url=${encodeURIComponent(originalStreamUrl)}`
       }
 
       setStreamUrl(finalUrl)
-      playSource(finalUrl)
+      playSource(finalUrl, proxyType)
     } else {
-      // Otherwise, reload from scratch
       stopTrackingSession()
       loadStreamSource(selectedSourceIndex, proxyType)
     }
   }
 
-  const playSource = async (url: string) => {
+  const playSource = async (url: string, proxyType: ProxyType = currentProxy) => {
     const video = videoRef.current
     if (!video) return
 
-    console.log("[v0] Setting video source:", url)
+    console.log("[v0] Setting video source:", url, "proxyType:", proxyType)
 
     if (hlsRef.current) {
       hlsRef.current.destroy()
       hlsRef.current = null
     }
 
-    const isM3U8 = url.includes(".m3u8") || url.includes("m3u8")
+    const isM3U8 = url.includes(".m3u8") || url.includes("m3u8") || url.includes("proxy")
 
     if (isM3U8 && Hls.isSupported()) {
       console.log("[v0] Using HLS.js for M3U8 stream")
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 90,
-        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
-          console.log("[v0] HLS requesting:", url)
-        },
-      })
 
+      const hlsConfig: any = {
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 60 * 1000 * 1000,
+        maxBufferHole: 0.5,
+        fragLoadingTimeOut: 60000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        manifestLoadingTimeOut: 30000,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingTimeOut: 30000,
+        levelLoadingMaxRetry: 4,
+      }
+
+      if (proxyType === "external") {
+        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
+          console.log("[v0] HLS external requesting:", xhrUrl)
+        }
+
+        // Custom loader to proxy .ts segments through movix
+        hlsConfig.loader = class CustomLoader extends Hls.DefaultConfig.loader {
+          load(context: any, config: any, callbacks: any) {
+            // If it's a segment (.ts) URL and we're using external proxy
+            if (
+              context.url &&
+              !context.url.includes("movix.club") &&
+              (context.url.includes(".ts") || context.type === "fragment")
+            ) {
+              // Proxy the segment through movix
+              context.url = EXTERNAL_PROXY_BASE + encodeURIComponent(context.url)
+              console.log("[v0] Proxying segment via movix:", context.url)
+            }
+            super.load(context, config, callbacks)
+          }
+        }
+      } else {
+        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
+          console.log("[v0] HLS default requesting:", xhrUrl)
+        }
+      }
+
+      const hls = new Hls(hlsConfig)
       hlsRef.current = hls
 
       hls.loadSource(url)
       hls.attachMedia(video)
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log("[v0] HLS manifest parsed")
+      hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+        console.log("[v0] HLS manifest parsed, levels:", data.levels?.length)
+        setLoadingProgress(100)
+        setLoadingStatus("Prêt!")
+        clearLoadingInterval()
         setVideoLoaded(true)
         setLoading(false)
         startTrackingSession()
         video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
       })
 
+      hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+        console.log("[v0] Fragment loaded:", data.frag?.sn)
+      })
+
       hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error("[v0] HLS error:", data)
+        console.error("[v0] HLS error:", data.type, data.details, data)
         if (data.fatal) {
-          setError("Erreur de lecture du flux")
-          setLoading(false)
+          clearLoadingInterval()
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log("[v0] Network error, trying to recover...")
+              // Try to recover
+              if (
+                data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+                data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
+              ) {
+                setError("Impossible de charger le flux. Essayez l'autre source.")
+                setLoading(false)
+              } else {
+                hls.startLoad()
+              }
+              break
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log("[v0] Media error, trying to recover...")
+              hls.recoverMediaError()
+              break
+            default:
+              setError("Erreur de lecture du flux")
+              setLoading(false)
+              break
+          }
         }
       })
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -322,12 +518,15 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       video.src = url
       video.addEventListener("loadedmetadata", () => {
         console.log("[v0] Video metadata loaded")
+        setLoadingProgress(100)
+        clearLoadingInterval()
         setVideoLoaded(true)
         setLoading(false)
         startTrackingSession()
         video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
       })
     } else {
+      clearLoadingInterval()
       setError("HLS non supporté par ce navigateur")
       setLoading(false)
     }
@@ -338,8 +537,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setVideoLoaded(false)
     setError(null)
     stopTrackingSession()
-    if (streamUrl) {
-      playSource(streamUrl)
+    if (originalStreamUrl) {
+      loadStreamSource(selectedSourceIndex, currentProxy)
     } else {
       loadStreamSource()
     }
@@ -379,6 +578,15 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
   return (
     <>
+      <a
+        ref={hiddenLinkRef}
+        href={AD_URLS[0]}
+        target="_blank"
+        rel="noreferrer noopener"
+        style={{ position: "absolute", left: "-9999px", opacity: 0, pointerEvents: "none" }}
+        aria-hidden="true"
+      />
+
       <div ref={containerRef} className="fixed inset-0 z-50 bg-black flex flex-col">
         {/* Header */}
         <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black to-transparent z-20">
@@ -544,34 +752,88 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           />
 
           {loading && !error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
-              <Loader2 className="w-16 h-16 text-cyan-400 animate-spin mb-4" />
-              <p className="text-white text-lg">Chargement du flux...</p>
-              <p className="text-white/50 text-sm mt-2">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
+              {/* Animated signal icon */}
+              <div className="relative mb-8">
+                <div className="w-20 h-20 rounded-full border-4 border-white/10 flex items-center justify-center">
+                  <div className="relative">
+                    {/* Signal waves animation */}
+                    <div className="flex items-center justify-center gap-1">
+                      <div
+                        className="w-1 h-6 bg-white/80 rounded-full animate-pulse"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <div
+                        className="w-1 h-8 bg-white/80 rounded-full animate-pulse"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <div
+                        className="w-1 h-10 bg-white rounded-full animate-pulse"
+                        style={{ animationDelay: "300ms" }}
+                      />
+                      <div
+                        className="w-1 h-8 bg-white/80 rounded-full animate-pulse"
+                        style={{ animationDelay: "450ms" }}
+                      />
+                      <div
+                        className="w-1 h-6 bg-white/80 rounded-full animate-pulse"
+                        style={{ animationDelay: "600ms" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* Rotating ring */}
+                <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin" />
+              </div>
+
+              {/* Progress text */}
+              <p className="text-white text-lg font-medium mb-2">Chargement du flux...</p>
+              <p className="text-white/50 text-sm mb-6">{loadingStatus}</p>
+
+              {/* Progress bar */}
+              <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-full transition-all duration-300"
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+
+              {/* Source indicator */}
+              <p className="text-white/40 text-xs mt-4">
                 {currentProxy === "external" ? "Source 2 (Proxy externe)" : "Source 1 (Proxy par défaut)"}
               </p>
             </div>
           )}
 
           {error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black">
-              <div className="text-center">
-                <div className="text-red-400 text-6xl mb-6 animate-pulse">⚠️</div>
-                <p className="text-white text-lg mb-4">{error}</p>
-                <p className="text-white/50 text-sm mb-6">Essayez une autre source si le problème persiste</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
+              <div className="text-center max-w-md px-6">
+                {/* Error icon with pulse */}
+                <div className="relative mb-6">
+                  <div className="w-20 h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full border-4 border-red-500 flex items-center justify-center">
+                      <X className="w-6 h-6 text-red-500" />
+                    </div>
+                  </div>
+                  <div className="absolute inset-0 w-20 h-20 mx-auto rounded-full bg-red-500/20 animate-ping" />
+                </div>
+
+                <p className="text-white text-xl font-bold mb-2">Erreur de chargement</p>
+                <p className="text-white/50 text-sm mb-8">{error}</p>
+
                 <div className="flex gap-3 justify-center flex-wrap">
                   <button
                     onClick={handleReload}
-                    className="px-6 py-3 rounded-xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all"
+                    className="px-6 py-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-all flex items-center gap-2"
                   >
-                    <RefreshCw className="w-5 h-5 inline mr-2" />
+                    <RefreshCw className="w-5 h-5" />
                     Réessayer
                   </button>
                   <button
                     onClick={() => switchProxySource(currentProxy === "default" ? "external" : "default")}
-                    className="px-6 py-3 rounded-xl bg-emerald-500 text-black font-bold hover:bg-emerald-400 transition-all"
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold hover:from-emerald-500 hover:to-emerald-400 transition-all flex items-center gap-2"
                   >
-                    <Radio className="w-5 h-5 inline mr-2" />
+                    <Radio className="w-5 h-5" />
                     {currentProxy === "default" ? "Essayer Source 2" : "Essayer Source 1"}
                   </button>
                 </div>
@@ -579,30 +841,56 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             </div>
           )}
 
-          {!adUnlocked && !loading && !error && !isVip && !isAdmin && !forceNoAds && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black px-4">
-              <Lock className="w-20 h-20 text-red-400 mb-6 animate-pulse" />
-              <h3 className="text-3xl font-bold text-white mb-4 text-center">Stream verrouillé</h3>
-              <p className="text-white/70 text-lg mb-2 text-center">
-                Regardez une courte publicité pour débloquer ce stream
-              </p>
-              <p className="text-red-400 font-bold mb-8">Merci pour votre soutien ❤️</p>
-              <button
-                onClick={unlockStream}
-                className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-red-500/50"
-              >
-                <Unlock className="w-6 h-6" />
-                <span>Débloquer le stream</span>
-              </button>
-              <div className="mt-8 text-center">
-                <p className="text-white/50 text-sm mb-3">Ou profitez sans publicité !</p>
+          {!adUnlocked && !loading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-black via-gray-900 to-black">
+              <div className="text-center max-w-md px-6">
+                <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <Lock className="w-12 h-12 text-red-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-3">Stream verrouillé</h3>
+                <p className="text-white/70 mb-6">Regardez une courte publicité pour débloquer ce stream</p>
+                <p className="text-amber-400 text-sm mb-6 flex items-center justify-center gap-2">
+                  Merci pour votre soutien <span className="text-red-500">❤</span>
+                </p>
+
                 <button
-                  onClick={() => setShowVipModal(true)}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-black font-bold hover:scale-105 transition-all shadow-lg shadow-amber-500/30 mx-auto"
+                  onMouseDown={handleUnlockMouseDown}
+                  onClick={unlockStream}
+                  onTouchStart={handleUnlockMouseDown as any}
+                  className="group relative inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 text-white font-bold text-lg shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 active:scale-95"
                 >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Devenez VIP - 5€ à vie</span>
+                  <Unlock className="w-6 h-6 transition-transform group-hover:rotate-12" />
+                  <span>Débloquer le stream</span>
+                  <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
+
+                <div className="mt-4">
+                  <a
+                    href={AD_URLS[0]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      setTimeout(() => {
+                        setAdUnlocked(true)
+                        loadStreamSource()
+                      }, 800)
+                    }}
+                    className="text-white/50 text-sm underline hover:text-white/70 transition-colors"
+                  >
+                    Cliquez ici si le bouton ne fonctionne pas
+                  </a>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-white/10">
+                  <p className="text-white/50 text-sm mb-4">Ou profitez sans publicité !</p>
+                  <button
+                    onClick={() => setShowVipModal(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black font-bold hover:scale-105 transition-all duration-300 shadow-lg shadow-amber-500/20"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    Devenez VIP - 5€ à vie
+                  </button>
+                </div>
               </div>
             </div>
           )}
