@@ -340,19 +340,9 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
     try {
       if (proxyType === "external") {
-        console.log("[v0] Fetching Nakios stream for channel:", channel.baseId)
+        console.log("[v0] Fetching Nakios stream via backend API for channel:", channel.baseId)
 
-        // Appel direct à l'API Nakios depuis le navigateur (pas via backend)
-        const nakiosUrl = `https://nakios.site/api/tv-live/channel/${channel.baseId}`
-        console.log("[v0] Calling Nakios API:", nakiosUrl)
-
-        const response = await fetch(nakiosUrl, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-          cache: "no-cache",
-        })
+        const response = await fetch(`/api/nakios/stream?channel=${encodeURIComponent(channel.baseId)}`)
 
         if (!response.ok) {
           throw new Error(`Erreur Nakios: HTTP ${response.status}`)
@@ -361,8 +351,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         const data = await response.json()
         console.log("[v0] Nakios response:", data)
 
-        if (data.success && data.data?.streamer) {
-          const streamUrl = data.data.streamer
+        if (data.success && data.streamUrl) {
+          const streamUrl = data.streamUrl
           console.log("[v0] Nakios stream URL:", streamUrl)
           setOriginalStreamUrl(streamUrl)
           setStreamUrl(streamUrl)
