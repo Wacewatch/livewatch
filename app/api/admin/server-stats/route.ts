@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import os from "os"
 
 export async function GET() {
   const supabase = await createClient()
 
-  // Check admin auth
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -19,47 +17,56 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const totalMemory = os.totalmem()
-  const freeMemory = os.freemem()
-  const usedMemory = totalMemory - freeMemory
-  const memoryUsagePercent = ((usedMemory / totalMemory) * 100).toFixed(2)
+  try {
+    // Get process stats (this Next.js app)
+    const processMemory = process.memoryUsage()
+    const processUptime = process.uptime()
 
-  const cpus = os.cpus()
-  const cpuModel = cpus[0]?.model || "Unknown"
-  const cpuCount = cpus.length
+    // Get CPU usage for this process
+    const cpuUsage = process.cpuUsage()
+    const cpuPercent = ((cpuUsage.user + cpuUsage.system) / 1000000 / processUptime / 1000) * 100
 
-  // Calculate CPU usage
-  let totalIdle = 0
-  let totalTick = 0
-  cpus.forEach((cpu) => {
-    for (const type in cpu.times) {
-      totalTick += cpu.times[type as keyof typeof cpu.times]
-    }
-    totalIdle += cpu.times.idle
-  })
-  const cpuUsagePercent = (100 - (100 * totalIdle) / totalTick).toFixed(2)
+    // Get active connections (estimate based on active sessions)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const { count: activeConnections } = await supabase
+      .from("active_sessions")
+      .select("id", { count: "exact", head: true })
+      .gte("last_heartbeat", fiveMinutesAgo)
 
-  const uptime = os.uptime()
-  const platform = os.platform()
-  const loadAvg = os.loadavg()
+    // Get network stats from tracking
+    const { data: recentSessions } = await supabase
+      .from("channel_views")
+      .select("id")
+      .gte("viewed_at", new Date(Date.now() - 60 * 1000).toISOString())
 
-  return NextResponse.json({
-    cpu: {
-      model: cpuModel,
-      cores: cpuCount,
-      usage: Number.parseFloat(cpuUsagePercent),
-      loadAvg: loadAvg.map((l) => l.toFixed(2)),
-    },
-    memory: {
-      total: (totalMemory / 1024 / 1024 / 1024).toFixed(2) + " GB",
-      used: (usedMemory / 1024 / 1024 / 1024).toFixed(2) + " GB",
-      free: (freeMemory / 1024 / 1024 / 1024).toFixed(2) + " GB",
-      usagePercent: Number.parseFloat(memoryUsagePercent),
-    },
-    system: {
-      platform,
-      uptime: Math.floor(uptime / 3600) + "h " + Math.floor((uptime % 3600) / 60) + "m",
-      uptimeSeconds: uptime,
-    },
-  })
+    const requestsPerMinute = recentSessions?.length || 0
+
+    return NextResponse.json({
+      cpu: {
+        model: "Next.js App Process",
+        cores: 1,
+        usage: Math.min(cpuPercent.toFixed(2), 100),
+      },
+      memory: {
+        total: (processMemory.heapTotal / 1024 / 1024).toFixed(2) + " MB",
+        used: (processMemory.heapUsed / 1024 / 1024).toFixed(2) + " MB",
+        free: ((processMemory.heapTotal - processMemory.heapUsed) / 1024 / 1024).toFixed(2) + " MB",
+        usagePercent: ((processMemory.heapUsed / processMemory.heapTotal) * 100).toFixed(2),
+      },
+      network: {
+        activeConnections: activeConnections || 0,
+        requestsPerMinute,
+        bandwidthEstimate: `~${((requestsPerMinute * 2.5) / 1024).toFixed(2)} GB/h`,
+      },
+      system: {
+        platform: process.platform,
+        uptime: Math.floor(processUptime / 3600) + "h " + Math.floor((processUptime % 3600) / 60) + "m",
+        uptimeSeconds: processUptime,
+        nodeVersion: process.version,
+      },
+    })
+  } catch (error) {
+    console.error("[v0] Server stats error:", error)
+    return NextResponse.json({ error: "Failed to fetch server stats" }, { status: 500 })
+  }
 }

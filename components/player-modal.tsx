@@ -22,6 +22,7 @@ import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
 import { useUserRole } from "@/lib/hooks/use-user-role"
 import { VipUpgradeModal } from "@/components/vip-upgrade-modal"
+import Image from "next/image"
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -88,7 +89,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setError(null)
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
-      setCurrentProxy("default")
+      setCurrentProxy("default") // Always start with Source 1
       setLoadingProgress(0)
       setLoadingStatus("")
     } else if (!isOpen) {
@@ -326,7 +327,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     }
   }
 
-  const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = currentProxy) => {
+  const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = "default") => {
     if (!channel) return
 
     console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : "2"}`)
@@ -507,7 +508,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             setVideoLoaded(true)
             setLoading(false)
             startTrackingSession()
-          }, 300)
+          }, 500)
         },
         { once: true },
       )
@@ -557,7 +558,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             setVideoLoaded(true)
             setLoading(false)
             startTrackingSession()
-          }, 300)
+          }, 500)
         },
         { once: true },
       )
@@ -828,36 +829,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
               <div className="relative mb-8">
                 <div className="flex flex-col items-center gap-4 mb-6">
-                  <svg
-                    width="180"
-                    height="50"
-                    viewBox="0 0 180 50"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="drop-shadow-2xl"
-                  >
-                    <text
-                      x="0"
-                      y="35"
-                      fontFamily="system-ui, -apple-system, sans-serif"
-                      fontSize="32"
-                      fontWeight="900"
-                      letterSpacing="-0.05em"
-                    >
-                      <tspan fill="url(#gradient1)">LIVE</tspan>
-                      <tspan fill="url(#gradient2)">WATCH</tspan>
-                    </text>
-                    <defs>
-                      <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style={{ stopColor: "#06b6d4", stopOpacity: 1 }} />
-                        <stop offset="100%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
-                      </linearGradient>
-                      <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style={{ stopColor: "#3b82f6", stopOpacity: 1 }} />
-                        <stop offset="100%" style={{ stopColor: "#8b5cf6", stopOpacity: 1 }} />
-                      </linearGradient>
-                    </defs>
-                  </svg>
+                  <Image src="/logo.png" alt="LIVEWATCH" width={240} height={80} className="drop-shadow-2xl" priority />
                 </div>
 
                 <div className="w-20 h-20 mx-auto rounded-full border-4 border-white/10 flex items-center justify-center">

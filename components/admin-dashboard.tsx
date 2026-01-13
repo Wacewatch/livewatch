@@ -89,9 +89,15 @@ interface ServerStats {
     used: string
     total: string
   }
+  network?: {
+    activeConnections: number
+    requestsPerMinute: number
+    bandwidthEstimate: string
+  }
   system: {
     uptime: string
     platform: string
+    nodeVersion?: string
   }
 }
 
@@ -479,11 +485,11 @@ export function AdminDashboard() {
 
       {/* Server Monitoring Section */}
       {serverStats && (
-        <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <Card className="border-l-4 border-l-blue-500 p-4">
             <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
               <Activity className="h-4 w-4 text-blue-500" />
-              CPU
+              CPU App
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -493,16 +499,14 @@ export function AdminDashboard() {
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 transition-all" style={{ width: `${serverStats.cpu.usage}%` }} />
               </div>
-              <div className="text-xs text-muted-foreground">
-                {serverStats.cpu.cores} cores • {serverStats.cpu.model.slice(0, 30)}...
-              </div>
+              <div className="text-xs text-muted-foreground">{serverStats.cpu.model}</div>
             </div>
           </Card>
 
           <Card className="border-l-4 border-l-purple-500 p-4">
             <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
               <Activity className="h-4 w-4 text-purple-500" />
-              RAM
+              RAM App
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -521,6 +525,29 @@ export function AdminDashboard() {
             </div>
           </Card>
 
+          {serverStats.network && (
+            <Card className="border-l-4 border-l-cyan-500 p-4">
+              <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-cyan-500" />
+                Réseau
+              </h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Connexions:</span>
+                  <span className="font-medium">{serverStats.network.activeConnections}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Req/min:</span>
+                  <span className="font-medium">{serverStats.network.requestsPerMinute}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Bande:</span>
+                  <span className="font-medium text-xs">{serverStats.network.bandwidthEstimate}</span>
+                </div>
+              </div>
+            </Card>
+          )}
+
           <Card className="border-l-4 border-l-green-500 p-4">
             <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-green-500" />
@@ -535,6 +562,12 @@ export function AdminDashboard() {
                 <span className="text-muted-foreground">Platform:</span>
                 <span className="font-medium">{serverStats.system.platform}</span>
               </div>
+              {serverStats.system.nodeVersion && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Node:</span>
+                  <span className="font-medium text-xs">{serverStats.system.nodeVersion}</span>
+                </div>
+              )}
             </div>
           </Card>
         </div>
