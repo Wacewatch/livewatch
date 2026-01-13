@@ -63,6 +63,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [loadingStatus, setLoadingStatus] = useState("")
   const [autoSwitchTimeout, setAutoSwitchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const [maxRetries] = useState(3)
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
@@ -91,6 +93,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setCurrentProxy("default")
       setLoadingProgress(0)
       setLoadingStatus("")
+      setRetryCount(0)
       if (autoSwitchTimeout) {
         clearTimeout(autoSwitchTimeout)
         setAutoSwitchTimeout(null)
@@ -338,12 +341,26 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   }
 
   const autoSwitchSource = () => {
-    console.log("[v0] Auto-switching to next source due to timeout")
+    if (retryCount >= maxRetries) {
+      console.log("[v0] Max retries reached, stopping auto-switch")
+      setError("Impossible de charger le flux après plusieurs tentatives")
+      setLoading(false)
+      clearLoadingInterval()
+      if (autoSwitchTimeout) {
+        clearTimeout(autoSwitchTimeout)
+        setAutoSwitchTimeout(null)
+      }
+      return
+    }
+
+    console.log(`[v0] Auto-switching to next source (attempt ${retryCount + 1}/${maxRetries})`)
     const nextProxy: ProxyType = currentProxy === "default" ? "external" : "default"
+
+    setRetryCount((prev) => prev + 1)
 
     toast({
       title: "Changement automatique de source",
-      description: `Passage à la Source ${nextProxy === "default" ? "1" : "2"}`,
+      description: `Passage à la Source ${nextProxy === "default" ? "1" : "2"} (tentative ${retryCount + 1}/${maxRetries})`,
     })
 
     switchProxySource(nextProxy)
@@ -386,13 +403,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         console.log("[v0] Nakios Worker response:", data)
 
         if (data.success && data.streamUrl) {
+          setRetryCount(0)
           const streamUrl = data.streamUrl
           console.log("[v0] Nakios stream URL:", streamUrl)
           setOriginalStreamUrl(streamUrl)
           setStreamUrl(streamUrl)
           playSource(streamUrl, proxyType)
         } else {
-          throw new Error("Aucune source Nakios disponible")
+          throw new Error(data.error || "Aucune source Nakios disponible")
         }
       } else {
         console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
@@ -409,11 +427,13 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         console.log("[v0] TvVoo stream data received")
 
         if (data.originalUrl) {
+          setRetryCount(0)
           setOriginalStreamUrl(data.originalUrl)
           const finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
           setStreamUrl(finalUrl)
           playSource(finalUrl, proxyType)
         } else if (data.streamUrl) {
+          setRetryCount(0)
           setOriginalStreamUrl(data.streamUrl)
           setStreamUrl(data.streamUrl)
           playSource(data.streamUrl, proxyType)
@@ -429,7 +449,9 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       if (autoSwitchTimeout) {
         clearTimeout(autoSwitchTimeout)
       }
-      setTimeout(() => autoSwitchSource(), 2000)
+      if (retryCount < maxRetries) {
+        setTimeout(() => autoSwitchSource(), 2000)
+      }
     }
   }
 
@@ -605,6 +627,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
   const handleReload = () => {
     console.log("[v0] Reloading stream")
+    setRetryCount(0)
     setVideoLoaded(false)
     setError(null)
     stopTrackingSession()
