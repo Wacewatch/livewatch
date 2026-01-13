@@ -341,40 +341,51 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     startLoadingAnimation()
 
     try {
-      console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
+      if (proxyType === "external") {
+        console.log("[v0] Fetching Nakios stream for channel:", channel.baseId, "country:", country)
 
-      const response = await fetch(
-        `/api/tvvoo/stream?channel=${encodeURIComponent(channel.baseId)}&countries=${encodeURIComponent(country)}`,
-      )
+        const response = await fetch(`/api/nakios/stream?channel=${encodeURIComponent(channel.baseId)}`)
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-      console.log("[v0] TvVoo stream data received")
-
-      if (data.originalUrl) {
-        // ✅ CORRECTION: Toujours sauvegarder l'URL originale
-        setOriginalStreamUrl(data.originalUrl)
-
-        let finalUrl: string
-        if (proxyType === "external") {
-          finalUrl = data.originalUrl
-          console.log("[v0] Using Source 2 (External proxy via HLS custom loader)")
-        } else {
-          finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
-          console.log("[v0] Using Source 1 (Default proxy)")
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
         }
 
-        setStreamUrl(finalUrl)
-        playSource(finalUrl, proxyType)
-      } else if (data.streamUrl) {
-        setOriginalStreamUrl(data.streamUrl)
-        setStreamUrl(data.streamUrl)
-        playSource(data.streamUrl, proxyType)
+        const data = await response.json()
+        console.log("[v0] Nakios stream data received")
+
+        if (data.streamUrl) {
+          setOriginalStreamUrl(data.streamUrl)
+          setStreamUrl(data.streamUrl)
+          playSource(data.streamUrl, proxyType)
+        } else {
+          throw new Error("Aucune source Nakios disponible")
+        }
       } else {
-        throw new Error("Aucune source disponible")
+        console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
+
+        const response = await fetch(
+          `/api/tvvoo/stream?channel=${encodeURIComponent(channel.baseId)}&countries=${encodeURIComponent(country)}`,
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+        console.log("[v0] TvVoo stream data received")
+
+        if (data.originalUrl) {
+          setOriginalStreamUrl(data.originalUrl)
+          const finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
+          setStreamUrl(finalUrl)
+          playSource(finalUrl, proxyType)
+        } else if (data.streamUrl) {
+          setOriginalStreamUrl(data.streamUrl)
+          setStreamUrl(data.streamUrl)
+          playSource(data.streamUrl, proxyType)
+        } else {
+          throw new Error("Aucune source disponible")
+        }
       }
     } catch (err) {
       console.error("[v0] Error loading stream:", err)
@@ -389,32 +400,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
     console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : "2"}`)
     setCurrentProxy(proxyType)
-
-    // ✅ CORRECTION: Vérifier si originalStreamUrl existe, sinon recharger complètement
-    if (originalStreamUrl) {
-      setLoading(true)
-      setError(null)
-      setVideoLoaded(false)
-      stopTrackingSession()
-      startLoadingAnimation()
-
-      let finalUrl: string
-      if (proxyType === "external") {
-        finalUrl = originalStreamUrl
-        console.log("[v0] Switching to Source 2 (External proxy)")
-      } else {
-        finalUrl = `/api/proxy?url=${encodeURIComponent(originalStreamUrl)}`
-        console.log("[v0] Switching to Source 1 (Default proxy)")
-      }
-
-      setStreamUrl(finalUrl)
-      playSource(finalUrl, proxyType)
-    } else {
-      // ✅ CORRECTION: Si pas d'URL originale, recharger depuis l'API
-      console.log("[v0] No original URL, reloading from API with proxy:", proxyType)
-      stopTrackingSession()
-      loadStreamSource(selectedSourceIndex, proxyType)
-    }
+    stopTrackingSession()
+    loadStreamSource(selectedSourceIndex, proxyType)
   }
 
   const playSource = async (url: string, proxyType: ProxyType = currentProxy) => {
@@ -434,56 +421,39 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.log("[v0] Using HLS.js for M3U8 stream")
 
       const hlsConfig: any = {
-        debug: false, // Set to true for detailed HLS logs
+        debug: false,
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
-        // Buffer adaptatif pour démarrage rapide
-        maxBufferLength: 30, // Reduced buffer for faster start
-        maxMaxBufferLength: 60, // Reduced max buffer
-        maxBufferSize: 80 * 1000 * 1000, // 80MB max buffer size
-        maxBufferHole: 0.5, // Allow small buffer holes
-        // Timeouts généreux
-        fragLoadingTimeOut: 60000, // 60 seconds for fragment loading
-        fragLoadingMaxRetry: 10, // Increased retries for fragments
-        fragLoadingRetryDelay: 300, // Shorter delay between retries
-        manifestLoadingTimeOut: 30000, // 30 seconds for manifest loading
-        manifestLoadingMaxRetry: 8, // Increased retries for manifests
-        levelLoadingTimeOut: 30000, // 30 seconds for level loading
-        levelLoadingMaxRetry: 8, // Increased retries for levels
-        // Démarrage rapide
-        startLevel: -1, // Start with automatic level selection
-        autoStartLoad: true, // Automatically start loading
-        startFragPrefetch: true, // Prefetch first fragment
-        // ABR adaptatif
-        abrEwmaDefaultEstimate: 1000000, // Default bandwidth estimate (1Mbps)
-        abrBandWidthFactor: 0.95, // Bandwidth factor for ABR
-        abrBandWidthUpFactor: 0.7, // Bandwidth factor for increasing quality
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 80 * 1000 * 1000,
+        maxBufferHole: 0.5,
+        fragLoadingTimeOut: 60000,
+        fragLoadingMaxRetry: 10,
+        fragLoadingRetryDelay: 300,
+        manifestLoadingTimeOut: 30000,
+        manifestLoadingMaxRetry: 8,
+        levelLoadingTimeOut: 30000,
+        levelLoadingMaxRetry: 8,
+        startLevel: -1,
+        autoStartLoad: true,
+        startFragPrefetch: true,
+        abrEwmaDefaultEstimate: 1000000,
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.7,
       }
 
       if (proxyType === "external") {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
-          console.log("[v0] HLS external requesting:", xhrUrl)
-          xhr.withCredentials = false // Ensure no credentials are sent
-          xhr.timeout = 60000 // Generous timeout for external proxy requests
-        }
-
-        hlsConfig.loader = class CustomLoader extends Hls.DefaultConfig.loader {
-          load(context: any, config: any, callbacks: any) {
-            // Proxifier tous les segments .ts et playlists via movix.club
-            // We check if the URL is not already from movix.club to prevent double proxying
-            if (context.url && !context.url.includes("movix.club")) {
-              const originalUrl = context.url
-              context.url = EXTERNAL_PROXY_BASE + encodeURIComponent(originalUrl)
-              console.log("[v0] Movix proxy:", originalUrl.substring(0, 80) + "...") // Log truncated URL for brevity
-            }
-            super.load(context, config, callbacks)
-          }
+          console.log("[v0] HLS external requesting:", xhrUrl.substring(0, 100))
+          xhr.withCredentials = false
+          xhr.timeout = 60000
         }
       } else {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
-          console.log("[v0] HLS default requesting:", xhrUrl)
-          xhr.timeout = 60000 // Generous timeout for default proxy requests
+          console.log("[v0] HLS default requesting:", xhrUrl.substring(0, 100))
+          xhr.timeout = 60000
         }
       }
 
@@ -602,7 +572,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     const video = videoRef.current
     if (!video) return
 
-    // Check for Remote Playback API (Chromecast)
     if ("remote" in video && (video as any).remote) {
       const remotePlayback = (video as any).remote
       remotePlayback
@@ -624,9 +593,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             })
           }
         })
-    }
-    // Fallback for Safari/AirPlay
-    else if ((video as any).webkitShowPlaybackTargetPicker) {
+    } else if ((video as any).webkitShowPlaybackTargetPicker) {
       try {
         ;(video as any).webkitShowPlaybackTargetPicker()
         console.log("[v0] AirPlay picker shown")
