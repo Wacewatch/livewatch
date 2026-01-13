@@ -40,8 +40,6 @@ const AD_URLS = [
   "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8",
 ]
 
-const EXTERNAL_PROXY_BASE = "https://proxiesembed.movix.club/proxy?url="
-
 type ProxyType = "default" | "external"
 
 export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
@@ -342,21 +340,33 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
     try {
       if (proxyType === "external") {
-        console.log("[v0] Fetching Nakios stream for channel:", channel.baseId, "country:", country)
+        console.log("[v0] Fetching Nakios stream for channel:", channel.baseId)
 
-        const response = await fetch(`/api/nakios/stream?channel=${encodeURIComponent(channel.baseId)}`)
+        // Appel direct à l'API Nakios depuis le navigateur (pas via backend)
+        const nakiosUrl = `https://nakios.site/api/tv-live/channel/${channel.baseId}`
+        console.log("[v0] Calling Nakios API:", nakiosUrl)
+
+        const response = await fetch(nakiosUrl, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          cache: "no-cache",
+        })
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
+          throw new Error(`Erreur Nakios: HTTP ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("[v0] Nakios stream data received")
+        console.log("[v0] Nakios response:", data)
 
-        if (data.streamUrl) {
-          setOriginalStreamUrl(data.streamUrl)
-          setStreamUrl(data.streamUrl)
-          playSource(data.streamUrl, proxyType)
+        if (data.success && data.data?.streamer) {
+          const streamUrl = data.data.streamer
+          console.log("[v0] Nakios stream URL:", streamUrl)
+          setOriginalStreamUrl(streamUrl)
+          setStreamUrl(streamUrl)
+          playSource(streamUrl, proxyType)
         } else {
           throw new Error("Aucune source Nakios disponible")
         }
