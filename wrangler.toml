@@ -1,0 +1,9 @@
+name = "nakios-proxy"
+main = "workers/nakios-proxy.js"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "nakios-proxy"
+routes = [
+  { pattern = "*/api/nakios-worker/*", zone_name = "your-domain.com" }
+]
