@@ -16,6 +16,7 @@ import {
   Copy,
   Check,
   Radio,
+  Cast,
 } from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
@@ -75,6 +76,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       if (isVip || isAdmin || forceNoAds) {
         console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
         setAdUnlocked(true)
+        // Call loadStreamSource after a short delay to ensure DOM is ready
         setTimeout(() => loadStreamSource(), 100)
       } else {
         setAdUnlocked(false)
@@ -425,37 +427,49 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.log("[v0] Using HLS.js for M3U8 stream")
 
       const hlsConfig: any = {
+        debug: false, // Set to true for detailed HLS logs
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        fragLoadingTimeOut: 60000,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 1000,
-        manifestLoadingTimeOut: 30000,
-        manifestLoadingMaxRetry: 4,
-        levelLoadingTimeOut: 30000,
-        levelLoadingMaxRetry: 4,
+        // Buffer adaptatif pour démarrage rapide
+        maxBufferLength: 20, // Reduced buffer for faster start
+        maxMaxBufferLength: 40, // Reduced max buffer
+        maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer size
+        maxBufferHole: 0.5, // Allow small buffer holes
+        // Timeouts généreux
+        fragLoadingTimeOut: 60000, // 60 seconds for fragment loading
+        fragLoadingMaxRetry: 8, // Increased retries for fragments
+        fragLoadingRetryDelay: 500, // Shorter delay between retries
+        manifestLoadingTimeOut: 30000, // 30 seconds for manifest loading
+        manifestLoadingMaxRetry: 6, // Increased retries for manifests
+        levelLoadingTimeOut: 30000, // 30 seconds for level loading
+        levelLoadingMaxRetry: 6, // Increased retries for levels
+        // Démarrage rapide
+        startLevel: -1, // Start with automatic level selection
+        autoStartLoad: true, // Automatically start loading
+        startFragPrefetch: true, // Prefetch first fragment
+        // ABR adaptatif
+        abrEwmaDefaultEstimate: 500000, // Default bandwidth estimate (500kbps)
+        abrBandWidthFactor: 0.95, // Bandwidth factor for ABR
+        abrBandWidthUpFactor: 0.7, // Bandwidth factor for increasing quality
       }
 
       // ✅ CORRECTION: Amélioration du loader custom pour le proxy externe
       if (proxyType === "external") {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
           console.log("[v0] HLS external requesting:", xhrUrl)
+          xhr.withCredentials = false // Ensure no credentials are sent
         }
 
         hlsConfig.loader = class CustomLoader extends Hls.DefaultConfig.loader {
           load(context: any, config: any, callbacks: any) {
             // ✅ Proxy tous les segments .ts ET les playlists .m3u8 sauf si déjà proxyfié
             if (context.url && !context.url.includes("movix.club")) {
-              const needsProxy = 
-                context.url.includes(".ts") || 
+              const needsProxy =
+                context.url.includes(".ts") ||
                 context.type === "fragment" ||
                 (context.url.includes(".m3u8") && context.type === "level")
-              
+
               if (needsProxy) {
                 const originalUrl = context.url
                 context.url = EXTERNAL_PROXY_BASE + encodeURIComponent(originalUrl)
@@ -482,11 +496,17 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         setLoadingProgress(100)
         setLoadingStatus("Prêt!")
         clearLoadingInterval()
-        setVideoLoaded(true)
-        setLoading(false)
-        startTrackingSession()
-        video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
       })
+
+      video.addEventListener(
+        "canplay",
+        () => {
+          setVideoLoaded(true)
+          setLoading(false)
+          startTrackingSession()
+        },
+        { once: true },
+      )
 
       hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
         console.log("[v0] Fragment loaded:", data.frag?.sn)
@@ -523,20 +543,25 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       console.log("[v0] Using native HLS support")
       video.src = url
-      video.addEventListener("loadedmetadata", () => {
-        console.log("[v0] Video metadata loaded")
-        setLoadingProgress(100)
-        clearLoadingInterval()
-        setVideoLoaded(true)
-        setLoading(false)
-        startTrackingSession()
-        video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
-      })
+      video.addEventListener(
+        "canplay",
+        () => {
+          console.log("[v0] Video metadata loaded")
+          setLoadingProgress(100)
+          clearLoadingInterval()
+          setVideoLoaded(true)
+          setLoading(false)
+          startTrackingSession()
+        },
+        { once: true },
+      )
     } else {
       clearLoadingInterval()
       setError("HLS non supporté par ce navigateur")
       setLoading(false)
     }
+    // Attempt to play video after setting source
+    video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
   }
 
   const handleReload = () => {
@@ -562,6 +587,30 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setSelectedSourceIndex(index)
     stopTrackingSession()
     loadStreamSource(index, currentProxy)
+  }
+
+  const handleCast = () => {
+    const video = videoRef.current
+    if (!video) return
+
+    // Check if Cast API is available (Web Cast API for Chromecast)
+    if ("RemotePlayback" in HTMLVideoElement.prototype) {
+      const remotePlayback = (video as any).remote
+      remotePlayback
+        .prompt()
+        .then(() => {
+          console.log("[v0] Cast initiated")
+        })
+        .catch((err: Error) => {
+          console.log("[v0] Cast cancelled or failed:", err)
+        })
+    }
+    // Fallback for Safari/AirPlay
+    else if ((video as any).webkitShowPlaybackTargetPicker) {
+      ;(video as any).webkitShowPlaybackTargetPicker()
+    } else {
+      alert("La fonctionnalité Cast n'est pas disponible sur cet appareil")
+    }
   }
 
   const copyToClipboard = async (link: string, type: string) => {
@@ -673,6 +722,16 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               </div>
             )}
 
+            {adUnlocked && videoLoaded && (
+              <button
+                onClick={handleCast}
+                className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+                title="Diffuser (Cast)"
+              >
+                <Cast className="w-5 h-5" />
+              </button>
+            )}
+
             <button
               onClick={handleReload}
               className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
@@ -756,7 +815,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           {loading && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
               <div className="relative mb-8">
-                <div className="w-20 h-20 rounded-full border-4 border-white/10 flex items-center justify-center">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center mb-4">
+                  <div className="text-4xl font-black text-white tracking-tighter">LW</div>
+                </div>
+                <div className="w-20 h-20 mx-auto rounded-full border-4 border-white/10 flex items-center justify-center">
                   <div className="relative">
                     <div className="flex items-center justify-center gap-1">
                       <div
@@ -782,7 +844,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     </div>
                   </div>
                 </div>
-                <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin" />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin" />
               </div>
 
               <p className="text-white text-lg font-medium mb-2">Chargement du flux...</p>
