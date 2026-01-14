@@ -655,42 +655,44 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
       <div ref={containerRef} className="fixed inset-0 z-50 bg-black flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black to-transparent z-20">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-xl font-bold text-white">{channel.baseName}</h2>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-3 md:p-4 bg-gradient-to-b from-black to-transparent z-20">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <h2 className="text-base sm:text-lg md:text-xl font-bold text-white truncate max-w-[200px] sm:max-w-none">
+              {channel.baseName}
+            </h2>
+            <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold bg-red-500 text-white shrink-0">
+              <span className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-white animate-pulse" />
               EN DIRECT
             </span>
             {isVip && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-black">
-                <Crown className="w-3 h-3" />
+              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold bg-amber-500 text-black shrink-0">
+                <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
                 VIP
               </span>
             )}
             {isAdmin && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-500 text-black">
-                <Crown className="w-3 h-3" />
+              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold bg-green-500 text-black shrink-0">
+                <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
                 ADMIN
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto">
             <button
               onClick={() => setShowShareLinks(!showShareLinks)}
-              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+              className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
               title="Partager"
             >
-              <Link2 className="w-5 h-5" />
+              <Link2 className="w-4 sm:w-5 h-4 sm:h-5" />
             </button>
 
             {adUnlocked && (
-              <div className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
-                <Radio className="w-4 h-4 text-white/60 mr-1" />
+              <div className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 shrink-0">
+                <Radio className="w-3 sm:w-4 h-3 sm:h-4 text-white/60 mr-0.5 sm:mr-1" />
                 <button
                   onClick={() => switchProxySource("default")}
-                  className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
                     currentProxy === "default"
                       ? "bg-cyan-500 text-black shadow-lg"
                       : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
@@ -701,12 +703,12 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                 </button>
                 <button
                   onClick={() => switchProxySource("external")}
-                  className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
                     currentProxy === "external"
                       ? "bg-emerald-500 text-black shadow-lg"
                       : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
-                  title="Source 2 (Proxy externe Movix)"
+                  title="Source 2 (Proxy externe)"
                 >
                   Source 2
                 </button>
@@ -714,15 +716,17 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             )}
 
             {channel.sources.length > 1 && adUnlocked && (
-              <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20">
-                <span className="text-xs text-white/60 font-medium mr-1">Qualité:</span>
+              <div className="flex items-center gap-1 sm:gap-2 flex-wrap px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 shrink-0">
+                <span className="text-[10px] sm:text-xs text-white/60 font-medium mr-0.5 sm:mr-1 hidden sm:inline">
+                  Qualité:
+                </span>
                 {channel.sources.map((source, index) => {
                   const isActive = index === selectedSourceIndex
                   return (
                     <button
                       key={index}
                       onClick={() => switchSource(index)}
-                      className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                      className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
                         isActive
                           ? "bg-cyan-500 text-black shadow-lg"
                           : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
@@ -739,64 +743,68 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             {adUnlocked && videoLoaded && (
               <button
                 onClick={handleCast}
-                className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+                className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
                 title="Diffuser (Cast)"
               >
-                <Cast className="w-5 h-5" />
+                <Cast className="w-4 sm:w-5 h-4 sm:h-5" />
               </button>
             )}
 
             <button
               onClick={handleReload}
-              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+              className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
               title="Recharger"
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className="w-4 sm:w-5 h-4 sm:h-5" />
             </button>
 
             <button
               onClick={toggleFullscreen}
-              className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+              className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
             >
-              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+              {isFullscreen ? (
+                <Minimize className="w-4 sm:w-5 h-4 sm:h-5" />
+              ) : (
+                <Maximize className="w-4 sm:w-5 h-4 sm:h-5" />
+              )}
             </button>
 
             <button
               onClick={onClose}
-              className="p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-all"
+              className="p-1.5 sm:p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-all shrink-0"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 sm:w-5 h-4 sm:h-5" />
             </button>
           </div>
         </div>
 
         {/* Share links panel */}
         {showShareLinks && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="mx-4 w-full max-w-md rounded-2xl bg-gradient-to-br from-gray-900 to-black border border-cyan-500/20 p-6 shadow-2xl">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-2xl bg-gradient-to-br from-gray-900 to-black border border-cyan-500/20 p-4 sm:p-6 shadow-2xl">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xl font-bold text-white">Partager la chaîne</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-white">Partager la chaîne</h3>
                 <button
                   onClick={() => setShowShareLinks(false)}
                   className="text-gray-400 hover:text-white transition-colors"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <p className="text-sm text-gray-400 mb-2">Lien lecteur - Source 1</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 1</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={playerLinkSource1}
                       readOnly
-                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-3 py-2 text-sm text-white"
+                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
                     />
                     <button
                       onClick={() => copyToClipboard(playerLinkSource1, "player1")}
-                      className="rounded-lg bg-cyan-600 hover:bg-cyan-700 px-3 py-2 text-white transition-colors"
+                      className="rounded-lg bg-cyan-600 hover:bg-cyan-700 px-3 py-2 text-white transition-colors shrink-0"
                     >
                       {copiedLink === "player1" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </button>
@@ -804,17 +812,17 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-400 mb-2">Lien lecteur - Source 2</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 2</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={playerLinkSource2}
                       readOnly
-                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-3 py-2 text-sm text-white"
+                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
                     />
                     <button
                       onClick={() => copyToClipboard(playerLinkSource2, "player2")}
-                      className="rounded-lg bg-green-600 hover:bg-green-700 px-3 py-2 text-white transition-colors"
+                      className="rounded-lg bg-green-600 hover:bg-green-700 px-3 py-2 text-white transition-colors shrink-0"
                     >
                       {copiedLink === "player2" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </button>
@@ -833,86 +841,95 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             style={{ display: videoLoaded ? "block" : "none" }}
           />
 
+          {/* Loading screen */}
           {loading && !error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
-              <div className="relative mb-8">
-                <div className="flex flex-col items-center gap-4 mb-6">
-                  <Image src="/logo.png" alt="LIVEWATCH" width={240} height={80} className="drop-shadow-2xl" priority />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 px-4">
+              <div className="relative mb-6 sm:mb-8">
+                <div className="flex flex-col items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <Image
+                    src="/logo.png"
+                    alt="LIVEWATCH"
+                    width={180}
+                    height={60}
+                    className="drop-shadow-2xl sm:w-[240px] sm:h-[80px]"
+                    priority
+                  />
                 </div>
 
-                <div className="w-20 h-20 mx-auto rounded-full border-4 border-white/10 flex items-center justify-center">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full border-4 border-white/10 flex items-center justify-center">
                   <div className="relative">
                     <div className="flex items-center justify-center gap-1">
                       <div
-                        className="w-1 h-6 bg-cyan-400/80 rounded-full animate-pulse"
+                        className="w-0.5 sm:w-1 h-4 sm:h-6 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "0ms" }}
                       />
                       <div
-                        className="w-1 h-8 bg-cyan-400/80 rounded-full animate-pulse"
+                        className="w-0.5 sm:w-1 h-5 sm:h-8 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "150ms" }}
                       />
                       <div
-                        className="w-1 h-10 bg-cyan-400 rounded-full animate-pulse"
+                        className="w-0.5 sm:w-1 h-6 sm:h-10 bg-cyan-400 rounded-full animate-pulse"
                         style={{ animationDelay: "300ms" }}
                       />
                       <div
-                        className="w-1 h-8 bg-cyan-400/80 rounded-full animate-pulse"
+                        className="w-0.5 sm:w-1 h-5 sm:h-8 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "450ms" }}
                       />
                       <div
-                        className="w-1 h-6 bg-cyan-400/80 rounded-full animate-pulse"
+                        className="w-0.5 sm:w-1 h-4 sm:h-6 bg-cyan-400/80 rounded-full animate-pulse"
                         style={{ animationDelay: "600ms" }}
                       />
                     </div>
                   </div>
                 </div>
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin" />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin" />
               </div>
 
-              <p className="text-white text-lg font-medium mb-2">Chargement du flux...</p>
-              <p className="text-white/50 text-sm mb-6">{loadingStatus}</p>
+              <p className="text-white text-base sm:text-lg font-medium mb-2 text-center">Chargement du flux...</p>
+              <p className="text-white/50 text-xs sm:text-sm mb-4 sm:mb-6 text-center">{loadingStatus}</p>
 
-              <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="w-48 sm:w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-full transition-all duration-300"
                   style={{ width: `${loadingProgress}%` }}
                 />
               </div>
 
-              <p className="text-white/40 text-xs mt-4">
+              <p className="text-white/40 text-[10px] sm:text-xs mt-3 sm:mt-4 text-center">
                 {currentProxy === "external" ? "Source 2 (Proxy externe)" : "Source 1 (Proxy par défaut)"}
               </p>
             </div>
           )}
 
+          {/* Error screen */}
           {error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
-              <div className="text-center max-w-md px-6">
-                <div className="relative mb-6">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
-                    <div className="w-12 h-12 rounded-full border-4 border-red-500 flex items-center justify-center">
-                      <X className="w-6 h-6 text-red-500" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 px-4">
+              <div className="text-center max-w-md">
+                <div className="relative mb-4 sm:mb-6">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-4 border-red-500 flex items-center justify-center">
+                      <X className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
                     </div>
                   </div>
-                  <div className="absolute inset-0 w-20 h-20 mx-auto rounded-full bg-red-500/20 animate-ping" />
+                  <div className="absolute inset-0 w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-red-500/20 animate-ping" />
                 </div>
 
-                <p className="text-white text-xl font-bold mb-2">Erreur de chargement</p>
-                <p className="text-white/50 text-sm mb-8">{error}</p>
+                <p className="text-white text-lg sm:text-xl font-bold mb-2">Erreur de chargement</p>
+                <p className="text-white/50 text-xs sm:text-sm mb-6 sm:mb-8">{error}</p>
 
-                <div className="flex gap-3 justify-center flex-wrap">
+                <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
                   <button
                     onClick={handleReload}
-                    className="px-6 py-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-all flex items-center gap-2"
+                    className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-white/10 text-white text-sm sm:text-base font-bold hover:bg-white/20 transition-all flex items-center gap-2"
                   >
-                    <RefreshCw className="w-5 h-5" />
+                    <RefreshCw className="w-4 sm:w-5 h-4 sm:h-5" />
                     Réessayer
                   </button>
                   <button
                     onClick={() => switchProxySource(currentProxy === "default" ? "external" : "default")}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold hover:from-emerald-500 hover:to-emerald-400 transition-all flex items-center gap-2"
+                    className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm sm:text-base font-bold hover:from-emerald-500 hover:to-emerald-400 transition-all flex items-center gap-2"
                   >
-                    <Radio className="w-5 h-5" />
+                    <Radio className="w-4 sm:w-5 h-4 sm:h-5" />
                     {currentProxy === "default" ? "Essayer Source 2" : "Essayer Source 1"}
                   </button>
                 </div>
@@ -920,15 +937,18 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             </div>
           )}
 
+          {/* Locked screen */}
           {!adUnlocked && !loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-black via-gray-900 to-black">
-              <div className="text-center max-w-md px-6">
-                <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
-                  <Lock className="w-12 h-12 text-red-400" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-black via-gray-900 to-black px-4">
+              <div className="text-center max-w-md">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-4 sm:mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <Lock className="w-10 h-10 sm:w-12 sm:h-12 text-red-400" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-3">Stream verrouillé</h3>
-                <p className="text-white/70 mb-6">Regardez une courte publicité pour débloquer ce stream</p>
-                <p className="text-amber-400 text-sm mb-6 flex items-center justify-center gap-2">
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 sm:mb-3">Stream verrouillé</h3>
+                <p className="text-white/70 text-sm sm:text-base mb-4 sm:mb-6">
+                  Regardez une courte publicité pour débloquer ce stream
+                </p>
+                <p className="text-amber-400 text-xs sm:text-sm mb-4 sm:mb-6 flex items-center justify-center gap-2">
                   Merci pour votre soutien <span className="text-red-500">❤</span>
                 </p>
 
@@ -936,14 +956,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   onMouseDown={handleUnlockMouseDown}
                   onClick={unlockStream}
                   onTouchStart={handleUnlockMouseDown as any}
-                  className="group relative inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 text-white font-bold text-lg shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 active:scale-95"
+                  className="group relative inline-flex items-center gap-2 sm:gap-3 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 text-white font-bold text-base sm:text-lg shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 active:scale-95"
                 >
-                  <Unlock className="w-6 h-6 transition-transform group-hover:rotate-12" />
+                  <Unlock className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:rotate-12" />
                   <span>Débloquer le stream</span>
                   <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
 
-                <div className="mt-4">
+                <div className="mt-3 sm:mt-4">
                   <a
                     href={AD_URLS[0]}
                     target="_blank"
@@ -954,19 +974,19 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                         loadStreamSource()
                       }, 800)
                     }}
-                    className="text-white/50 text-sm underline hover:text-white/70 transition-colors"
+                    className="text-white/50 text-xs sm:text-sm underline hover:text-white/70 transition-colors"
                   >
                     Cliquez ici si le bouton ne fonctionne pas
                   </a>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-white/10">
-                  <p className="text-white/50 text-sm mb-4">Ou profitez sans publicité !</p>
+                <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/10">
+                  <p className="text-white/50 text-xs sm:text-sm mb-3 sm:mb-4">Ou profitez sans publicité !</p>
                   <button
                     onClick={() => setShowVipModal(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black font-bold hover:scale-105 transition-all duration-300 shadow-lg shadow-amber-500/20"
+                    className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black text-sm sm:text-base font-bold hover:scale-105 transition-all duration-300 shadow-lg shadow-amber-500/20"
                   >
-                    <Sparkles className="w-5 h-5" />
+                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
                     Devenez VIP - 5€ à vie
                   </button>
                 </div>
