@@ -75,11 +75,15 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.log("[v0] Opening player for channel:", channel.baseName, "country:", country)
       document.body.style.overflow = "hidden"
 
+      const urlParams = new URLSearchParams(window.location.search)
+      const sourceParam = urlParams.get("source")
+      const initialProxy: ProxyType = sourceParam === "2" ? "external" : "default"
+      console.log("[v0] URL source parameter:", sourceParam, "=> using proxy:", initialProxy)
+
       if (isVip || isAdmin || forceNoAds) {
         console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
         setAdUnlocked(true)
-        // Call loadStreamSource after a short delay to ensure DOM is ready
-        setTimeout(() => loadStreamSource(), 100)
+        setTimeout(() => loadStreamSource(0, initialProxy), 100)
       } else {
         setAdUnlocked(false)
       }
@@ -89,7 +93,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setError(null)
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
-      setCurrentProxy("default") // Always start with Source 1
+      setCurrentProxy(initialProxy)
       setLoadingProgress(0)
       setLoadingStatus("")
     } else if (!isOpen) {
@@ -317,7 +321,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
     setTimeout(() => {
       setAdUnlocked(true)
-      loadStreamSource()
+      const urlParams = new URLSearchParams(window.location.search)
+      const sourceParam = urlParams.get("source")
+      const initialProxy: ProxyType = sourceParam === "2" ? "external" : "default"
+      loadStreamSource(0, initialProxy)
     }, 800)
   }
 
@@ -632,7 +639,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   if (!isOpen || !channel) return null
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
-  const playerLink = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}`
+  const playerLinkSource1 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=1`
+  const playerLinkSource2 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=2`
 
   return (
     <>
@@ -764,49 +772,56 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
         {/* Share links panel */}
         {showShareLinks && (
-          <div className="absolute top-20 right-4 z-30 w-96 bg-black/95 backdrop-blur-lg rounded-xl border border-white/20 p-4 shadow-2xl">
-            <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-              <Link2 className="w-5 h-5 text-cyan-400" />
-              Lien d'intégration
-            </h3>
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="mx-4 w-full max-w-md rounded-2xl bg-gradient-to-br from-gray-900 to-black border border-cyan-500/20 p-6 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white">Partager la chaîne</h3>
+                <button
+                  onClick={() => setShowShareLinks(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
-            <div className="space-y-4">
-              <div>
-                <p className="text-white/70 text-sm mb-2 flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                    Lecteur public
-                  </span>
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={playerLink}
-                    readOnly
-                    className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm font-mono"
-                  />
-                  <button
-                    onClick={() => copyToClipboard(playerLink, "player")}
-                    className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black rounded-lg transition-all flex items-center gap-2"
-                  >
-                    {copiedLink === "player" ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        <span className="text-sm font-bold">Copié</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        <span className="text-sm font-bold">Copier</span>
-                      </>
-                    )}
-                  </button>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-400 mb-2">Lien lecteur - Source 1</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={playerLinkSource1}
+                      readOnly
+                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-3 py-2 text-sm text-white"
+                    />
+                    <button
+                      onClick={() => copyToClipboard(playerLinkSource1, "player1")}
+                      className="rounded-lg bg-cyan-600 hover:bg-cyan-700 px-3 py-2 text-white transition-colors"
+                    >
+                      {copiedLink === "player1" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-400 mb-2">Lien lecteur - Source 2</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={playerLinkSource2}
+                      readOnly
+                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-3 py-2 text-sm text-white"
+                    />
+                    <button
+                      onClick={() => copyToClipboard(playerLinkSource2, "player2")}
+                      className="rounded-lg bg-green-600 hover:bg-green-700 px-3 py-2 text-white transition-colors"
+                    >
+                      {copiedLink === "player2" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-
-            <p className="text-white/50 text-xs mt-4 leading-relaxed">
-              Partagez ce lien pour permettre l'accès direct au lecteur intégré.
-            </p>
           </div>
         )}
 
