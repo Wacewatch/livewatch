@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { setupIframeAuth, type IframeAuthMessage } from "@/lib/iframe-auth"
 
 export type UserRole = "admin" | "vip" | "member" | null
 
@@ -42,14 +41,6 @@ export function useUserRole() {
     }
 
     fetchRole()
-
-    setupIframeAuth((authData: IframeAuthMessage) => {
-      console.log("[v0] Received auth from parent iframe:", authData)
-      if (authData.role) {
-        setRole(authData.role as UserRole)
-        setLoading(false)
-      }
-    })
 
     const {
       data: { subscription },
