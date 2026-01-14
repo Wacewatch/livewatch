@@ -639,360 +639,295 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   if (!isOpen || !channel) return null
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
-  const playerLinkSource1 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=1`
-  const playerLinkSource2 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=2`
+  const shareLink = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}`
+  const shareLinkSource2 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=2`
 
   return (
     <>
       <a
         ref={hiddenLinkRef}
-        href={AD_URLS[0]}
+        href="#"
         target="_blank"
         rel="noopener noreferrer"
-        style={{ position: "absolute", left: "-9999px", opacity: 0, pointerEvents: "none" }}
+        style={{ position: "absolute", left: "-9999px", opacity: 0 }}
         aria-hidden="true"
-      />
+      >
+        Ad Link
+      </a>
 
-      <div ref={containerRef} className="fixed inset-0 z-50 bg-black flex flex-col">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-3 md:p-4 bg-gradient-to-b from-black to-transparent z-20">
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <h2 className="text-base sm:text-lg md:text-xl font-bold text-white truncate max-w-[200px] sm:max-w-none">
-              {channel.baseName}
-            </h2>
-            <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold bg-red-500 text-white shrink-0">
-              <span className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-white animate-pulse" />
-              EN DIRECT
-            </span>
-            {isVip && (
-              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold bg-amber-500 text-black shrink-0">
-                <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
-                VIP
-              </span>
-            )}
-            {isAdmin && (
-              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold bg-green-500 text-black shrink-0">
-                <Crown className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
-                ADMIN
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto">
-            <button
-              onClick={() => setShowShareLinks(!showShareLinks)}
-              className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
-              title="Partager"
-            >
-              <Link2 className="w-4 sm:w-5 h-4 sm:h-5" />
-            </button>
-
-            {adUnlocked && (
-              <div className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 shrink-0">
-                <Radio className="w-3 sm:w-4 h-3 sm:h-4 text-white/60 mr-0.5 sm:mr-1" />
-                <button
-                  onClick={() => switchProxySource("default")}
-                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
-                    currentProxy === "default"
-                      ? "bg-cyan-500 text-black shadow-lg"
-                      : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                  }`}
-                  title="Source 1 (Proxy par défaut)"
-                >
-                  Source 1
-                </button>
-                <button
-                  onClick={() => switchProxySource("external")}
-                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
-                    currentProxy === "external"
-                      ? "bg-emerald-500 text-black shadow-lg"
-                      : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                  }`}
-                  title="Source 2 (Proxy externe)"
-                >
-                  Source 2
-                </button>
-              </div>
-            )}
-
-            {channel.sources.length > 1 && adUnlocked && (
-              <div className="flex items-center gap-1 sm:gap-2 flex-wrap px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 shrink-0">
-                <span className="text-[10px] sm:text-xs text-white/60 font-medium mr-0.5 sm:mr-1 hidden sm:inline">
-                  Qualité:
-                </span>
-                {channel.sources.map((source, index) => {
-                  const isActive = index === selectedSourceIndex
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => switchSource(index)}
-                      className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
-                        isActive
-                          ? "bg-cyan-500 text-black shadow-lg"
-                          : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                      }`}
-                      title={source.name}
-                    >
-                      {source.quality} #{index + 1}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-
-            {adUnlocked && videoLoaded && (
-              <button
-                onClick={handleCast}
-                className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
-                title="Diffuser (Cast)"
-              >
-                <Cast className="w-4 sm:w-5 h-4 sm:h-5" />
-              </button>
-            )}
-
-            <button
-              onClick={handleReload}
-              className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
-              title="Recharger"
-            >
-              <RefreshCw className="w-4 sm:w-5 h-4 sm:h-5" />
-            </button>
-
-            <button
-              onClick={toggleFullscreen}
-              className="p-1.5 sm:p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all shrink-0"
-            >
-              {isFullscreen ? (
-                <Minimize className="w-4 sm:w-5 h-4 sm:h-5" />
-              ) : (
-                <Maximize className="w-4 sm:w-5 h-4 sm:h-5" />
-              )}
-            </button>
-
-            <button
-              onClick={onClose}
-              className="p-1.5 sm:p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-all shrink-0"
-            >
-              <X className="w-4 sm:w-5 h-4 sm:h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Share links panel */}
-        {showShareLinks && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-2xl bg-gradient-to-br from-gray-900 to-black border border-cyan-500/20 p-4 sm:p-6 shadow-2xl">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg sm:text-xl font-bold text-white">Partager la chaîne</h3>
-                <button
-                  onClick={() => setShowShareLinks(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="h-4 w-4 sm:h-5 sm:w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-3 sm:space-y-4">
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 1</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={playerLinkSource1}
-                      readOnly
-                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
-                    />
-                    <button
-                      onClick={() => copyToClipboard(playerLinkSource1, "player1")}
-                      className="rounded-lg bg-cyan-600 hover:bg-cyan-700 px-3 py-2 text-white transition-colors shrink-0"
-                    >
-                      {copiedLink === "player1" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 2</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={playerLinkSource2}
-                      readOnly
-                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
-                    />
-                    <button
-                      onClick={() => copyToClipboard(playerLinkSource2, "player2")}
-                      className="rounded-lg bg-green-600 hover:bg-green-700 px-3 py-2 text-white transition-colors shrink-0"
-                    >
-                      {copiedLink === "player2" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 relative">
-          <video
-            ref={videoRef}
-            controls
-            className="absolute inset-0 w-full h-full"
-            style={{ display: videoLoaded ? "block" : "none" }}
-          />
-
-          {/* Loading screen */}
-          {loading && !error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 px-4">
-              <div className="relative mb-6 sm:mb-8">
-                <div className="flex flex-col items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+        <div
+          ref={containerRef}
+          className="relative w-full max-w-7xl max-h-[98vh] sm:max-h-[95vh] bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-lg sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        >
+          <div className="relative flex flex-wrap items-center justify-between gap-2 sm:gap-4 p-3 sm:p-4 md:p-6 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10 border-b border-cyan-500/20">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="relative w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg overflow-hidden bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex-shrink-0">
                   <Image
-                    src="/logo.png"
-                    alt="LIVEWATCH"
-                    width={180}
-                    height={60}
-                    className="drop-shadow-2xl sm:w-[240px] sm:h-[80px]"
-                    priority
+                    src={channel.logo || "/placeholder.svg"}
+                    alt={channel.baseName}
+                    fill
+                    className="object-contain p-1 sm:p-1.5"
                   />
                 </div>
-
-                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full border-4 border-white/10 flex items-center justify-center">
-                  <div className="relative">
-                    <div className="flex items-center justify-center gap-1">
-                      <div
-                        className="w-0.5 sm:w-1 h-4 sm:h-6 bg-cyan-400/80 rounded-full animate-pulse"
-                        style={{ animationDelay: "0ms" }}
-                      />
-                      <div
-                        className="w-0.5 sm:w-1 h-5 sm:h-8 bg-cyan-400/80 rounded-full animate-pulse"
-                        style={{ animationDelay: "150ms" }}
-                      />
-                      <div
-                        className="w-0.5 sm:w-1 h-6 sm:h-10 bg-cyan-400 rounded-full animate-pulse"
-                        style={{ animationDelay: "300ms" }}
-                      />
-                      <div
-                        className="w-0.5 sm:w-1 h-5 sm:h-8 bg-cyan-400/80 rounded-full animate-pulse"
-                        style={{ animationDelay: "450ms" }}
-                      />
-                      <div
-                        className="w-0.5 sm:w-1 h-4 sm:h-6 bg-cyan-400/80 rounded-full animate-pulse"
-                        style={{ animationDelay: "600ms" }}
-                      />
-                    </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-white truncate">
+                    {channel.baseName}
+                  </h2>
+                  <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                      <Radio className="w-2 h-2 sm:w-2.5 sm:h-2.5 animate-pulse" />
+                      <span className="hidden xs:inline">EN DIRECT</span>
+                      <span className="xs:hidden">LIVE</span>
+                    </span>
+                    {(isVip || isAdmin) && (
+                      <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/30">
+                        <Crown className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
+                        <span className="hidden sm:inline">{isAdmin ? "ADMIN" : "VIP"}</span>
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin" />
               </div>
-
-              <p className="text-white text-base sm:text-lg font-medium mb-2 text-center">Chargement du flux...</p>
-              <p className="text-white/50 text-xs sm:text-sm mb-4 sm:mb-6 text-center">{loadingStatus}</p>
-
-              <div className="w-48 sm:w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-full transition-all duration-300"
-                  style={{ width: `${loadingProgress}%` }}
-                />
-              </div>
-
-              <p className="text-white/40 text-[10px] sm:text-xs mt-3 sm:mt-4 text-center">
-                {currentProxy === "external" ? "Source 2 (Proxy externe)" : "Source 1 (Proxy par défaut)"}
-              </p>
             </div>
-          )}
 
-          {/* Error screen */}
-          {error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 px-4">
-              <div className="text-center max-w-md">
-                <div className="relative mb-4 sm:mb-6">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-4 border-red-500 flex items-center justify-center">
-                      <X className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              {/* Source Buttons */}
+              <button
+                onClick={() => switchProxySource("default")}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded transition-all ${
+                  currentProxy === "default"
+                    ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/50"
+                    : "bg-gray-700/50 text-gray-300 hover:bg-gray-600/50"
+                }`}
+                disabled={loading}
+              >
+                <span className="hidden sm:inline">Source 1</span>
+                <span className="sm:hidden">S1</span>
+              </button>
+              <button
+                onClick={() => switchProxySource("external")}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded transition-all ${
+                  currentProxy === "external"
+                    ? "bg-green-500 text-white shadow-lg shadow-green-500/50"
+                    : "bg-gray-700/50 text-gray-300 hover:bg-gray-600/50"
+                }`}
+                disabled={loading}
+              >
+                <span className="hidden sm:inline">Source 2</span>
+                <span className="sm:hidden">S2</span>
+              </button>
+
+              {/* Icon buttons with responsive sizing */}
+              <button
+                onClick={handleCast}
+                className="p-1.5 sm:p-2 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white transition-all"
+                title="Diffuser"
+                disabled={!videoLoaded}
+              >
+                <Cast className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+
+              <button
+                onClick={() => setShowShareLinks(!showShareLinks)}
+                className="p-1.5 sm:p-2 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white transition-all"
+                title="Partager"
+              >
+                <Link2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+
+              <button
+                onClick={handleReload}
+                className="p-1.5 sm:p-2 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white transition-all"
+                title="Recharger"
+                disabled={loading}
+              >
+                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? "animate-spin" : ""}`} />
+              </button>
+
+              <button
+                onClick={toggleFullscreen}
+                className="hidden sm:flex p-1.5 sm:p-2 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 hover:text-white transition-all"
+                title="Plein écran"
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-4 h-4 sm:w-5 sm:h-5" />
+                ) : (
+                  <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />
+                )}
+              </button>
+
+              <button
+                onClick={onClose}
+                className="p-1.5 sm:p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 transition-all border border-red-500/30"
+                title="Fermer"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+
+            {showShareLinks && (
+              <div className="absolute top-full right-3 sm:right-6 mt-2 w-[calc(100vw-2rem)] sm:w-96 bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-3 sm:p-4 z-10">
+                <h3 className="text-xs sm:text-sm font-semibold text-white mb-2 sm:mb-3">Liens de partage</h3>
+                <div className="space-y-2">
+                  {/* Source 1 Link */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-900/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700">
+                      <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5">Source 1 (Par défaut)</p>
+                      <p className="text-xs sm:text-sm text-gray-300 truncate">{shareLink}</p>
                     </div>
+                    <button
+                      onClick={() => copyToClipboard(shareLink, "source1")}
+                      className="p-2 sm:p-2.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 transition-all flex-shrink-0"
+                    >
+                      {copiedLink === "source1" ? (
+                        <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                      ) : (
+                        <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                      )}
+                    </button>
                   </div>
-                  <div className="absolute inset-0 w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-red-500/20 animate-ping" />
+
+                  {/* Source 2 Link */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-900/50 rounded px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700">
+                      <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5">Source 2 (Alternative)</p>
+                      <p className="text-xs sm:text-sm text-gray-300 truncate">{shareLinkSource2}</p>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(shareLinkSource2, "source2")}
+                      className="p-2 sm:p-2.5 rounded bg-green-500/20 hover:bg-green-500/30 text-green-400 transition-all flex-shrink-0"
+                    >
+                      {copiedLink === "source2" ? (
+                        <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                      ) : (
+                        <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
+              </div>
+            )}
+          </div>
 
-                <p className="text-white text-lg sm:text-xl font-bold mb-2">Erreur de chargement</p>
-                <p className="text-white/50 text-xs sm:text-sm mb-6 sm:mb-8">{error}</p>
+          <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden min-h-0">
+            <video
+              ref={videoRef}
+              className="w-full h-full object-contain"
+              controls
+              playsInline
+              autoPlay
+              preload="auto"
+            />
 
-                <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
+            {/* Loading overlay */}
+            {loading && (
+              <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-10 p-4">
+                <Image
+                  src="/logo.png"
+                  alt="LIVEWATCH"
+                  width={200}
+                  height={60}
+                  className="mb-6 sm:mb-8 w-32 sm:w-48 md:w-56 h-auto"
+                  priority
+                />
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 mb-4 sm:mb-6">
+                  <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full" />
+                  <div className="absolute inset-0 border-4 border-transparent border-t-cyan-500 rounded-full animate-spin" />
+                </div>
+                <p className="text-white text-base sm:text-lg md:text-xl font-semibold mb-2 text-center px-4">
+                  Chargement du flux...
+                </p>
+                <p className="text-gray-400 text-xs sm:text-sm mb-4 text-center px-4">{loadingStatus}</p>
+                <div className="w-48 sm:w-64 md:w-80 bg-gray-800 rounded-full h-1.5 sm:h-2 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 transition-all duration-300"
+                    style={{ width: `${loadingProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs sm:text-sm text-cyan-400 mt-2 sm:mt-3 text-center px-4">
+                  Source {currentProxy === "default" ? "1" : "2"} (Proxy{" "}
+                  {currentProxy === "default" ? "par défaut" : "externe"})
+                </p>
+              </div>
+            )}
+
+            {/* Error display */}
+            {error && !loading && (
+              <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-10 p-4">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-red-500/20 flex items-center justify-center mb-4 sm:mb-6">
+                  <X className="w-6 h-6 sm:w-8 sm:h-8 text-red-400" />
+                </div>
+                <p className="text-white text-base sm:text-lg md:text-xl font-semibold mb-2 text-center">
+                  Erreur de chargement
+                </p>
+                <p className="text-gray-400 text-xs sm:text-sm mb-6 text-center max-w-md px-4">{error}</p>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <button
                     onClick={handleReload}
-                    className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-white/10 text-white text-sm sm:text-base font-bold hover:bg-white/20 transition-all flex items-center gap-2"
+                    className="px-4 sm:px-6 py-2 sm:py-3 bg-cyan-500 hover:bg-cyan-600 text-white text-sm sm:text-base rounded-lg transition-all"
                   >
-                    <RefreshCw className="w-4 sm:w-5 h-4 sm:h-5" />
                     Réessayer
                   </button>
                   <button
                     onClick={() => switchProxySource(currentProxy === "default" ? "external" : "default")}
-                    className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm sm:text-base font-bold hover:from-emerald-500 hover:to-emerald-400 transition-all flex items-center gap-2"
+                    className="px-4 sm:px-6 py-2 sm:py-3 bg-green-500 hover:bg-green-600 text-white text-sm sm:text-base rounded-lg transition-all"
                   >
-                    <Radio className="w-4 sm:w-5 h-4 sm:h-5" />
-                    {currentProxy === "default" ? "Essayer Source 2" : "Essayer Source 1"}
+                    Essayer Source {currentProxy === "default" ? "2" : "1"}
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Locked screen */}
-          {!adUnlocked && !loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-black via-gray-900 to-black px-4">
-              <div className="text-center max-w-md">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-4 sm:mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
-                  <Lock className="w-10 h-10 sm:w-12 sm:h-12 text-red-400" />
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 sm:mb-3">Stream verrouillé</h3>
-                <p className="text-white/70 text-sm sm:text-base mb-4 sm:mb-6">
-                  Regardez une courte publicité pour débloquer ce stream
-                </p>
-                <p className="text-amber-400 text-xs sm:text-sm mb-4 sm:mb-6 flex items-center justify-center gap-2">
-                  Merci pour votre soutien <span className="text-red-500">❤</span>
-                </p>
+            {/* Ad unlock screen */}
+            {!adUnlocked && !loading && (
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 flex items-center justify-center z-20 p-4 overflow-y-auto">
+                <div className="max-w-md w-full text-center">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 rounded-full bg-gradient-to-br from-red-500/20 to-pink-500/20 flex items-center justify-center border-2 border-red-500/30">
+                    <Lock className="w-8 h-8 sm:w-10 sm:h-10 text-red-400" />
+                  </div>
 
-                <button
-                  onMouseDown={handleUnlockMouseDown}
-                  onClick={unlockStream}
-                  onTouchStart={handleUnlockMouseDown as any}
-                  className="group relative inline-flex items-center gap-2 sm:gap-3 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 text-white font-bold text-base sm:text-lg shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 active:scale-95"
-                >
-                  <Unlock className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:rotate-12" />
-                  <span>Débloquer le stream</span>
-                  <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                  <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 sm:mb-3">
+                    Stream verrouillé
+                  </h3>
+                  <p className="text-sm sm:text-base text-gray-400 mb-6 sm:mb-8 px-4">
+                    Regardez une courte publicité pour débloquer ce stream
+                  </p>
 
-                <div className="mt-3 sm:mt-4">
-                  <a
-                    href={AD_URLS[0]}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      setTimeout(() => {
-                        setAdUnlocked(true)
-                        loadStreamSource()
-                      }, 800)
-                    }}
-                    className="text-white/50 text-xs sm:text-sm underline hover:text-white/70 transition-colors"
-                  >
-                    Cliquez ici si le bouton ne fonctionne pas
-                  </a>
-                </div>
+                  <p className="text-xs sm:text-sm text-amber-400 mb-4 sm:mb-6 font-medium">
+                    Merci pour votre soutien ❤️
+                  </p>
 
-                <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/10">
-                  <p className="text-white/50 text-xs sm:text-sm mb-3 sm:mb-4">Ou profitez sans publicité !</p>
                   <button
-                    onClick={() => setShowVipModal(true)}
-                    className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black text-sm sm:text-base font-bold hover:scale-105 transition-all duration-300 shadow-lg shadow-amber-500/20"
+                    onClick={unlockStream}
+                    onMouseDown={handleUnlockMouseDown}
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white text-sm sm:text-base font-bold rounded-lg transition-all transform hover:scale-105 shadow-lg shadow-red-500/50 flex items-center justify-center gap-2 mx-auto"
                   >
-                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-                    Devenez VIP - 5€ à vie
+                    <Unlock className="w-4 h-4 sm:w-5 sm:h-5" />
+                    Débloquer le stream
                   </button>
+
+                  {adAttempted && (
+                    <p className="text-xs sm:text-sm text-gray-500 mt-3 sm:mt-4 underline cursor-pointer hover:text-gray-400 px-4">
+                      Cliquez ici si le bouton ne fonctionne pas
+                    </p>
+                  )}
+
+                  <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-700/50">
+                    <p className="text-xs sm:text-sm text-gray-400 mb-4">Ou profitez sans publicité !</p>
+                    <button
+                      onClick={() => setShowVipModal(true)}
+                      className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm sm:text-base font-bold rounded-lg transition-all transform hover:scale-105 shadow-lg shadow-amber-500/50 flex items-center justify-center gap-2 mx-auto"
+                    >
+                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                      Devenez VIP - 5€ à vie
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

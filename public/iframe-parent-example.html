@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exemple d'intégration LiveWatch en iframe</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .info {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info code {
+            background: #3a3a3a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        iframe {
+            width: 100%;
+            height: 800px;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 LiveWatch - Intégration iframe</h1>
+        
+        <div class="info">
+            <p><strong>Note:</strong> Cette page montre comment intégrer LiveWatch en iframe tout en partageant l'authentification de votre site.</p>
+            <p>Rôle actuel simulé: <code id="current-role">admin</code></p>
+        </div>
+
+        <iframe 
+            id="livewatch-iframe"
+            src="https://v0-tvchannelstreamer11-seven.vercel.app/channels/France"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowfullscreen
+        ></iframe>
+    </div>
+
+    <script>
+        // Simuler les données d'authentification de votre site
+        // En production, remplacez ceci par vos vraies données utilisateur
+        const userAuthData = {
+            role: 'admin', // Peut être: 'admin', 'vip', 'member'
+            userId: 'user-12345',
+            email: 'admin@example.com',
+            token: 'your-auth-token-here'
+        };
+
+        const iframe = document.getElementById('livewatch-iframe');
+
+        // Écouter les demandes d'authentification de l'iframe
+        window.addEventListener('message', (event) => {
+            // Vérifier que le message vient bien de l'iframe LiveWatch
+            // En production, vérifiez l'origine: event.origin === 'https://votre-domaine.com'
+            
+            if (event.data && event.data.type === 'auth-request') {
+                console.log('📨 Iframe demande l\'authentification');
+                
+                // Envoyer les données d'authentification à l'iframe
+                iframe.contentWindow.postMessage({
+                    type: 'auth-response',
+                    role: userAuthData.role,
+                    userId: userAuthData.userId,
+                    email: userAuthData.email,
+                    token: userAuthData.token
+                }, '*'); // En production, remplacez '*' par votre domaine exact
+                
+                console.log('✅ Authentification envoyée à l\'iframe:', userAuthData.role);
+            }
+        });
+
+        // Attendre que l'iframe soit chargée puis envoyer l'auth
+        iframe.addEventListener('load', () => {
+            console.log('🎬 Iframe LiveWatch chargée');
+            
+            // Envoyer l'authentification automatiquement au chargement
+            setTimeout(() => {
+                iframe.contentWindow.postMessage({
+                    type: 'auth-response',
+                    role: userAuthData.role,
+                    userId: userAuthData.userId,
+                    email: userAuthData.email,
+                    token: userAuthData.token
+                }, '*');
+                
+                console.log('✅ Authentification initiale envoyée');
+            }, 1000);
+        });
+
+        // Afficher le rôle actuel
+        document.getElementById('current-role').textContent = userAuthData.role;
+    </script>
+</body>
+</html>
