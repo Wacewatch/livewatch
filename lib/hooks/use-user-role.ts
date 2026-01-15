@@ -48,35 +48,8 @@ export function useUserRole() {
       fetchRole()
     })
 
-    const handleMessage = (event: MessageEvent) => {
-      // Only accept messages from trusted domains
-      const trustedDomains = ["https://beta.wavewatch.xyz", "https://wavewatch.xyz", "http://localhost:3000"]
-
-      if (!trustedDomains.some((domain) => event.origin.startsWith(domain))) {
-        return
-      }
-
-      if (event.data.type === "AUTH_STATE") {
-        const { role: parentRole, isAuthenticated } = event.data
-        if (isAuthenticated && parentRole) {
-          console.log("[v0] Received auth from parent iframe:", parentRole)
-          setRole(parentRole as UserRole)
-          setLoading(false)
-        }
-      }
-    }
-
-    window.addEventListener("message", handleMessage)
-
-    // Request auth state from parent if in iframe
-    if (window !== window.parent) {
-      console.log("[v0] Running in iframe, requesting auth from parent")
-      window.parent.postMessage({ type: "REQUEST_AUTH" }, "*")
-    }
-
     return () => {
       subscription.unsubscribe()
-      window.removeEventListener("message", handleMessage)
     }
   }, [])
 
