@@ -16,19 +16,19 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "https://i.imgur.com/zdFYbFp.png",
+        url: "https://i.imgur.com/ovX7j6R.png",
         media: "(prefers-color-scheme: light)",
       },
       {
-        url: "https://i.imgur.com/zdFYbFp.png",
+        url: "https://i.imgur.com/ovX7j6R.png",
         media: "(prefers-color-scheme: dark)",
       },
       {
-        url: "https://i.imgur.com/zdFYbFp.png",
+        url: "https://i.imgur.com/ovX7j6R.png",
         type: "image/svg+xml",
       },
     ],
-    apple: "https://i.imgur.com/zdFYbFp.png",
+    apple: "https://i.imgur.com/ovX7j6R.png",
   },
 }
 
