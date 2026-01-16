@@ -63,6 +63,12 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .gte("last_heartbeat", twoMinutesAgo)
 
+    const { count: activeViewers } = await supabase
+      .from("active_sessions")
+      .select("id", { count: "exact", head: true })
+      .gte("last_heartbeat", twoMinutesAgo)
+      .not("current_channel", "is", null)
+
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
     const { data: recentViews } = await supabase.from("channel_views").select("id").gte("viewed_at", oneMinuteAgo)
 
@@ -79,29 +85,38 @@ export async function GET() {
 
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
-    // Source 1 - count from channel_views (default proxy)
-    const { count: viewCount } = await supabase
+    const { count: totalViewsCount } = await supabase
       .from("channel_views")
       .select("id", { count: "exact", head: true })
       .gte("viewed_at", fiveMinutesAgo)
 
-    // Source 2 - count logs without source field or source='source2'
     const { count: source2Count } = await supabase
       .from("proxy_usage_logs")
       .select("id", { count: "exact", head: true })
       .gte("used_at", fiveMinutesAgo)
-      .or("source.is.null,source.eq.source2")
+      .eq("source", "source2")
 
-    // Source 3 - count logs with source='source3'
     const { count: source3Count } = await supabase
       .from("proxy_usage_logs")
       .select("id", { count: "exact", head: true })
       .gte("used_at", fiveMinutesAgo)
       .eq("source", "source3")
 
-    // Calculate Source 1 as views minus other sources
-    const source1Count = Math.max(0, (viewCount || 0) - (source2Count || 0) - (source3Count || 0))
-    const totalRequests = (viewCount || 0) + (source2Count || 0) + (source3Count || 0)
+    // This is because most users use Source 1 by default
+    const totalViews = totalViewsCount || 0
+    const s2 = source2Count || 0
+    const s3 = source3Count || 0
+
+    // If we have active viewers, distribute based on usage
+    const totalActive = activeViewers || 0
+    let source1Count = Math.max(0, totalActive - s2 - s3)
+
+    // If no proxy logs, assume all viewers are on Source 1
+    if (s2 === 0 && s3 === 0 && totalActive > 0) {
+      source1Count = totalActive
+    }
+
+    const totalRequests = source1Count + s2 + s3
 
     const memoryUsedMB = memoryUsed / 1024 / 1024
     const memoryTotalMB = memoryTotal / 1024 / 1024
@@ -122,11 +137,12 @@ export async function GET() {
       },
       network: {
         activeConnections: activeConnections || 0,
+        activeViewers: activeViewers || 0,
         requestsPerMinute,
         bandwidthEstimate: estimatedBandwidthGBph > 0 ? `~${estimatedBandwidthGBph.toFixed(2)} GB/h` : "0.00 GB/h",
         source1: source1Count,
-        source2: source2Count || 0,
-        source3: source3Count || 0,
+        source2: s2,
+        source3: s3,
         total: totalRequests,
       },
       system: {

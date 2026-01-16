@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, Filter, ArrowLeft, LaptopMinimal as TvMinimal, Wifi, Globe } from "lucide-react"
+import { Search, Star, ArrowLeft, LaptopMinimal as TvMinimal, Wifi, Globe } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import type { GroupedChannel } from "@/lib/types"
@@ -53,6 +53,36 @@ function getCategoryBadge(category: string) {
   }
 }
 
+function getCategoryButtonStyle(category: string, isSelected: boolean) {
+  if (isSelected) {
+    switch (category?.toLowerCase()) {
+      case "sport":
+        return "bg-green-500 text-white shadow-lg shadow-green-500/30"
+      case "actualités":
+      case "news":
+        return "bg-red-500 text-white shadow-lg shadow-red-500/30"
+      case "enfants":
+      case "kids":
+        return "bg-yellow-500 text-black shadow-lg shadow-yellow-500/30"
+      case "cinéma":
+      case "cinema":
+        return "bg-orange-500 text-white shadow-lg shadow-orange-500/30"
+      case "musique":
+      case "music":
+        return "bg-pink-500 text-white shadow-lg shadow-pink-500/30"
+      case "documentaire":
+        return "bg-teal-500 text-white shadow-lg shadow-teal-500/30"
+      case "généraliste":
+        return "bg-cyan-500 text-white shadow-lg shadow-cyan-500/30"
+      case "divers":
+        return "bg-purple-500 text-white shadow-lg shadow-purple-500/30"
+      default:
+        return "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+    }
+  }
+  return "glass-card border border-border/50 text-foreground hover:border-primary/50 hover:bg-primary/10"
+}
+
 export function ChannelsClient({ country }: ChannelsClientProps) {
   const [channels, setChannels] = useState<GroupedChannel[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,17 +96,14 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
   useEffect(() => {
     const fetchChannels = async () => {
       try {
-        console.log("[v0] Fetching channels for country:", country)
         const response = await fetch(`/api/tvvoo/channels?countries=${encodeURIComponent(country)}`)
 
         if (!response.ok) {
-          console.error("[v0] TvVoo API returned:", response.status)
           setLoading(false)
           return
         }
 
         const data = await response.json()
-        console.log("[v0] Loaded channels:", data.length)
         setChannels(data)
       } catch (error) {
         console.error("[v0] Error fetching channels:", error)
@@ -206,25 +233,17 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
           </div>
         </div>
 
-        <div className="mb-8 glass-card border border-border/50 rounded-2xl p-4 md:p-5 max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-bold text-foreground">Filtres</h3>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">Catégorie</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 bg-card text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-            >
-              {categories.map((cat) => (
-                <option key={cat} value={cat} className="bg-card text-foreground">
-                  {cat === "all" ? "Toutes les catégories" : cat}
-                </option>
-              ))}
-            </select>
+        <div className="mb-8">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${getCategoryButtonStyle(cat, selectedCategory === cat)}`}
+              >
+                {cat === "all" ? "Toutes" : cat}
+              </button>
+            ))}
           </div>
         </div>
 
