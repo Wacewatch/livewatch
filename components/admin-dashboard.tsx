@@ -18,8 +18,8 @@ import {
   Network,
   ChevronDown,
   ChevronUp,
-  Loader2,
   Radio,
+  Plus,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -211,6 +211,10 @@ export function AdminDashboard() {
     min_success_rate: 70,
     max_response_time_ms: 5000,
   })
+
+  // Added state for adding single proxy dialog and input values
+  const [showAddProxyDialog, setShowAddProxyDialog] = useState(false)
+  const [newProxy, setNewProxy] = useState({ host: "", port: "" })
 
   const [collapsed, setCollapsed] = useState<CollapsibleState>({
     countries: false,
@@ -564,6 +568,53 @@ export function AdminDashboard() {
     }
   }
 
+  // Added function to delete a single proxy
+  const deleteSingleProxy = async (id: number) => {
+    if (!confirm("Supprimer ce proxy ?")) return
+    try {
+      await fetch("/api/admin/proxy-pool", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to delete proxy:", error)
+    }
+  }
+
+  const addSingleProxy = async () => {
+    if (!newProxy.host || !newProxy.port) {
+      alert("L'hôte et le port sont requis")
+      return
+    }
+
+    try {
+      const res = await fetch("/api/admin/proxy-pool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add_single_proxy",
+          host: newProxy.host,
+          port: Number.parseInt(newProxy.port),
+        }),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        alert("Proxy ajouté avec succès !")
+        setShowAddProxyDialog(false)
+        setNewProxy({ host: "", port: "" })
+        fetchDashboardData()
+      } else {
+        alert(`Erreur: ${data.error || "Échec de l'ajout"}`)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to add proxy:", error)
+      alert("Échec de l'ajout du proxy")
+    }
+  }
+
   const openEditDialog = (channel: Channel) => {
     setEditingChannel(channel)
     setEditForm({
@@ -725,12 +776,54 @@ export function AdminDashboard() {
     return 0
   })
 
-  if (pageLoading) {
+  // Improved loading indicator - centered and more visible
+  if (pageLoading || loadingProgress < 100) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm">
         <div className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-cyan-500" />
-          <p className="mt-4 text-muted-foreground">Chargement...</p>
+          <div className="relative w-32 h-32 mx-auto mb-6">
+            <svg className="w-32 h-32 transform -rotate-90">
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke="currentColor"
+                strokeWidth="8"
+                fill="none"
+                className="text-slate-700"
+              />
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke="url(#gradient)"
+                strokeWidth="8"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 56}`}
+                strokeDashoffset={`${2 * Math.PI * 56 * (1 - loadingProgress / 100)}`}
+                className="transition-all duration-300"
+              />
+              <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="50%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#8b5cf6" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-3xl font-bold text-white">{Math.round(loadingProgress)}%</span>
+            </div>
+          </div>
+          <p className="text-lg text-muted-foreground">Chargement du tableau de bord...</p>
+          <div className="mt-4 text-sm text-muted-foreground/60">
+            {loadingModules.stats && "Chargement des statistiques..."}
+            {loadingModules.users && "Chargement des utilisateurs..."}
+            {loadingModules.countries && "Chargement des pays..."}
+            {loadingModules.proxies && "Chargement des proxies..."}
+            {loadingModules.sources && "Chargement des sources..."}
+          </div>
         </div>
       </div>
     )
@@ -738,19 +831,7 @@ export function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {loadingProgress < 100 && (
-        <div className="fixed top-0 left-0 right-0 z-50">
-          <div className="h-1 bg-slate-800">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 transition-all duration-300"
-              style={{ width: `${loadingProgress}%` }}
-            />
-          </div>
-          <div className="absolute top-2 right-4 text-xs text-muted-foreground bg-slate-900/80 px-2 py-1 rounded">
-            Chargement... {Math.round(loadingProgress)}%
-          </div>
-        </div>
-      )}
+      {/* Removed old loading bar, replaced by the centered overlay above */}
 
       <div className="p-4 md:p-8">
         {/* Header */}
@@ -1131,6 +1212,14 @@ export function AdminDashboard() {
                 <Button size="sm" variant="outline" onClick={() => setShowAddProxySourceDialog(true)}>
                   Ajouter Source
                 </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setShowAddProxyDialog(true)}
+                  className="bg-purple-500 hover:bg-purple-600"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter Proxy
+                </Button>
                 <Button size="sm" onClick={syncProxies} className="bg-purple-500 hover:bg-purple-600">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Synchroniser
@@ -1219,6 +1308,7 @@ export function AdminDashboard() {
                       <th className="text-left p-2">Vitesse</th>
                       <th className="text-left p-2">Succès</th>
                       <th className="text-left p-2">Actif</th>
+                      <th className="text-left p-2">Actions</th> {/* Added Actions header */}
                     </tr>
                   </thead>
                   <tbody>
@@ -1232,6 +1322,13 @@ export function AdminDashboard() {
                           <Badge variant={proxy.is_active ? "default" : "secondary"}>
                             {proxy.is_active ? "Actif" : "Inactif"}
                           </Badge>
+                        </td>
+                        <td className="p-2">
+                          {" "}
+                          {/* Added delete button */}
+                          <Button size="sm" variant="ghost" onClick={() => deleteSingleProxy(proxy.id)}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -1633,6 +1730,39 @@ export function AdminDashboard() {
                 Annuler
               </Button>
               <Button onClick={addProxySource}>Ajouter</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showAddProxyDialog} onOpenChange={setShowAddProxyDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ajouter un Proxy</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Hôte (IP ou domaine)</Label>
+                <Input
+                  value={newProxy.host}
+                  onChange={(e) => setNewProxy({ ...newProxy, host: e.target.value })}
+                  placeholder="192.168.1.1 ou proxy.example.com"
+                />
+              </div>
+              <div>
+                <Label>Port</Label>
+                <Input
+                  type="number"
+                  value={newProxy.port}
+                  onChange={(e) => setNewProxy({ ...newProxy, port: e.target.value })}
+                  placeholder="8080"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddProxyDialog(false)}>
+                Annuler
+              </Button>
+              <Button onClick={addSingleProxy}>Ajouter</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

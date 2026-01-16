@@ -3,11 +3,11 @@
 import { useState, useEffect, useMemo } from "react"
 import { Star, ArrowLeft, Wifi, Globe, Search } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
-import { useFavorites } from "@/lib/hooks/use-favorites"
 import type { GroupedChannel } from "@/lib/types"
 import Image from "next/image"
 import Link from "next/link"
 import { UserMenu } from "@/components/user-menu"
+import { createClient } from "@/lib/supabase/client"
 
 const DEFAULT_CHANNEL_LOGO = "https://i.imgur.com/ovX7j6R.png"
 
@@ -69,13 +69,55 @@ export default function FavoritesClient() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedChannel, setSelectedChannel] = useState<GroupedChannel | null>(null)
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
+  const [favorites, setFavorites] = useState<string[]>([])
+  const [favoritesLoading, setFavoritesLoading] = useState(true)
 
-  const { favorites, toggleFavorite, loading: favoritesLoading } = useFavorites()
+  useEffect(() => {
+    const loadFavorites = async () => {
+      try {
+        const supabase = createClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (user) {
+          const response = await fetch("/api/favorites")
+          if (response.ok) {
+            const data = await response.json()
+            console.log("[v0] Favorites from API:", data.favorites)
+            setFavorites(data.favorites || [])
+          }
+        } else {
+          const stored = localStorage.getItem("tv-favorites")
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            console.log("[v0] Favorites from localStorage:", parsed)
+            setFavorites(parsed)
+          }
+        }
+      } catch (error) {
+        console.error("[v0] Error loading favorites:", error)
+        try {
+          const stored = localStorage.getItem("tv-favorites")
+          if (stored) {
+            setFavorites(JSON.parse(stored))
+          }
+        } catch (e) {
+          // Ignore
+        }
+      } finally {
+        setFavoritesLoading(false)
+      }
+    }
+
+    loadFavorites()
+  }, [])
 
   useEffect(() => {
     if (favoritesLoading) return
 
     const fetchAllChannels = async () => {
+      console.log("[v0] Favorites to fetch channels for:", favorites)
       if (favorites.length === 0) {
         setLoading(false)
         return
@@ -86,6 +128,7 @@ export default function FavoritesClient() {
         const response = await fetch(`/api/tvvoo/channels?countries=${encodeURIComponent(countries)}`)
         if (response.ok) {
           const data = await response.json()
+          console.log("[v0] All channels fetched:", data.length)
           setAllChannels(data)
         }
       } catch (error) {
@@ -99,7 +142,9 @@ export default function FavoritesClient() {
   }, [favorites, favoritesLoading])
 
   const favoriteChannels = useMemo(() => {
-    return allChannels.filter((ch) => favorites.includes(ch.baseId))
+    const filtered = allChannels.filter((ch) => favorites.includes(ch.baseId))
+    console.log("[v0] Favorite channels filtered:", filtered.length, "from", allChannels.length, "total")
+    return filtered
   }, [allChannels, favorites])
 
   const channelsByCountry = useMemo(() => {
@@ -134,6 +179,41 @@ export default function FavoritesClient() {
 
     return channels
   }, [favoriteChannels, channelsByCountry, selectedCountry, searchQuery])
+
+  const toggleFavorite = async (channelId: string) => {
+    const isCurrentlyFavorite = favorites.includes(channelId)
+    const newFavorites = isCurrentlyFavorite ? favorites.filter((id) => id !== channelId) : [...favorites, channelId]
+
+    setFavorites(newFavorites)
+
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        if (isCurrentlyFavorite) {
+          await fetch("/api/favorites", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ channel_id: channelId }),
+          })
+        } else {
+          await fetch("/api/favorites", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ channel_id: channelId }),
+          })
+        }
+      } else {
+        localStorage.setItem("tv-favorites", JSON.stringify(newFavorites))
+      }
+    } catch (error) {
+      console.error("[v0] Error toggling favorite:", error)
+      setFavorites(favorites)
+    }
+  }
 
   if (loading || favoritesLoading) {
     return (

@@ -202,6 +202,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true })
     }
 
+    if (action === "add_single_proxy") {
+      const { host, port } = data
+
+      if (!host || !port) {
+        return NextResponse.json({ error: "Host and port are required" }, { status: 400 })
+      }
+
+      const proxy_url = `http://${host}:${port}`
+
+      const { error } = await supabase.from("proxy_pool").upsert(
+        {
+          proxy_url,
+          protocol: "http",
+          host,
+          port,
+          is_active: true,
+          success_rate: 100,
+          speed_ms: 0,
+          last_checked: new Date().toISOString(),
+        },
+        {
+          onConflict: "proxy_url",
+        },
+      )
+
+      if (error) throw error
+
+      return NextResponse.json({ success: true })
+    }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   } catch (error) {
     console.error("[v0] Proxy pool action failed:", error)
