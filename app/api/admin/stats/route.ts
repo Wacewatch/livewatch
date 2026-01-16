@@ -19,12 +19,36 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const { data: allChannels } = await supabase.from("channels").select("id, country_id")
+    const { data: enabledCountries } = await supabase.from("countries").select("code").eq("enabled", true)
 
-    const totalChannels = allChannels?.length || 0
+    let totalChannels = 0
+
+    // Count channels from TvVoo for all enabled countries
+    if (enabledCountries && enabledCountries.length > 0) {
+      for (const country of enabledCountries) {
+        try {
+          const manifestUrl = `https://tvvoo.hayd.uk/cfg-${country.code.toLowerCase()}/manifest.json`
+          const manifestRes = await fetch(manifestUrl, { signal: AbortSignal.timeout(5000) })
+          if (manifestRes.ok) {
+            const manifest = await manifestRes.json()
+            if (manifest.catalogs && manifest.catalogs.length > 0) {
+              for (const catalog of manifest.catalogs) {
+                const catalogUrl = `https://tvvoo.hayd.uk${catalog.id.replace("tv_", "/catalog/tv/")}.json`
+                const catalogRes = await fetch(catalogUrl, { signal: AbortSignal.timeout(5000) })
+                if (catalogRes.ok) {
+                  const catalogData = await catalogRes.json()
+                  totalChannels += catalogData.metas?.length || 0
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[v0] Failed to count channels for", country.code, err)
+        }
+      }
+    }
 
     const { data: allCountries } = await supabase.from("countries").select("id")
-
     const totalCountries = allCountries?.length || 0
 
     const { count: totalUsers } = await supabase.from("user_profiles").select("id", { count: "exact", head: true })

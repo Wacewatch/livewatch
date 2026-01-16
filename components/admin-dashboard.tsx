@@ -31,6 +31,7 @@ interface Country {
 
 interface ProxyConfig {
   git_url: string
+  git_urls: string[] // Support multiple Git URLs
   update_interval_minutes: number
   auto_update_enabled: boolean
   last_update: string
@@ -55,7 +56,7 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [showProxyConfigDialog, setShowProxyConfigDialog] = useState(false)
   const [editProxyConfig, setEditProxyConfig] = useState({
-    git_url: "",
+    git_urls: [""], // Array of Git URLs instead of single URL
     update_interval_minutes: 30,
     auto_update_enabled: true,
   })
@@ -92,7 +93,7 @@ export function AdminDashboard() {
         setProxyConfig(proxyData.config)
         if (proxyData.config) {
           setEditProxyConfig({
-            git_url: proxyData.config.git_url,
+            git_urls: proxyData.config.git_urls || (proxyData.config.git_url ? [proxyData.config.git_url] : [""]),
             update_interval_minutes: proxyData.config.update_interval_minutes,
             auto_update_enabled: proxyData.config.auto_update_enabled,
           })
@@ -274,9 +275,15 @@ export function AdminDashboard() {
 
         {proxyConfig && (
           <div className="mb-4 p-4 bg-muted rounded-lg space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">URL Git:</span>
-              <span className="font-mono text-xs">{proxyConfig.git_url}</span>
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground">URLs Git:</span>
+              <div className="space-y-1">
+                {(proxyConfig.git_urls || [proxyConfig.git_url]).map((url, idx) => (
+                  <span key={idx} className="font-mono text-xs block truncate">
+                    {url}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Mise à jour auto:</span>
@@ -335,12 +342,46 @@ export function AdminDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>URL Git des Proxies</Label>
-              <Input
-                value={editProxyConfig.git_url}
-                onChange={(e) => setEditProxyConfig({ ...editProxyConfig, git_url: e.target.value })}
-                placeholder="https://raw.githubusercontent.com/.../proxies.txt"
-              />
+              <Label>URLs Git des Proxies</Label>
+              <div className="space-y-2">
+                {editProxyConfig.git_urls.map((url, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      value={url}
+                      onChange={(e) => {
+                        const newUrls = [...editProxyConfig.git_urls]
+                        newUrls[idx] = e.target.value
+                        setEditProxyConfig({ ...editProxyConfig, git_urls: newUrls })
+                      }}
+                      placeholder="https://raw.githubusercontent.com/.../proxies.txt"
+                    />
+                    {editProxyConfig.git_urls.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newUrls = editProxyConfig.git_urls.filter((_, i) => i !== idx)
+                          setEditProxyConfig({ ...editProxyConfig, git_urls: newUrls })
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditProxyConfig({
+                      ...editProxyConfig,
+                      git_urls: [...editProxyConfig.git_urls, ""],
+                    })
+                  }}
+                >
+                  + Ajouter une URL
+                </Button>
+              </div>
             </div>
             <div>
               <Label>Intervalle de mise à jour (minutes)</Label>
