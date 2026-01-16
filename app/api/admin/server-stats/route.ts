@@ -62,18 +62,22 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .gte("last_heartbeat", twoMinutesAgo)
 
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count: currentlyWatching } = await supabase
+      .from("active_sessions")
+      .select("id", { count: "exact", head: true })
+      .gte("last_heartbeat", twoMinutesAgo)
+      .not("current_channel", "is", null)
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
     const { data: recentViews } = await supabase
       .from("channel_views")
       .select("channel_id, channel_name, user_id")
-      .gte("viewed_at", oneHourAgo)
+      .gte("viewed_at", fiveMinutesAgo)
 
-    // Sum total views (this matches Top Chaînes logic)
-    const totalViewsLastHour = recentViews?.length || 0
-
-    // Count unique viewers
     const uniqueViewerIds = new Set(recentViews?.map((v) => v.user_id || v.channel_name) || [])
-    const activeViewers = uniqueViewerIds.size
+    const uniqueViewersLast5Min = uniqueViewerIds.size
+
+    const activeViewers = currentlyWatching || uniqueViewersLast5Min
 
     // Requests per minute from channel_views
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
@@ -91,7 +95,7 @@ export async function GET() {
     const estimatedBandwidthMBps = (activeViewers || 0) * 2.5
     const estimatedBandwidthGBph = (estimatedBandwidthMBps * 60 * 60) / 1024
 
-    const { data: proxyLogs } = await supabase.from("proxy_usage_logs").select("source").gte("used_at", oneHourAgo)
+    const { data: proxyLogs } = await supabase.from("proxy_usage_logs").select("source").gte("used_at", fiveMinutesAgo)
 
     // Count by source from proxy logs
     let source2Count = 0
@@ -102,7 +106,8 @@ export async function GET() {
       if (log.source === "source3") source3Count++
     })
 
-    const source1Count = Math.max(0, totalViewsLastHour - source2Count - source3Count)
+    const totalViewsLast5Min = recentViews?.length || 0
+    const source1Count = Math.max(0, totalViewsLast5Min - source2Count - source3Count)
 
     const memoryUsedMB = memoryUsed / 1024 / 1024
     const memoryTotalMB = memoryTotal / 1024 / 1024
