@@ -1,175 +1,133 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+const WORKER_URL = "https://morning-wildflower-3cf3.wavewatchcontact.workers.dev"
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const url = searchParams.get("url")
+    const retryCount = Number.parseInt(searchParams.get("retry") || "0")
 
     if (!url) {
       return NextResponse.json({ error: "URL parameter required" }, { status: 400 })
     }
 
+    // Max 5 retries
+    if (retryCount >= 5) {
+      return NextResponse.json({ error: "Max retries exceeded" }, { status: 500 })
+    }
+
     const supabase = await createClient()
 
-    const { data: proxies } = await supabase
-      .from("proxy_pool")
-      .select("*")
-      .eq("is_active", true)
-      .gte("success_rate", 30)
-      .order("speed_ms", { ascending: true, nullsFirst: false })
-      .order("success_rate", { ascending: false })
-      .limit(10)
-
-    console.log("[v0] Proxy rotator: Found", proxies?.length || 0, "active proxies")
-
-    const fetchViaProxy = async (targetUrl: string, proxyInfo?: any): Promise<Response> => {
-      const startTime = Date.now()
-
-      // Use the same fetch logic as /api/proxy
-      const response = await fetch(targetUrl, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          Referer: "https://tvvoo.live/",
-          Accept: "*/*",
-          "Accept-Encoding": "identity",
-          Origin: "https://tvvoo.live",
-        },
-        signal: AbortSignal.timeout(30000),
-        cache: "no-store",
+    // Log usage for stats
+    await supabase
+      .from("proxy_usage_logs")
+      .insert({
+        channel_id: url.includes("vavoo") ? url.split("vavoo_")[1]?.split("|")[0] : null,
+        success: false, // Will update on success
+        used_at: new Date().toISOString(),
       })
+      .catch(() => {})
 
-      const responseTime = Date.now() - startTime
+    // Use the Cloudflare worker to fetch the content (same as Source 2)
+    const workerUrl = `${WORKER_URL}?url=${encodeURIComponent(url)}`
 
-      // Update proxy stats if we used one
-      if (proxyInfo) {
-        const newAvgSpeed = proxyInfo.speed_ms ? Math.floor((proxyInfo.speed_ms + responseTime) / 2) : responseTime
+    const response = await fetch(workerUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+      signal: AbortSignal.timeout(30000),
+    })
 
-        await supabase
-          .from("proxy_pool")
-          .update({
-            last_used: new Date().toISOString(),
-            times_used: (proxyInfo.times_used || 0) + 1,
-            speed_ms: newAvgSpeed,
-            success_rate: Math.min(100, (proxyInfo.success_rate || 50) + 1),
-          })
-          .eq("id", proxyInfo.id)
-          .catch(() => {}) // Ignore update errors
-      }
-
-      return response
+    if (!response.ok) {
+      throw new Error(`Worker returned ${response.status}`)
     }
 
-    let lastError: Error | null = null
-    const maxRetries = Math.min(5, (proxies?.length || 0) + 1) // Try up to 5 proxies
+    const contentType = response.headers.get("content-type") || ""
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const proxyToUse = proxies && proxies.length > attempt ? proxies[attempt] : null
+    // Handle M3U8 manifests - rewrite URLs to use proxy-rotator
+    if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
+      const text = await response.text()
 
-      console.log(`[v0] Proxy rotator attempt ${attempt + 1}/${maxRetries}:`, proxyToUse?.proxy_url || "direct fetch")
+      const baseUrl = new URL(url)
+      const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
 
-      try {
-        const response = await fetchViaProxy(url, proxyToUse)
+      const rewrittenManifest = text
+        .split("\n")
+        .map((line) => {
+          if (line.startsWith("#") || line.trim() === "") {
+            return line
+          }
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
+          if (line.trim().length > 0 && !line.startsWith("#")) {
+            let absoluteUrl = line.trim()
 
-        const contentType = response.headers.get("content-type") || ""
+            if (!absoluteUrl.startsWith("http://") && !absoluteUrl.startsWith("https://")) {
+              absoluteUrl = baseUrlStr + absoluteUrl
+            }
 
-        // Handle M3U8 manifests - rewrite URLs to use proxy-rotator
-        if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
-          const text = await response.text()
-          console.log("[v0] Proxy rotator: Rewriting M3U8 manifest URLs")
+            return `/api/proxy-rotator?url=${encodeURIComponent(absoluteUrl)}`
+          }
 
-          const baseUrl = new URL(url)
-          const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
-
-          const rewrittenManifest = text
-            .split("\n")
-            .map((line) => {
-              if (line.startsWith("#") || line.trim() === "") {
-                return line
-              }
-
-              if (line.trim().length > 0 && !line.startsWith("#")) {
-                let absoluteUrl = line.trim()
-
-                if (!absoluteUrl.startsWith("http://") && !absoluteUrl.startsWith("https://")) {
-                  absoluteUrl = baseUrlStr + absoluteUrl
-                }
-
-                return `/api/proxy-rotator?url=${encodeURIComponent(absoluteUrl)}`
-              }
-
-              return line
-            })
-            .join("\n")
-
-          console.log("[v0] Proxy rotator: M3U8 manifest rewritten successfully")
-
-          return new NextResponse(rewrittenManifest, {
-            status: 200,
-            headers: {
-              "Content-Type": "application/vnd.apple.mpegurl",
-              "Access-Control-Allow-Origin": "*",
-              "Access-Control-Allow-Methods": "GET, OPTIONS",
-              "Access-Control-Allow-Headers": "Content-Type, Range",
-              "Cache-Control": "no-cache, no-store, must-revalidate",
-            },
-          })
-        }
-
-        // Handle binary data (TS segments, etc.)
-        const data = await response.arrayBuffer()
-
-        const finalContentType =
-          url.endsWith(".ts") || url.includes("/seg-") ? "video/MP2T" : contentType || "application/octet-stream"
-
-        console.log("[v0] Proxy rotator: Success, size:", data.byteLength, "bytes")
-
-        return new NextResponse(data, {
-          status: 200,
-          headers: {
-            "Content-Type": finalContentType,
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Range",
-            "Cache-Control": "public, max-age=3600",
-            "Accept-Ranges": "bytes",
-          },
+          return line
         })
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error))
-        console.error(`[v0] Proxy rotator attempt ${attempt + 1} failed:`, lastError.message)
+        .join("\n")
 
-        // Update proxy stats on failure
-        if (proxyToUse) {
-          const newSuccessRate = Math.max(0, (proxyToUse.success_rate || 50) - 5)
-          await supabase
-            .from("proxy_pool")
-            .update({
-              success_rate: newSuccessRate,
-              is_active: newSuccessRate >= 20,
-            })
-            .eq("id", proxyToUse.id)
-            .catch(() => {}) // Ignore update errors
-        }
+      // Log success
+      await supabase
+        .from("proxy_usage_logs")
+        .insert({
+          success: true,
+          used_at: new Date().toISOString(),
+        })
+        .catch(() => {})
 
-        // Small delay before retry
-        if (attempt < maxRetries - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 500))
-        }
-      }
+      return new NextResponse(rewrittenManifest, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/vnd.apple.mpegurl",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Range",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+      })
     }
 
-    // All retries failed
-    console.error("[v0] Proxy rotator: All attempts failed")
-    return NextResponse.json({ error: "All proxy attempts failed", details: lastError?.message }, { status: 500 })
+    // Handle binary data (TS segments)
+    const data = await response.arrayBuffer()
+
+    const finalContentType =
+      url.endsWith(".ts") || url.includes("/seg-") ? "video/MP2T" : contentType || "application/octet-stream"
+
+    // Log success
+    await supabase
+      .from("proxy_usage_logs")
+      .insert({
+        success: true,
+        response_time_ms: 0,
+        used_at: new Date().toISOString(),
+      })
+      .catch(() => {})
+
+    return new NextResponse(data, {
+      status: 200,
+      headers: {
+        "Content-Type": finalContentType,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Range",
+        "Cache-Control": "public, max-age=3600",
+        "Accept-Ranges": "bytes",
+      },
+    })
   } catch (error) {
     console.error("[v0] Proxy rotator error:", error)
-    return NextResponse.json({ error: "Proxy request failed" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Proxy request failed", details: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 },
+    )
   }
 }
 

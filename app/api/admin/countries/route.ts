@@ -113,19 +113,29 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const { id, name, code, enabled } = await request.json()
+    const body = await request.json()
+    const { id, enabled } = body
+
+    const countryInfo = ALL_COUNTRIES.find((c) => c.code === id || c.name === id)
+
+    if (!countryInfo) {
+      return NextResponse.json({ error: "Country not found" }, { status: 404 })
+    }
 
     const { error } = await supabase.from("countries").upsert(
       {
-        id: id || code,
-        name: name,
+        id: countryInfo.code,
+        name: countryInfo.name,
         enabled: enabled,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },
     )
 
-    if (error) throw error
+    if (error) {
+      console.error("[v0] Failed to update country:", error)
+      throw error
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

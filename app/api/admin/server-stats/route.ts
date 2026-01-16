@@ -38,6 +38,30 @@ export async function GET() {
     const estimatedBandwidthMBps = (activeConnections || 0) * 2.5
     const estimatedBandwidthGBph = (estimatedBandwidthMBps * 60 * 60) / 1024
 
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+
+    // Count Source 1 usage (proxy requests)
+    const { count: source1Count } = await supabase
+      .from("channel_views")
+      .select("id", { count: "exact", head: true })
+      .gte("viewed_at", fiveMinutesAgo)
+      .not("channel_id", "ilike", "%source2%")
+      .not("channel_id", "ilike", "%source3%")
+
+    // Count Source 2 usage (stream-alt)
+    const { count: source2Count } = await supabase
+      .from("proxy_usage_logs")
+      .select("id", { count: "exact", head: true })
+      .gte("used_at", fiveMinutesAgo)
+      .is("proxy_id", null)
+
+    // Count Source 3 usage (proxy-rotator)
+    const { count: source3Count } = await supabase
+      .from("proxy_usage_logs")
+      .select("id", { count: "exact", head: true })
+      .gte("used_at", fiveMinutesAgo)
+      .not("proxy_id", "is", null)
+
     return NextResponse.json({
       cpu: {
         model: "Next.js App Process",
@@ -54,6 +78,9 @@ export async function GET() {
         activeConnections: activeConnections || 0,
         requestsPerMinute,
         bandwidthEstimate: estimatedBandwidthGBph > 0 ? `~${estimatedBandwidthGBph.toFixed(2)} GB/h` : "0.00 GB/h",
+        source1: source1Count || 0,
+        source2: source2Count || 0,
+        source3: source3Count || 0,
       },
       system: {
         platform: process.platform,

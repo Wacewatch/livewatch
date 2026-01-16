@@ -9,8 +9,6 @@ import {
   UserCircle,
   Activity,
   TrendingUp,
-  Edit,
-  Merge,
   Key,
   Copy,
   Home,
@@ -18,6 +16,9 @@ import {
   RefreshCw,
   Trash2,
   Network,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -27,7 +28,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 
 interface Stats {
   totalUsers: number
@@ -96,6 +96,9 @@ interface ServerStats {
     activeConnections: number
     requestsPerMinute: number
     bandwidthEstimate: string
+    source1?: number // Added for the update
+    source2?: number // Added for the update
+    source3?: number // Added for the update
   }
   system: {
     uptime: string
@@ -131,6 +134,7 @@ interface Proxy {
   is_active: boolean
   last_used: string
   last_checked: string
+  country?: string // Added for the update
 }
 
 // Added for the update
@@ -141,6 +145,13 @@ interface ProxySource {
   enabled: boolean
   last_sync: string | null
   sync_interval_minutes: number
+}
+
+interface CollapsibleState {
+  countries: boolean
+  proxyRotator: boolean
+  users: boolean
+  vipKeys: boolean
 }
 
 export function AdminDashboard() {
@@ -190,6 +201,15 @@ export function AdminDashboard() {
     min_success_rate: 70,
     max_response_time_ms: 5000,
   })
+
+  const [collapsed, setCollapsed] = useState<CollapsibleState>({
+    countries: false,
+    proxyRotator: false,
+    users: false,
+    vipKeys: false,
+  })
+  const [proxyListLimit, setProxyListLimit] = useState(10)
+  const [proxySort, setProxySort] = useState<"speed" | "success" | "country">("speed")
 
   useEffect(() => {
     fetchDashboardData()
@@ -328,6 +348,10 @@ export function AdminDashboard() {
     } catch (error) {
       console.error("[v0] Failed to toggle country:", error)
     }
+  }
+
+  const toggleCollapse = (module: keyof CollapsibleState) => {
+    setCollapsed((prev) => ({ ...prev, [module]: !prev[module] }))
   }
 
   const syncProxies = async () => {
@@ -596,12 +620,20 @@ export function AdminDashboard() {
     }
   }
 
+  const sortedProxies = [...proxies].sort((a, b) => {
+    if (proxySort === "speed") return (a.speed_ms || 9999) - (b.speed_ms || 9999)
+    if (proxySort === "success") return (b.success_rate || 0) - (a.success_rate || 0)
+    if (proxySort === "country") return (a.country || "ZZ").localeCompare(b.country || "ZZ")
+    return 0
+  })
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <Activity className="mx-auto h-12 w-12 animate-pulse text-cyan-500" />
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-cyan-500" />
           <p className="mt-4 text-muted-foreground">Chargement du tableau de bord...</p>
+          <p className="mt-2 text-xs text-muted-foreground">Récupération des données...</p>
         </div>
       </div>
     )
@@ -671,9 +703,24 @@ export function AdminDashboard() {
                 <TrendingUp className="h-4 w-4 text-cyan-500" />
                 Réseau
               </h3>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Connexions:</span>
+              <div className="space-y-2 text-sm">
+                <div className="text-xs font-medium text-muted-foreground mb-2">Par Source:</div>
+                <div className="grid grid-cols-3 gap-1 text-xs">
+                  <div className="p-1 rounded bg-cyan-500/10 text-center">
+                    <div className="font-bold text-cyan-400">S1</div>
+                    <div>{serverStats.network.source1 || 0}</div>
+                  </div>
+                  <div className="p-1 rounded bg-green-500/10 text-center">
+                    <div className="font-bold text-green-400">S2</div>
+                    <div>{serverStats.network.source2 || 0}</div>
+                  </div>
+                  <div className="p-1 rounded bg-purple-500/10 text-center">
+                    <div className="font-bold text-purple-400">S3</div>
+                    <div>{serverStats.network.source3 || 0}</div>
+                  </div>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className="text-muted-foreground">Total:</span>
                   <span className="font-medium">{serverStats.network.activeConnections}</span>
                 </div>
                 <div className="flex justify-between">
@@ -813,40 +860,54 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Countries Management */}
       <Card className="mb-6 p-4 md:p-6 border-l-4 border-l-blue-500">
-        <div className="flex items-center justify-between mb-4">
+        <div
+          className="flex items-center justify-between mb-4 cursor-pointer"
+          onClick={() => toggleCollapse("countries")}
+        >
           <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
             <Globe className="h-5 w-5 text-blue-500" />
             Gestion des Pays
           </h2>
-          <Badge variant="secondary" className="text-xs md:text-sm">
-            {countries.filter((c) => c.enabled).length} activés sur {countries.length}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs md:text-sm">
+              {countries.filter((c) => c.enabled).length} activés sur {countries.length}
+            </Badge>
+            {collapsed.countries ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {/* Changed to display all 17 countries */}
-          {countries.map((country) => (
-            <div
-              key={country.id}
-              className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-            >
-              <div className="flex-1">
-                <div className="font-medium text-sm">{country.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {country.channel_count !== undefined ? `${country.channel_count} chaînes` : "Chargement..."}
+        {!collapsed.countries && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {/* Changed to display all 17 countries */}
+            {countries.map((country) => (
+              <div
+                key={country.id}
+                className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+              >
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{country.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {country.channel_count !== undefined ? `${country.channel_count} chaînes` : "Chargement..."}
+                  </div>
                 </div>
+                <Switch
+                  checked={country.enabled}
+                  onCheckedChange={(enabled) => {
+                    toggleCountry(country.id, enabled)
+                  }}
+                />
               </div>
-              <Switch checked={country.enabled} onCheckedChange={(enabled) => toggleCountry(country.id, enabled)} />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
 
-      {/* Proxy Rotator Management */}
       <Card className="mb-6 p-4 md:p-6 border-l-4 border-l-purple-500">
-        <div className="flex items-center justify-between mb-4">
+        <div
+          className="flex items-center justify-between mb-4 cursor-pointer"
+          onClick={() => toggleCollapse("proxyRotator")}
+        >
           <div>
             <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
               <Network className="h-5 w-5 text-purple-500" />
@@ -856,245 +917,239 @@ export function AdminDashboard() {
               Gestion des sources Git pour le chargement automatique de proxies
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowAddProxySourceDialog(true)}>
-              Ajouter Source
-            </Button>
-            <Button size="sm" onClick={syncProxies} className="bg-purple-500 hover:bg-purple-600">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Synchroniser
-            </Button>
+          <div className="flex items-center gap-2">
+            {collapsed.proxyRotator ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
           </div>
         </div>
 
-        <div className="space-y-3 mb-4">
-          {proxySources.map((source) => (
-            <div key={source.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div className="flex-1">
-                <div className="font-medium text-sm">{source.name}</div>
-                <div className="text-xs text-muted-foreground mt-1 break-all">{source.git_url}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Synchro: {source.sync_interval_minutes}min
-                  {source.last_sync && ` • Dernière: ${new Date(source.last_sync).toLocaleString()}`}
+        {!collapsed.proxyRotator && (
+          <>
+            <div className="flex gap-2 mb-4 flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => setShowAddProxySourceDialog(true)}>
+                Ajouter Source
+              </Button>
+              <Button size="sm" onClick={syncProxies} className="bg-purple-500 hover:bg-purple-600">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Synchroniser
+              </Button>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              {proxySources.map((source) => (
+                <div key={source.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{source.name}</div>
+                    <div className="text-xs text-muted-foreground mt-1 break-all">{source.git_url}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Synchro: {source.sync_interval_minutes}min
+                      {source.last_sync && ` • Dernière: ${new Date(source.last_sync).toLocaleString()}`}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={source.enabled}
+                      onCheckedChange={(enabled) => toggleProxySource(source.id, enabled)}
+                    />
+                    <Button size="sm" variant="ghost" onClick={() => deleteProxySource(source.id)}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="text-xs text-muted-foreground">Total Proxies</div>
+                <div className="text-xl font-bold text-purple-400">{proxyStats.totalProxies}</div>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={source.enabled} onCheckedChange={(enabled) => toggleProxySource(source.id, enabled)} />
-                <Button size="sm" variant="ghost" onClick={() => deleteProxySource(source.id)}>
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="text-xs text-muted-foreground">Actifs</div>
+                <div className="text-xl font-bold text-green-400">{proxyStats.activeProxies}</div>
+              </div>
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="text-xs text-muted-foreground">Sources</div>
+                <div className="text-xl font-bold text-blue-400">{proxySources.length}</div>
+              </div>
+              <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                <div className="text-xs text-muted-foreground">Sources Actives</div>
+                <div className="text-xl font-bold text-cyan-400">{proxySources.filter((s) => s.enabled).length}</div>
               </div>
             </div>
-          ))}
-        </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
-            <div className="text-xs text-muted-foreground">Total Proxies</div>
-            <div className="text-xl font-bold text-purple-400">{proxyStats.totalProxies}</div>
-          </div>
-          <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-            <div className="text-xs text-muted-foreground">Actifs</div>
-            <div className="text-xl font-bold text-green-400">{proxyStats.activeProxies}</div>
-          </div>
-          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-            <div className="text-xs text-muted-foreground">Sources</div>
-            <div className="text-xl font-bold text-blue-400">{proxySources.length}</div>
-          </div>
-          <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-            <div className="text-xs text-muted-foreground">Sources Actives</div>
-            <div className="text-xl font-bold text-cyan-400">{proxySources.filter((s) => s.enabled).length}</div>
-          </div>
-        </div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={proxySort === "speed" ? "default" : "outline"}
+                  onClick={() => setProxySort("speed")}
+                >
+                  Vitesse
+                </Button>
+                <Button
+                  size="sm"
+                  variant={proxySort === "success" ? "default" : "outline"}
+                  onClick={() => setProxySort("success")}
+                >
+                  Succès
+                </Button>
+                <Button
+                  size="sm"
+                  variant={proxySort === "country" ? "default" : "outline"}
+                  onClick={() => setProxySort("country")}
+                >
+                  Pays
+                </Button>
+              </div>
+              <Button size="sm" variant="destructive" onClick={deleteInactiveProxies}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Supprimer inactifs
+              </Button>
+            </div>
 
-        <div className="mt-4 flex gap-2">
-          <Button size="sm" variant="destructive" onClick={deleteInactiveProxies}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Supprimer inactifs
-          </Button>
-          {/* Added proxy list table */}
-          <div className="mt-4 overflow-x-auto w-full">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2">Proxy</th>
-                  <th className="text-left p-2">Pays</th>
-                  <th className="text-left p-2">Vitesse</th>
-                  <th className="text-left p-2">Taux de succès</th>
-                  <th className="text-left p-2">Actif</th>
-                </tr>
-              </thead>
-              <tbody>
-                {proxies.slice(0, 50).map((proxy) => (
-                  <tr key={proxy.id} className="border-b">
-                    <td className="p-2 font-mono text-xs">{proxy.proxy_url}</td>
-                    <td className="p-2">?</td> {/* Placeholder for country */}
-                    <td className="p-2">{proxy.speed_ms}ms</td>
-                    <td className="p-2">{proxy.success_rate}%</td>
-                    <td className="p-2">{proxy.is_active ? "✓" : "✗"}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Proxy</th>
+                    <th className="text-left p-2">Pays</th>
+                    <th className="text-left p-2">Vitesse</th>
+                    <th className="text-left p-2">Succès</th>
+                    <th className="text-left p-2">Actif</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                </thead>
+                <tbody>
+                  {sortedProxies.slice(0, proxyListLimit).map((proxy) => (
+                    <tr key={proxy.id} className="border-b hover:bg-muted/50">
+                      <td className="p-2 font-mono text-xs">{proxy.proxy_url}</td>
+                      <td className="p-2">{proxy.country || "?"}</td>
+                      <td className="p-2">{proxy.speed_ms ? `${proxy.speed_ms}ms` : "-"}</td>
+                      <td className="p-2">{proxy.success_rate ? `${proxy.success_rate}%` : "-"}</td>
+                      <td className="p-2">
+                        <Badge variant={proxy.is_active ? "default" : "secondary"}>
+                          {proxy.is_active ? "Actif" : "Inactif"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {sortedProxies.length > proxyListLimit && (
+              <div className="mt-3 text-center">
+                <Button size="sm" variant="outline" onClick={() => setProxyListLimit((prev) => prev + 10)}>
+                  Afficher plus ({sortedProxies.length - proxyListLimit} restants)
+                </Button>
+              </div>
+            )}
+          </>
+        )}
       </Card>
 
-      {/* User and Channel Management Grid */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2 mb-6">
         {/* User Management */}
         <Card className="p-6">
-          <div className="mb-4 flex items-center justify-between">
+          <div
+            className="mb-4 flex items-center justify-between cursor-pointer"
+            onClick={() => toggleCollapse("users")}
+          >
             <h2 className="text-xl font-bold">Gestion des Utilisateurs</h2>
-            <Badge variant="secondary">{filteredUsers.length} utilisateurs</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{filteredUsers.length} utilisateurs</Badge>
+              {collapsed.users ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+            </div>
           </div>
 
-          <Input
-            placeholder="Rechercher un utilisateur..."
-            value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
-            className="mb-4"
-          />
+          {!collapsed.users && (
+            <>
+              <Input
+                placeholder="Rechercher un utilisateur..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="mb-4"
+              />
 
-          <div className="max-h-[400px] space-y-3 overflow-y-auto">
-            {filteredUsers.map((user) => (
-              <div key={user.id} className="flex items-center justify-between rounded-lg border bg-card p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-purple-500">
-                    <UserCircle className="h-6 w-6 text-white" />
+              <div className="max-h-[400px] space-y-3 overflow-y-auto">
+                {filteredUsers.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between rounded-lg border bg-card p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-purple-500">
+                        <UserCircle className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{user.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(user.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Select value={user.role} onValueChange={(value) => updateUserRole(user.id, value)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Membre</SelectItem>
+                        <SelectItem value="vip">VIP</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div>
-                    <p className="font-medium">{user.email}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <Select value={user.role} onValueChange={(value) => updateUserRole(user.id, value)}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">Membre</SelectItem>
-                    <SelectItem value="vip">VIP</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </Card>
 
         {/* VIP Keys Management */}
         <Card className="p-6">
-          <div className="mb-4 flex items-center justify-between">
+          <div
+            className="mb-4 flex items-center justify-between cursor-pointer"
+            onClick={() => toggleCollapse("vipKeys")}
+          >
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Key className="h-5 w-5 text-amber-500" />
               Gestion des Clés VIP
             </h2>
-            <Button onClick={generateVipKey} className="bg-amber-500 hover:bg-amber-600">
-              <Key className="mr-2 h-4 w-4" />
-              Générer une Clé
-            </Button>
+            <div className="flex items-center gap-2">
+              {collapsed.vipKeys ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+            </div>
           </div>
 
-          <div className="max-h-[400px] space-y-3 overflow-y-auto">
-            {vipKeys.map((key) => (
-              <div
-                key={key.id}
-                className={`flex items-center justify-between rounded-lg border p-3 ${
-                  key.used ? "bg-muted/50" : "bg-card"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Key className={`h-5 w-5 ${key.used ? "text-muted-foreground" : "text-amber-500"}`} />
-                  <div>
-                    <p className="font-mono text-sm font-medium">{key.key}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {key.used
-                        ? `Utilisée le ${new Date(key.used_at!).toLocaleDateString()}`
-                        : `Créée le ${new Date(key.created_at).toLocaleDateString()}`}
-                    </p>
+          {!collapsed.vipKeys && (
+            <>
+              <Button onClick={generateVipKey} className="bg-amber-500 hover:bg-amber-600 mb-4">
+                <Key className="mr-2 h-4 w-4" />
+                Générer une Clé
+              </Button>
+
+              <div className="max-h-[400px] space-y-3 overflow-y-auto">
+                {vipKeys.map((key) => (
+                  <div
+                    key={key.id}
+                    className={`flex items-center justify-between rounded-lg border p-3 ${
+                      key.used ? "bg-muted/50" : "bg-card"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Key className={`h-5 w-5 ${key.used ? "text-muted-foreground" : "text-amber-500"}`} />
+                      <div>
+                        <p className="font-mono text-sm font-medium">{key.key}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {key.used
+                            ? `Utilisée le ${new Date(key.used_at!).toLocaleDateString()}`
+                            : `Créée le ${new Date(key.created_at).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant={key.used ? "secondary" : "default"}>{key.used ? "Utilisée" : "Disponible"}</Badge>
                   </div>
-                </div>
-                <Badge variant={key.used ? "secondary" : "default"}>{key.used ? "Utilisée" : "Disponible"}</Badge>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </Card>
       </div>
-
-      {/* Channel Management - Full Width */}
-      <Card className="p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-          <h2 className="text-lg md:text-xl font-bold">Gestion des Chaînes</h2>
-          <div className="flex gap-2 flex-wrap">
-            <Button onClick={() => openCreateDialog("create")} size="sm" className="bg-green-500 hover:bg-green-600">
-              Créer une chaîne
-            </Button>
-            {isMergeMode ? (
-              <>
-                <Button
-                  onClick={() => openCreateDialog("merge")}
-                  size="sm"
-                  variant="outline"
-                  disabled={selectedChannels.length < 2}
-                >
-                  <Merge className="mr-2 h-4 w-4" />
-                  Fusionner ({selectedChannels.length})
-                </Button>
-                <Button onClick={() => setIsMergeMode(false)} size="sm" variant="ghost">
-                  Annuler
-                </Button>
-              </>
-            ) : (
-              <Button onClick={() => setIsMergeMode(true)} size="sm" variant="outline">
-                Mode Fusion
-              </Button>
-            )}
-            <Button onClick={syncCatalogNow} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
-              Synchroniser
-            </Button>
-          </div>
-        </div>
-
-        <Input
-          placeholder="Rechercher une chaîne..."
-          value={channelSearch}
-          onChange={(e) => setChannelSearch(e.target.value)}
-          className="mb-4"
-        />
-
-        <div className="max-h-[600px] overflow-y-auto space-y-2">
-          {filteredChannels.map((channel) => (
-            <div
-              key={channel.id}
-              className={`flex items-center justify-between p-3 rounded-lg border ${
-                selectedChannels.includes(channel.id) ? "bg-purple-500/20 border-purple-500" : "bg-card"
-              }`}
-            >
-              <div className="flex items-center gap-3 flex-1">
-                {isMergeMode && (
-                  <Checkbox
-                    checked={selectedChannels.includes(channel.id)}
-                    onCheckedChange={() => toggleChannelSelection(channel.id)}
-                  />
-                )}
-                <TvMinimal className="h-5 w-5 text-cyan-500" />
-                <div className="flex-1">
-                  <div className="font-medium">{channel.name}</div>
-                  <div className="text-xs text-muted-foreground">ID: {channel.id}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button onClick={() => openEditDialog(channel)} size="sm" variant="ghost">
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Switch checked={channel.enabled} onCheckedChange={(checked) => toggleChannel(channel.id, checked)} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       {/* Dialog: Create/Merge Channel */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
