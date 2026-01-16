@@ -23,7 +23,49 @@ export async function GET() {
 
     if (error) throw error
 
-    return NextResponse.json({ countries: countries || [] })
+    const countriesWithCount = await Promise.all(
+      (countries || []).map(async (country) => {
+        try {
+          // Map country name to TvVoo country code
+          const countryCodeMap: Record<string, string> = {
+            France: "fr",
+            Italy: "it",
+            Spain: "es",
+            Portugal: "pt",
+            Germany: "de",
+            "United Kingdom": "gb",
+            Belgium: "be",
+            Netherlands: "nl",
+            Switzerland: "ch",
+            Albania: "al",
+            Turkey: "tr",
+            Arabia: "sa",
+            Balkans: "rs",
+            Russia: "ru",
+            Romania: "ro",
+            Poland: "pl",
+            Bulgaria: "bg",
+          }
+
+          const countryCode = countryCodeMap[country.name] || country.id.toLowerCase()
+          const response = await fetch(`https://tvvoo.io/api/channels/${countryCode}`)
+          const data = await response.json()
+
+          return {
+            ...country,
+            channel_count: (data.channels || []).length,
+          }
+        } catch (e) {
+          console.error(`[v0] Failed to fetch channel count for ${country.name}:`, e)
+          return {
+            ...country,
+            channel_count: 0,
+          }
+        }
+      }),
+    )
+
+    return NextResponse.json({ countries: countriesWithCount })
   } catch (error) {
     console.error("[v0] Failed to fetch countries:", error)
     return NextResponse.json({ error: "Failed to fetch countries" }, { status: 500 })

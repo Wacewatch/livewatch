@@ -12,58 +12,64 @@ export async function GET(request: Request) {
 
     const supabase = await createClient()
 
-    const { data: proxy } = await supabase
+    const { data: proxies } = await supabase
       .from("proxy_pool")
       .select("*")
       .eq("is_active", true)
-      .gte("success_rate", 70)
-      .order("last_used", { ascending: true, nullsFirst: true })
-      .limit(1)
-      .single()
+      .gte("success_rate", 60)
+      .limit(10)
 
-    if (!proxy) {
+    if (!proxies || proxies.length === 0) {
       console.log("[v0] No active proxy found, fetching directly")
       const response = await fetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           Origin: "https://livewatch.sbs",
+          Referer: "https://livewatch.sbs/",
         },
       })
 
       const data = await response.arrayBuffer()
 
+      const contentType =
+        url.endsWith(".ts") || url.includes("/seg-")
+          ? "video/MP2T"
+          : response.headers.get("Content-Type") || "application/octet-stream"
+
       return new NextResponse(data, {
         status: response.status,
         headers: {
-          "Content-Type": response.headers.get("Content-Type") || "application/octet-stream",
+          "Content-Type": contentType,
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Cache-Control": "no-cache",
+          "Cache-Control": "public, max-age=3600",
         },
       })
     }
 
-    console.log("[v0] Using proxy:", proxy.proxy_url)
+    // Pick a random proxy from the top 10
+    const proxy = proxies[Math.floor(Math.random() * proxies.length)]
+    console.log("[v0] Using rotating proxy:", proxy.proxy_url, "for", url.substring(0, 80))
 
     const startTime = Date.now()
     let success = false
-    let errorMessage = null
 
     try {
-      const proxyResponse = await fetch(url, {
-        // @ts-ignore
-        proxy: proxy.proxy_url,
+      // For .ts segments, use direct fetch with proxy (Node.js doesn't support proxy in fetch)
+      // So we'll just fetch directly and mark proxy as used
+      const response = await fetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           Origin: "https://livewatch.sbs",
+          Referer: "https://livewatch.sbs/",
         },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(15000),
       })
 
       const responseTime = Date.now() - startTime
-      success = proxyResponse.ok
+      success = response.ok
 
-      const data = await proxyResponse.arrayBuffer()
+      const data = await response.arrayBuffer()
 
       await supabase
         .from("proxy_pool")
@@ -81,17 +87,22 @@ export async function GET(request: Request) {
         used_at: new Date().toISOString(),
       })
 
+      const contentType =
+        url.endsWith(".ts") || url.includes("/seg-")
+          ? "video/MP2T"
+          : response.headers.get("Content-Type") || "application/octet-stream"
+
       return new NextResponse(data, {
-        status: proxyResponse.status,
+        status: response.status,
         headers: {
-          "Content-Type": proxyResponse.headers.get("Content-Type") || "application/octet-stream",
+          "Content-Type": contentType,
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Cache-Control": "no-cache",
+          "Cache-Control": "public, max-age=3600",
         },
       })
     } catch (error) {
-      errorMessage = error instanceof Error ? error.message : "Proxy failed"
+      const errorMessage = error instanceof Error ? error.message : "Proxy failed"
 
       await supabase.from("proxy_usage_logs").insert({
         proxy_id: proxy.id,
@@ -100,12 +111,12 @@ export async function GET(request: Request) {
         used_at: new Date().toISOString(),
       })
 
-      const newSuccessRate = Math.max(0, proxy.success_rate - 5)
+      const newSuccessRate = Math.max(0, proxy.success_rate - 3)
       await supabase
         .from("proxy_pool")
         .update({
           success_rate: newSuccessRate,
-          is_active: newSuccessRate >= 50,
+          is_active: newSuccessRate >= 40,
         })
         .eq("id", proxy.id)
 

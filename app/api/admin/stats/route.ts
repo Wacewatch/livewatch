@@ -23,7 +23,26 @@ export async function GET() {
     await supabase.from("active_sessions").delete().lt("last_heartbeat", fiveMinutesAgo)
 
     const { count: totalUsers } = await supabase.from("user_profiles").select("id", { count: "exact", head: true })
+
+    const tvVooCountries = await fetch("https://tvvoo.io/api/countries")
+      .then((res) => res.json())
+      .catch(() => ({ countries: [] }))
+    let totalChannelsAllCountries = 0
+
+    for (const country of tvVooCountries.countries || []) {
+      try {
+        const countryChannels = await fetch(`https://tvvoo.io/api/channels/${country.code}`)
+          .then((res) => res.json())
+          .catch(() => ({ channels: [] }))
+        totalChannelsAllCountries += (countryChannels.channels || []).length
+      } catch (e) {
+        console.error(`[v0] Failed to count channels for ${country.name}`)
+      }
+    }
+
     const { count: totalChannels } = await supabase.from("channels").select("id", { count: "exact", head: true })
+    const finalTotalChannels = Math.max(totalChannelsAllCountries, totalChannels || 0)
+
     const { count: enabledChannels } = await supabase
       .from("channels")
       .select("id", { count: "exact", head: true })
@@ -111,6 +130,7 @@ export async function GET() {
     }, {})
 
     console.log("[v0] Admin stats:", {
+      totalChannelsAllCountries: finalTotalChannels,
       membersOnline,
       guestsOnline,
       onlineUsers: membersOnline + guestsOnline,
@@ -120,7 +140,7 @@ export async function GET() {
 
     return NextResponse.json({
       totalUsers: totalUsers || 0,
-      totalChannels: totalChannels || 0,
+      totalChannels: finalTotalChannels,
       enabledChannels: enabledChannels || 0,
       totalFavorites: totalFavorites || 0,
       vipUsers: vipUsers || 0,

@@ -18,9 +18,6 @@ import {
   Globe,
   RefreshCw,
   Trash2,
-  Settings,
-  CheckCircle2,
-  XCircle,
   Network,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -112,6 +109,7 @@ interface Country {
   id: string
   name: string
   enabled: boolean
+  channel_count?: number // Added for the update
 }
 
 interface ProxyConfig {
@@ -136,6 +134,16 @@ interface Proxy {
   last_checked: string
 }
 
+// Added for the update
+interface ProxySource {
+  id: number
+  name: string
+  git_url: string
+  enabled: boolean
+  last_sync: string | null
+  sync_interval_minutes: number
+}
+
 export function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -143,6 +151,9 @@ export function AdminDashboard() {
   const [countries, setCountries] = useState<Country[]>([])
   const [proxies, setProxies] = useState<Proxy[]>([])
   const [proxyConfig, setProxyConfig] = useState<ProxyConfig | null>(null)
+  const [proxySources, setProxySources] = useState<ProxySource[]>([]) // Added for the update
+  const [showAddProxySourceDialog, setShowAddProxySourceDialog] = useState(false) // Added for the update
+  const [newProxySource, setNewProxySource] = useState({ name: "", git_url: "", sync_interval_minutes: 30 }) // Added for the update
   const [proxyStats, setProxyStats] = useState({ totalProxies: 0, activeProxies: 0 })
   const [loading, setLoading] = useState(true)
   const [userSearch, setUserSearch] = useState("")
@@ -233,7 +244,7 @@ export function AdminDashboard() {
       if (proxyRes.ok) {
         const proxyData = await proxyRes.json()
         setProxies(proxyData.proxies || [])
-        setProxyConfig(proxyData.config)
+        setProxySources(proxyData.proxySources || [])
         setProxyStats({
           totalProxies: proxyData.totalProxies || 0,
           activeProxies: proxyData.activeProxies || 0,
@@ -380,6 +391,67 @@ export function AdminDashboard() {
       fetchDashboardData()
     } catch (error) {
       console.error("[v0] Failed to update proxy config:", error)
+    }
+  }
+
+  // Added for the update
+  const addProxySource = async () => {
+    if (!newProxySource.name || !newProxySource.git_url) {
+      alert("Le nom et l'URL Git sont requis")
+      return
+    }
+
+    try {
+      await fetch("/api/admin/proxy-pool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add_proxy_source",
+          ...newProxySource,
+        }),
+      })
+      setShowAddProxySourceDialog(false)
+      setNewProxySource({ name: "", git_url: "", sync_interval_minutes: 30 })
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to add proxy source:", error)
+    }
+  }
+
+  // Added for the update
+  const toggleProxySource = async (id: number, enabled: boolean) => {
+    try {
+      await fetch("/api/admin/proxy-pool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_proxy_source",
+          id,
+          enabled,
+        }),
+      })
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to toggle proxy source:", error)
+    }
+  }
+
+  // Added for the update
+  const deleteProxySource = async (id: number) => {
+    if (!confirm("Supprimer cette source de proxies ?")) return
+
+    try {
+      await fetch("/api/admin/proxy-pool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_proxy_source",
+          id,
+        }),
+      })
+      fetchDashboardData()
+    } catch (error) {
+      console.error("[v0] Failed to delete proxy source:", error)
     }
   }
 
@@ -773,24 +845,28 @@ export function AdminDashboard() {
       </div>
 
       {/* Countries Management */}
-      <Card className="mb-6 p-4 md:p-6">
+      <Card className="mb-6 p-4 md:p-6 border-l-4 border-l-blue-500">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
-            <Globe className="h-5 w-5 text-cyan-500" />
+            <Globe className="h-5 w-5 text-blue-500" />
             Gestion des Pays
           </h2>
-          <Badge variant="outline">{countries.filter((c) => c.enabled).length} activés</Badge>
+          <Badge variant="secondary" className="text-xs md:text-sm">
+            {countries.filter((c) => c.enabled).length} activés
+          </Badge>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {countries.map((country) => (
             <div
               key={country.id}
-              className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent transition-colors"
+              className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
             >
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{country.name}</span>
+              <div className="flex-1">
+                <div className="font-medium text-sm">{country.name}</div>
+                {(country as any).channel_count !== undefined && (
+                  <div className="text-xs text-muted-foreground mt-1">{(country as any).channel_count} chaînes</div>
+                )}
               </div>
               <Switch checked={country.enabled} onCheckedChange={(enabled) => toggleCountry(country.id, enabled)} />
             </div>
@@ -798,107 +874,74 @@ export function AdminDashboard() {
         </div>
       </Card>
 
-      {/* Proxy Management */}
-      <Card className="mb-6 p-4 md:p-6">
+      {/* Proxy Rotator Management */}
+      <Card className="mb-6 p-4 md:p-6 border-l-4 border-l-purple-500">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
-            <Network className="h-5 w-5 text-cyan-500" />
-            Proxy Rotatif
-          </h2>
+          <div>
+            <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
+              <Network className="h-5 w-5 text-purple-500" />
+              Système de Proxy Rotatif
+            </h2>
+            <p className="text-xs md:text-sm text-muted-foreground mt-1">
+              Gestion des sources Git pour le chargement automatique de proxies
+            </p>
+          </div>
           <div className="flex gap-2">
-            <Button
-              onClick={() => {
-                if (proxyConfig) {
-                  setEditProxyConfig({
-                    git_url: proxyConfig.git_url,
-                    update_interval_minutes: proxyConfig.update_interval_minutes,
-                    auto_update_enabled: proxyConfig.auto_update_enabled,
-                    min_success_rate: proxyConfig.min_success_rate,
-                    max_response_time_ms: proxyConfig.max_response_time_ms,
-                  })
-                  setShowProxyConfigDialog(true)
-                }
-              }}
-              variant="outline"
-              size="sm"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Config
+            <Button size="sm" variant="outline" onClick={() => setShowAddProxySourceDialog(true)}>
+              Ajouter Source
             </Button>
-            <Button onClick={syncProxies} variant="default" size="sm" className="bg-cyan-500 hover:bg-cyan-600">
+            <Button size="sm" onClick={syncProxies} className="bg-purple-500 hover:bg-purple-600">
               <RefreshCw className="h-4 w-4 mr-2" />
               Synchroniser
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <Card className="p-3 border-l-4 border-l-blue-500">
-            <p className="text-xs text-muted-foreground">Total Proxies</p>
-            <p className="text-2xl font-bold">{proxyStats.totalProxies}</p>
-          </Card>
-          <Card className="p-3 border-l-4 border-l-green-500">
-            <p className="text-xs text-muted-foreground">Actifs</p>
-            <p className="text-2xl font-bold text-green-500">{proxyStats.activeProxies}</p>
-          </Card>
-          <Card className="p-3 border-l-4 border-l-purple-500">
-            <p className="text-xs text-muted-foreground">Maj Auto</p>
-            <p className="text-sm font-bold">{proxyConfig?.auto_update_enabled ? "Activé" : "Désactivé"}</p>
-          </Card>
-          <Card className="p-3 border-l-4 border-l-orange-500">
-            <p className="text-xs text-muted-foreground">Dernière MAJ</p>
-            <p className="text-xs font-medium">
-              {proxyConfig?.last_update ? new Date(proxyConfig.last_update).toLocaleString() : "Jamais"}
-            </p>
-          </Card>
+        <div className="space-y-3 mb-4">
+          {proxySources.map((source) => (
+            <div key={source.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div className="flex-1">
+                <div className="font-medium text-sm">{source.name}</div>
+                <div className="text-xs text-muted-foreground mt-1 break-all">{source.git_url}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Synchro: {source.sync_interval_minutes}min
+                  {source.last_sync && ` • Dernière: ${new Date(source.last_sync).toLocaleString()}`}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={source.enabled} onCheckedChange={(enabled) => toggleProxySource(source.id, enabled)} />
+                <Button size="sm" variant="ghost" onClick={() => deleteProxySource(source.id)}>
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
 
-        <div className="flex gap-2 mb-4">
-          <Button onClick={deleteInactiveProxies} variant="destructive" size="sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+            <div className="text-xs text-muted-foreground">Total Proxies</div>
+            <div className="text-xl font-bold text-purple-400">{proxyStats.totalProxies}</div>
+          </div>
+          <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+            <div className="text-xs text-muted-foreground">Actifs</div>
+            <div className="text-xl font-bold text-green-400">{proxyStats.activeProxies}</div>
+          </div>
+          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <div className="text-xs text-muted-foreground">Sources</div>
+            <div className="text-xl font-bold text-blue-400">{proxySources.length}</div>
+          </div>
+          <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+            <div className="text-xs text-muted-foreground">Sources Actives</div>
+            <div className="text-xl font-bold text-cyan-400">{proxySources.filter((s) => s.enabled).length}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <Button size="sm" variant="destructive" onClick={deleteInactiveProxies}>
             <Trash2 className="h-4 w-4 mr-2" />
             Supprimer inactifs
           </Button>
-        </div>
-
-        <div className="max-h-64 overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted sticky top-0">
-              <tr>
-                <th className="text-left p-2">Proxy</th>
-                <th className="text-left p-2">Succès %</th>
-                <th className="text-left p-2">Vitesse</th>
-                <th className="text-left p-2">Utilisé</th>
-                <th className="text-left p-2">Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {proxies.slice(0, 20).map((proxy) => (
-                <tr key={proxy.id} className="border-b hover:bg-muted/50">
-                  <td className="p-2 font-mono text-xs">
-                    {proxy.host}:{proxy.port}
-                  </td>
-                  <td className="p-2">
-                    <Badge
-                      variant={
-                        proxy.success_rate >= 80 ? "default" : proxy.success_rate >= 60 ? "secondary" : "destructive"
-                      }
-                    >
-                      {proxy.success_rate.toFixed(0)}%
-                    </Badge>
-                  </td>
-                  <td className="p-2 text-xs">{proxy.speed_ms ? `${proxy.speed_ms}ms` : "-"}</td>
-                  <td className="p-2 text-xs">{proxy.times_used}x</td>
-                  <td className="p-2">
-                    {proxy.is_active ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </Card>
 
@@ -1283,6 +1326,53 @@ export function AdminDashboard() {
             <Button onClick={updateProxyConfig} className="bg-cyan-500 hover:bg-cyan-600">
               Enregistrer
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Proxy Source Dialog */}
+      <Dialog open={showAddProxySourceDialog} onOpenChange={setShowAddProxySourceDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter une source de proxies</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="source-name">Nom</Label>
+              <Input
+                id="source-name"
+                value={newProxySource.name}
+                onChange={(e) => setNewProxySource({ ...newProxySource, name: e.target.value })}
+                placeholder="Free Proxy List"
+              />
+            </div>
+            <div>
+              <Label htmlFor="source-url">URL Git</Label>
+              <Input
+                id="source-url"
+                value={newProxySource.git_url}
+                onChange={(e) => setNewProxySource({ ...newProxySource, git_url: e.target.value })}
+                placeholder="https://raw.githubusercontent.com/.../proxy-list.txt"
+              />
+            </div>
+            <div>
+              <Label htmlFor="source-interval">Intervalle de synchro (minutes)</Label>
+              <Input
+                id="source-interval"
+                type="number"
+                value={newProxySource.sync_interval_minutes}
+                onChange={(e) =>
+                  setNewProxySource({ ...newProxySource, sync_interval_minutes: Number.parseInt(e.target.value) })
+                }
+                min="10"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddProxySourceDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={addProxySource}>Ajouter</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -186,7 +186,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         await fetch("/api/tracking/heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: sid }),
+          body: JSON.JSON.stringify({ sessionId: sid }),
         })
       } catch (error) {
         console.error("[v0] Heartbeat failed:", error)
@@ -477,7 +477,82 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         abrBandWidthUpFactor: 0.7,
       }
 
-      if (proxyType === "external") {
+      if (proxyType === "rotator") {
+        hlsConfig.loader = class CustomLoader {
+          context: any
+          config: any
+          callbacks: any
+          stats: any
+          loader: any
+
+          constructor(config: any) {
+            this.config = config
+          }
+
+          destroy() {
+            if (this.loader) {
+              this.loader.abort()
+            }
+          }
+
+          abort() {
+            if (this.loader) {
+              this.loader.abort()
+            }
+          }
+
+          load(context: any, config: any, callbacks: any) {
+            this.context = context
+            this.config = config
+            this.callbacks = callbacks
+            this.stats = { loading: { start: Date.now(), first: 0, end: 0 }, total: 0, loaded: 0, retry: 0 }
+
+            const url = context.url
+            const proxiedUrl = `/api/proxy-rotator?url=${encodeURIComponent(url)}`
+
+            console.log(
+              "[v0] Rotator loading:",
+              url.includes(".ts") ? "TS segment" : "Manifest",
+              url.substring(url.length - 40),
+            )
+
+            const xhr = new XMLHttpRequest()
+            this.loader = xhr
+
+            xhr.open("GET", proxiedUrl, true)
+            xhr.responseType = context.responseType || "arraybuffer"
+            xhr.timeout = 60000
+
+            xhr.onreadystatechange = () => {
+              if (xhr.readyState === 2 && this.stats.loading.first === 0) {
+                this.stats.loading.first = Date.now()
+              }
+            }
+
+            xhr.onload = () => {
+              this.stats.loading.end = Date.now()
+              this.stats.total = xhr.response.byteLength || 0
+              this.stats.loaded = this.stats.total
+
+              if (xhr.status >= 200 && xhr.status < 300) {
+                callbacks.onSuccess({ url, data: xhr.response }, this.stats, context)
+              } else {
+                callbacks.onError({ code: xhr.status, text: xhr.statusText }, context)
+              }
+            }
+
+            xhr.onerror = () => {
+              callbacks.onError({ code: xhr.status, text: "Network error" }, context)
+            }
+
+            xhr.ontimeout = () => {
+              callbacks.onTimeout(this.stats, context)
+            }
+
+            xhr.send()
+          }
+        }
+      } else if (proxyType === "external") {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
           console.log("[v0] HLS external requesting:", xhrUrl.substring(0, 100))
           xhr.withCredentials = false

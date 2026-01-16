@@ -25,7 +25,10 @@ export async function GET() {
       .order("success_rate", { ascending: false })
       .limit(100)
 
-    const { data: config, error: configError } = await supabase.from("proxy_config").select("*").single()
+    const { data: proxySources, error: sourcesError } = await supabase
+      .from("proxy_sources")
+      .select("*")
+      .order("created_at", { ascending: true })
 
     const { count: totalProxies } = await supabase.from("proxy_pool").select("id", { count: "exact", head: true })
     const { count: activeProxies } = await supabase
@@ -33,11 +36,11 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
 
-    if (proxiesError || configError) throw proxiesError || configError
+    if (proxiesError || sourcesError) throw proxiesError || sourcesError
 
     return NextResponse.json({
       proxies: proxies || [],
-      config: config || null,
+      proxySources: proxySources || [],
       totalProxies: totalProxies || 0,
       activeProxies: activeProxies || 0,
     })
@@ -85,65 +88,110 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true })
     }
 
-    if (action === "sync_proxies") {
-      const { data: config } = await supabase.from("proxy_config").select("*").single()
+    if (action === "add_proxy_source") {
+      const { error } = await supabase.from("proxy_sources").insert({
+        name: data.name,
+        git_url: data.git_url,
+        sync_interval_minutes: data.sync_interval_minutes || 30,
+        enabled: true,
+      })
 
-      if (!config?.git_url) {
-        return NextResponse.json({ error: "No Git URL configured" }, { status: 400 })
+      if (error) throw error
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === "toggle_proxy_source") {
+      const { error } = await supabase
+        .from("proxy_sources")
+        .update({ enabled: data.enabled, updated_at: new Date().toISOString() })
+        .eq("id", data.id)
+
+      if (error) throw error
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === "delete_proxy_source") {
+      const { error } = await supabase.from("proxy_sources").delete().eq("id", data.id)
+
+      if (error) throw error
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === "sync_proxies") {
+      const { data: sources } = await supabase.from("proxy_sources").select("*").eq("enabled", true)
+
+      if (!sources || sources.length === 0) {
+        return NextResponse.json({ error: "No enabled proxy sources" }, { status: 400 })
       }
 
-      console.log("[v0] Fetching proxy list from:", config.git_url)
-      const response = await fetch(config.git_url)
-      const text = await response.text()
+      let totalAdded = 0
+      let totalSkipped = 0
 
-      const proxyLines = text
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"))
+      for (const source of sources) {
+        console.log("[v0] Fetching proxy list from:", source.git_url)
 
-      console.log("[v0] Found", proxyLines.length, "proxy entries")
+        try {
+          const response = await fetch(source.git_url)
+          const text = await response.text()
 
-      let added = 0
-      let skipped = 0
+          const proxyLines = text
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line && !line.startsWith("#"))
 
-      for (const line of proxyLines.slice(0, 200)) {
-        const parts = line.split(":")
-        if (parts.length >= 2) {
-          const host = parts[0].trim()
-          const port = Number.parseInt(parts[1].trim())
+          console.log("[v0] Found", proxyLines.length, "proxy entries from", source.name)
 
-          if (host && !isNaN(port)) {
-            const proxy_url = `http://${host}:${port}`
+          let added = 0
+          let skipped = 0
 
-            const { error } = await supabase.from("proxy_pool").upsert(
-              {
-                proxy_url,
-                protocol: "http",
-                host,
-                port,
-                is_active: true,
-                last_checked: new Date().toISOString(),
-              },
-              {
-                onConflict: "proxy_url",
-                ignoreDuplicates: true,
-              },
-            )
+          for (const line of proxyLines.slice(0, 200)) {
+            const parts = line.split(":")
+            if (parts.length >= 2) {
+              const host = parts[0].trim()
+              const port = Number.parseInt(parts[1].trim())
 
-            if (error) {
-              skipped++
-            } else {
-              added++
+              if (host && !isNaN(port)) {
+                const proxy_url = `http://${host}:${port}`
+
+                const { error } = await supabase.from("proxy_pool").upsert(
+                  {
+                    proxy_url,
+                    protocol: "http",
+                    host,
+                    port,
+                    is_active: true,
+                    last_checked: new Date().toISOString(),
+                  },
+                  {
+                    onConflict: "proxy_url",
+                    ignoreDuplicates: true,
+                  },
+                )
+
+                if (error) {
+                  skipped++
+                } else {
+                  added++
+                }
+              }
             }
           }
+
+          totalAdded += added
+          totalSkipped += skipped
+
+          await supabase.from("proxy_sources").update({ last_sync: new Date().toISOString() }).eq("id", source.id)
+        } catch (sourceError) {
+          console.error(`[v0] Failed to sync from ${source.name}:`, sourceError)
         }
       }
 
-      await supabase.from("proxy_config").update({ last_update: new Date().toISOString() }).eq("id", 1)
+      console.log("[v0] Proxy sync complete:", { totalAdded, totalSkipped })
 
-      console.log("[v0] Proxy sync complete:", { added, skipped })
-
-      return NextResponse.json({ success: true, added, skipped, total: proxyLines.length })
+      return NextResponse.json({ success: true, added: totalAdded, skipped: totalSkipped })
     }
 
     if (action === "delete_inactive") {
