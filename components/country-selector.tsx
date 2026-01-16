@@ -3,9 +3,10 @@
 import { Globe } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { UserMenu } from "@/components/user-menu"
 
-const COUNTRIES = [
+const ALL_COUNTRIES = [
   { name: "France", code: "fr" },
   { name: "Italy", code: "it" },
   { name: "Spain", code: "es" },
@@ -26,6 +27,33 @@ const COUNTRIES = [
 ]
 
 export function CountrySelector() {
+  const [enabledCountries, setEnabledCountries] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const res = await fetch("/api/countries/enabled")
+        if (res.ok) {
+          const data = await res.json()
+          setEnabledCountries(data.countries || ALL_COUNTRIES.map((c) => c.name))
+        } else {
+          // If API fails, show all countries
+          setEnabledCountries(ALL_COUNTRIES.map((c) => c.name))
+        }
+      } catch {
+        // If API fails, show all countries
+        setEnabledCountries(ALL_COUNTRIES.map((c) => c.name))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCountries()
+  }, [])
+
+  const visibleCountries = ALL_COUNTRIES.filter((c) => enabledCountries.includes(c.name))
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
@@ -53,28 +81,34 @@ export function CountrySelector() {
           <p className="text-xl text-muted-foreground">Sélectionnez un pays pour voir les chaînes disponibles</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-          {COUNTRIES.map((country) => (
-            <Link
-              key={country.code}
-              href={`/channels/${encodeURIComponent(country.name)}`}
-              className="group glass-card border border-border/50 rounded-2xl p-6 md:p-8 hover:border-primary/50 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
-            >
-              <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Image
-                  src={`https://flagcdn.com/w160/${country.code}.png`}
-                  alt={`${country.name} flag`}
-                  fill
-                  className="object-cover"
-                  loading="lazy"
-                />
-              </div>
-              <h3 className="text-lg md:text-xl font-bold text-foreground text-center group-hover:text-primary transition-colors">
-                {country.name}
-              </h3>
-            </Link>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+            {visibleCountries.map((country) => (
+              <Link
+                key={country.code}
+                href={`/channels/${encodeURIComponent(country.name)}`}
+                className="group glass-card border border-border/50 rounded-2xl p-6 md:p-8 hover:border-primary/50 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
+              >
+                <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <Image
+                    src={`https://flagcdn.com/w160/${country.code}.png`}
+                    alt={`${country.name} flag`}
+                    fill
+                    className="object-cover"
+                    loading="lazy"
+                  />
+                </div>
+                <h3 className="text-lg md:text-xl font-bold text-foreground text-center group-hover:text-primary transition-colors">
+                  {country.name}
+                </h3>
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   )

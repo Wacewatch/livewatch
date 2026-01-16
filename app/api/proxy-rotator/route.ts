@@ -16,17 +16,17 @@ export async function GET(request: Request) {
       .from("proxy_pool")
       .select("*")
       .eq("is_active", true)
-      .gte("success_rate", 50)
+      .gte("success_rate", 30)
       .order("speed_ms", { ascending: true, nullsFirst: false })
       .order("success_rate", { ascending: false })
-      .limit(20)
+      .limit(10)
 
     console.log("[v0] Proxy rotator: Found", proxies?.length || 0, "active proxies")
 
-    // Function to fetch with a specific proxy or direct
-    const fetchWithProxy = async (targetUrl: string, proxyInfo?: any): Promise<Response> => {
+    const fetchViaProxy = async (targetUrl: string, proxyInfo?: any): Promise<Response> => {
       const startTime = Date.now()
 
+      // Use the same fetch logic as /api/proxy
       const response = await fetch(targetUrl, {
         headers: {
           "User-Agent":
@@ -55,14 +55,14 @@ export async function GET(request: Request) {
             success_rate: Math.min(100, (proxyInfo.success_rate || 50) + 1),
           })
           .eq("id", proxyInfo.id)
+          .catch(() => {}) // Ignore update errors
       }
 
       return response
     }
 
-    // Try fetching with retries
     let lastError: Error | null = null
-    const maxRetries = 3
+    const maxRetries = Math.min(5, (proxies?.length || 0) + 1) // Try up to 5 proxies
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const proxyToUse = proxies && proxies.length > attempt ? proxies[attempt] : null
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
       console.log(`[v0] Proxy rotator attempt ${attempt + 1}/${maxRetries}:`, proxyToUse?.proxy_url || "direct fetch")
 
       try {
-        const response = await fetchWithProxy(url, proxyToUse)
+        const response = await fetchViaProxy(url, proxyToUse)
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
@@ -78,6 +78,7 @@ export async function GET(request: Request) {
 
         const contentType = response.headers.get("content-type") || ""
 
+        // Handle M3U8 manifests - rewrite URLs to use proxy-rotator
         if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
           const text = await response.text()
           console.log("[v0] Proxy rotator: Rewriting M3U8 manifest URLs")
@@ -150,9 +151,15 @@ export async function GET(request: Request) {
             .from("proxy_pool")
             .update({
               success_rate: newSuccessRate,
-              is_active: newSuccessRate >= 30,
+              is_active: newSuccessRate >= 20,
             })
             .eq("id", proxyToUse.id)
+            .catch(() => {}) // Ignore update errors
+        }
+
+        // Small delay before retry
+        if (attempt < maxRetries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
         }
       }
     }

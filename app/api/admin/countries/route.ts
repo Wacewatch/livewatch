@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+const ALL_COUNTRIES = [
+  { name: "France", code: "fr" },
+  { name: "Italy", code: "it" },
+  { name: "Spain", code: "es" },
+  { name: "Portugal", code: "pt" },
+  { name: "Germany", code: "de" },
+  { name: "United Kingdom", code: "gb" },
+  { name: "Belgium", code: "be" },
+  { name: "Netherlands", code: "nl" },
+  { name: "Switzerland", code: "ch" },
+  { name: "Albania", code: "al" },
+  { name: "Turkey", code: "tr" },
+  { name: "Arabia", code: "sa" },
+  { name: "Balkans", code: "rs" },
+  { name: "Russia", code: "ru" },
+  { name: "Romania", code: "ro" },
+  { name: "Poland", code: "pl" },
+  { name: "Bulgaria", code: "bg" },
+]
+
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -19,47 +39,51 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const { data: countries, error } = await supabase.from("countries").select("*").order("name", { ascending: true })
-
-    if (error) throw error
-
-    const countryCodeMap: Record<string, string> = {
-      France: "fr",
-      Italy: "it",
-      Spain: "es",
-      Portugal: "pt",
-      Germany: "de",
-      "United Kingdom": "gb",
-      Belgium: "be",
-      Netherlands: "nl",
-      Switzerland: "ch",
-      Albania: "al",
-      Turkey: "tr",
-      Arabia: "sa",
-      Balkans: "rs",
-      Russia: "ru",
-      Romania: "ro",
-      Poland: "pl",
-      Bulgaria: "bg",
-    }
+    const { data: dbCountries } = await supabase.from("countries").select("*")
+    const dbCountryMap = new Map((dbCountries || []).map((c) => [c.name, c]))
 
     const countriesWithCount = await Promise.all(
-      (countries || []).map(async (country) => {
-        try {
-          const countryCode = countryCodeMap[country.name] || country.id.toLowerCase()
-          const response = await fetch(`https://tvvoo.io/api/channels/${countryCode}`)
-          const data = await response.json()
+      ALL_COUNTRIES.map(async (country) => {
+        const dbCountry = dbCountryMap.get(country.name)
+        let channelCount = 0
 
-          return {
-            ...country,
-            channel_count: (data.channels || []).length,
+        try {
+          // Fetch channel count from TvVoo API
+          const manifestUrl = `https://tvvoo.hayd.uk/cfg-${country.code}/manifest.json`
+          const manifestRes = await fetch(manifestUrl, {
+            signal: AbortSignal.timeout(5000),
+            cache: "no-store",
+          })
+
+          if (manifestRes.ok) {
+            const manifest = await manifestRes.json()
+            const catalogs = manifest.catalogs || []
+
+            for (const catalog of catalogs) {
+              if (catalog.type === "tv") {
+                const catalogUrl = `https://tvvoo.hayd.uk/cfg-${country.code}/catalog/tv/${catalog.id}.json`
+                const catalogRes = await fetch(catalogUrl, {
+                  signal: AbortSignal.timeout(5000),
+                  cache: "no-store",
+                })
+
+                if (catalogRes.ok) {
+                  const catalogData = await catalogRes.json()
+                  channelCount += (catalogData.metas || []).length
+                }
+              }
+            }
           }
         } catch (e) {
           console.error(`[v0] Failed to fetch channel count for ${country.name}:`, e)
-          return {
-            ...country,
-            channel_count: 0,
-          }
+        }
+
+        return {
+          id: dbCountry?.id || country.code,
+          name: country.name,
+          code: country.code,
+          enabled: dbCountry?.enabled ?? true,
+          channel_count: channelCount,
         }
       }),
     )
@@ -89,12 +113,17 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const { id, enabled } = await request.json()
+    const { id, name, code, enabled } = await request.json()
 
-    const { error } = await supabase
-      .from("countries")
-      .update({ enabled, updated_at: new Date().toISOString() })
-      .eq("id", id)
+    const { error } = await supabase.from("countries").upsert(
+      {
+        id: id || code,
+        name: name,
+        enabled: enabled,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    )
 
     if (error) throw error
 

@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+const ALL_COUNTRIES = [
+  { name: "France", code: "fr" },
+  { name: "Italy", code: "it" },
+  { name: "Spain", code: "es" },
+  { name: "Portugal", code: "pt" },
+  { name: "Germany", code: "de" },
+  { name: "United Kingdom", code: "gb" },
+  { name: "Belgium", code: "be" },
+  { name: "Netherlands", code: "nl" },
+  { name: "Switzerland", code: "ch" },
+  { name: "Albania", code: "al" },
+  { name: "Turkey", code: "tr" },
+  { name: "Arabia", code: "sa" },
+  { name: "Balkans", code: "rs" },
+  { name: "Russia", code: "ru" },
+  { name: "Romania", code: "ro" },
+  { name: "Poland", code: "pl" },
+  { name: "Bulgaria", code: "bg" },
+]
+
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -24,29 +44,45 @@ export async function GET() {
 
     const { count: totalUsers } = await supabase.from("user_profiles").select("id", { count: "exact", head: true })
 
-    const tvVooCountries = await fetch("https://tvvoo.io/api/countries")
-      .then((res) => res.json())
-      .catch(() => ({ countries: [] }))
     let totalChannelsAllCountries = 0
+    const channelCounts: Record<string, number> = {}
 
-    for (const country of tvVooCountries.countries || []) {
+    for (const country of ALL_COUNTRIES) {
       try {
-        const countryChannels = await fetch(`https://tvvoo.io/api/channels/${country.code}`)
-          .then((res) => res.json())
-          .catch(() => ({ channels: [] }))
-        totalChannelsAllCountries += (countryChannels.channels || []).length
+        const manifestUrl = `https://tvvoo.hayd.uk/cfg-${country.code}/manifest.json`
+        const manifestRes = await fetch(manifestUrl, {
+          signal: AbortSignal.timeout(5000),
+          cache: "no-store",
+        })
+
+        if (manifestRes.ok) {
+          const manifest = await manifestRes.json()
+          const catalogs = manifest.catalogs || []
+
+          for (const catalog of catalogs) {
+            if (catalog.type === "tv") {
+              const catalogUrl = `https://tvvoo.hayd.uk/cfg-${country.code}/catalog/tv/${catalog.id}.json`
+              const catalogRes = await fetch(catalogUrl, {
+                signal: AbortSignal.timeout(5000),
+                cache: "no-store",
+              })
+
+              if (catalogRes.ok) {
+                const catalogData = await catalogRes.json()
+                const count = (catalogData.metas || []).length
+                channelCounts[country.name] = (channelCounts[country.name] || 0) + count
+                totalChannelsAllCountries += count
+              }
+            }
+          }
+        }
       } catch (e) {
-        console.error(`[v0] Failed to count channels for ${country.name}`)
+        console.error(`[v0] Failed to count channels for ${country.name}:`, e)
       }
     }
 
-    const { count: totalChannels } = await supabase.from("channels").select("id", { count: "exact", head: true })
-    const finalTotalChannels = Math.max(totalChannelsAllCountries, totalChannels || 0)
+    console.log("[v0] Total channels from all countries:", totalChannelsAllCountries)
 
-    const { count: enabledChannels } = await supabase
-      .from("channels")
-      .select("id", { count: "exact", head: true })
-      .eq("enabled", true)
     const { count: totalFavorites } = await supabase.from("user_favorites").select("id", { count: "exact", head: true })
     const { count: vipUsers } = await supabase
       .from("user_profiles")
@@ -99,7 +135,7 @@ export async function GET() {
       .select("channel_id, channel_name")
       .gte("viewed_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
-    const channelCounts = recentViews?.reduce((acc: Record<string, { name: string; count: number }>, view) => {
+    const viewCounts = recentViews?.reduce((acc: Record<string, { name: string; count: number }>, view) => {
       if (view.channel_id && view.channel_name) {
         if (!acc[view.channel_id]) {
           acc[view.channel_id] = { name: view.channel_name, count: 0 }
@@ -109,7 +145,7 @@ export async function GET() {
       return acc
     }, {})
 
-    const topChannels = Object.entries(channelCounts || {})
+    const topChannels = Object.entries(viewCounts || {})
       .map(([channel_id, data]) => ({
         channel_id,
         channel_name: data.name,
@@ -129,19 +165,10 @@ export async function GET() {
       return acc
     }, {})
 
-    console.log("[v0] Admin stats:", {
-      totalChannelsAllCountries: finalTotalChannels,
-      membersOnline,
-      guestsOnline,
-      onlineUsers: membersOnline + guestsOnline,
-      liveViewers,
-      currentlyWatchingCount: currentlyWatching.length,
-    })
-
     return NextResponse.json({
       totalUsers: totalUsers || 0,
-      totalChannels: finalTotalChannels,
-      enabledChannels: enabledChannels || 0,
+      totalChannels: totalChannelsAllCountries,
+      channelsByCountry: channelCounts,
       totalFavorites: totalFavorites || 0,
       vipUsers: vipUsers || 0,
       adminUsers: adminUsers || 0,
