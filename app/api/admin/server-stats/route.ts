@@ -62,15 +62,18 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .gte("last_heartbeat", twoMinutesAgo)
 
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-    const { data: recentViewers } = await supabase
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { data: recentViews } = await supabase
       .from("channel_views")
-      .select("user_id, channel_name")
-      .gte("viewed_at", fiveMinutesAgo)
+      .select("channel_id, channel_name, user_id")
+      .gte("viewed_at", oneHourAgo)
 
-    // Count unique active viewers
-    const uniqueViewers = new Set(recentViewers?.map((v) => v.user_id || v.channel_name) || [])
-    const activeViewers = uniqueViewers.size
+    // Sum total views (this matches Top Chaînes logic)
+    const totalViewsLastHour = recentViews?.length || 0
+
+    // Count unique viewers
+    const uniqueViewerIds = new Set(recentViews?.map((v) => v.user_id || v.channel_name) || [])
+    const activeViewers = uniqueViewerIds.size
 
     // Requests per minute from channel_views
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
@@ -88,14 +91,9 @@ export async function GET() {
     const estimatedBandwidthMBps = (activeViewers || 0) * 2.5
     const estimatedBandwidthGBph = (estimatedBandwidthMBps * 60 * 60) / 1024
 
-    const { count: totalViewsCount } = await supabase
-      .from("channel_views")
-      .select("id", { count: "exact", head: true })
-      .gte("viewed_at", fiveMinutesAgo)
+    const { data: proxyLogs } = await supabase.from("proxy_usage_logs").select("source").gte("used_at", oneHourAgo)
 
-    const { data: proxyLogs } = await supabase.from("proxy_usage_logs").select("source").gte("used_at", fiveMinutesAgo)
-
-    // Count by source
+    // Count by source from proxy logs
     let source2Count = 0
     let source3Count = 0
 
@@ -104,11 +102,7 @@ export async function GET() {
       if (log.source === "source3") source3Count++
     })
 
-    const totalViews = totalViewsCount || 0
-    const source1Count = Math.max(0, totalViews - source2Count - source3Count)
-
-    // If no activity at all, but we have active viewers, assume they're all on Source 1
-    const finalSource1 = totalViews === 0 && activeViewers > 0 ? activeViewers : source1Count
+    const source1Count = Math.max(0, totalViewsLastHour - source2Count - source3Count)
 
     const memoryUsedMB = memoryUsed / 1024 / 1024
     const memoryTotalMB = memoryTotal / 1024 / 1024
@@ -132,10 +126,10 @@ export async function GET() {
         activeViewers: activeViewers,
         requestsPerMinute: requestsPerMinute || 0,
         bandwidthEstimate: estimatedBandwidthGBph > 0 ? `~${estimatedBandwidthGBph.toFixed(2)} GB/h` : "0.00 GB/h",
-        source1: finalSource1,
+        source1: source1Count,
         source2: source2Count,
         source3: source3Count,
-        total: totalViews > 0 ? totalViews : activeViewers,
+        total: source1Count + source2Count + source3Count,
       },
       system: {
         platform,

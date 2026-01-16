@@ -142,6 +142,8 @@ export async function GET() {
       .sort((a, b) => b.view_count - a.view_count)
       .slice(0, 10)
 
+    const totalViewsLastHour = recentViews?.length || 0
+
     const { data: viewsPerDay } = await supabase
       .from("channel_views")
       .select("viewed_at")
@@ -173,7 +175,7 @@ export async function GET() {
       membersOnline,
       guestsOnline,
       onlineUsers: membersOnline + guestsOnline,
-      liveViewers: liveViewers.count || 0,
+      liveViewers: totalViewsLastHour,
       topChannels,
       currentlyWatching,
       viewsPerDay: dailyStats || {},
