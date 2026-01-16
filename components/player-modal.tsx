@@ -754,34 +754,43 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 bg-gray-900 border-gray-700">
-                  {sourceConfig.source1_enabled && (
+                  {(sourceConfig.source1_enabled || isAdmin) && (
                     <DropdownMenuItem
                       onClick={() => switchProxySource("default")}
                       className={`flex items-center gap-2 cursor-pointer ${currentProxy === "default" ? "bg-cyan-500/20 text-cyan-400" : "text-white hover:bg-white/10"}`}
                     >
-                      <Radio className="w-4 h-4" />
-                      <span>Source 1</span>
-                      <span className="ml-auto text-xs text-gray-400">Proxy par défaut</span>
+                      <Radio className="w-4 h-4 text-cyan-400" />
+                      <span>Source 1 - Proxy par défaut</span>
+                      {!sourceConfig.source1_enabled && (
+                        <span className="text-xs text-orange-400 ml-auto">(désactivée)</span>
+                      )}
+                      {currentProxy === "default" && <Check className="w-4 h-4 ml-auto text-cyan-400" />}
                     </DropdownMenuItem>
                   )}
-                  {sourceConfig.source2_enabled && (
+                  {(sourceConfig.source2_enabled || isAdmin) && (
                     <DropdownMenuItem
                       onClick={() => switchProxySource("external")}
-                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "external" ? "bg-green-500/20 text-green-400" : "text-white hover:bg-white/10"}`}
+                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "external" ? "bg-amber-500/20 text-amber-400" : "text-white hover:bg-white/10"}`}
                     >
-                      <Network className="w-4 h-4" />
-                      <span>Source 2</span>
-                      <span className="ml-auto text-xs text-gray-400">Proxy externe</span>
+                      <Network className="w-4 h-4 text-amber-400" />
+                      <span>Source 2 - Worker externe</span>
+                      {!sourceConfig.source2_enabled && (
+                        <span className="text-xs text-orange-400 ml-auto">(désactivée)</span>
+                      )}
+                      {currentProxy === "external" && <Check className="w-4 h-4 ml-auto text-amber-400" />}
                     </DropdownMenuItem>
                   )}
-                  {sourceConfig.source3_enabled && (
+                  {(sourceConfig.source3_enabled || isAdmin) && (
                     <DropdownMenuItem
                       onClick={() => switchProxySource("rotator")}
                       className={`flex items-center gap-2 cursor-pointer ${currentProxy === "rotator" ? "bg-purple-500/20 text-purple-400" : "text-white hover:bg-white/10"}`}
                     >
-                      <Network className="w-4 h-4" />
-                      <span>Source 3</span>
-                      <span className="ml-auto text-xs text-gray-400">Proxy rotatif</span>
+                      <Cast className="w-4 h-4 text-purple-400" />
+                      <span>Source 3 - Proxy rotatif</span>
+                      {!sourceConfig.source3_enabled && (
+                        <span className="text-xs text-orange-400 ml-auto">(désactivée)</span>
+                      )}
+                      {currentProxy === "rotator" && <Check className="w-4 h-4 ml-auto text-purple-400" />}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>

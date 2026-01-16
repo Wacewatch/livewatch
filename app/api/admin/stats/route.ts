@@ -160,6 +160,16 @@ export async function GET() {
       return acc
     }, {})
 
+    // Use real-time data from active sessions for Top Chaînes
+    const topChannelsRealTime = currentlyWatching.map((c) => ({
+      channel_id: c.channel_id,
+      channel_name: c.channel_name,
+      view_count: c.viewer_count,
+    }))
+
+    // If we have real-time data, use it. Otherwise fallback to historical data
+    const finalTopChannels = topChannelsRealTime.length > 0 ? topChannelsRealTime : topChannels
+
     return NextResponse.json({
       totalUsers: totalUsers || 0,
       totalChannels: totalChannelsAllCountries,
@@ -171,7 +181,7 @@ export async function GET() {
       guestsOnline,
       onlineUsers: totalOnline,
       liveViewers: liveViewersCount,
-      topChannels,
+      topChannels: finalTopChannels,
       currentlyWatching,
       viewsPerDay: dailyStats || {},
     })

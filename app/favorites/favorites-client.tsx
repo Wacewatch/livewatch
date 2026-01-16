@@ -70,10 +70,17 @@ export default function FavoritesClient() {
   const [selectedChannel, setSelectedChannel] = useState<GroupedChannel | null>(null)
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
 
-  const { favorites, toggleFavorite } = useFavorites()
+  const { favorites, toggleFavorite, loading: favoritesLoading } = useFavorites()
 
   useEffect(() => {
+    if (favoritesLoading) return
+
     const fetchAllChannels = async () => {
+      if (favorites.length === 0) {
+        setLoading(false)
+        return
+      }
+
       try {
         const countries = ALL_COUNTRIES.map((c) => c.name).join(",")
         const response = await fetch(`/api/tvvoo/channels?countries=${encodeURIComponent(countries)}`)
@@ -89,7 +96,7 @@ export default function FavoritesClient() {
     }
 
     fetchAllChannels()
-  }, [])
+  }, [favorites, favoritesLoading])
 
   const favoriteChannels = useMemo(() => {
     return allChannels.filter((ch) => favorites.includes(ch.baseId))
@@ -128,7 +135,7 @@ export default function FavoritesClient() {
     return channels
   }, [favoriteChannels, channelsByCountry, selectedCountry, searchQuery])
 
-  if (loading) {
+  if (loading || favoritesLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

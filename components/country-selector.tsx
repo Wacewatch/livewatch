@@ -37,7 +37,7 @@ export function CountrySelector() {
   const [countryStatuses, setCountryStatuses] = useState<CountryStatus[]>([])
   const [loading, setLoading] = useState(true)
   const { isAdmin } = useUserRole()
-  const { count: favoritesCount } = useFavorites()
+  const { favorites, loading: favoritesLoading } = useFavorites()
 
   useEffect(() => {
     const fetchCountries = async () => {
@@ -86,9 +86,9 @@ export function CountrySelector() {
               className="relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border border-border/50 hover:border-yellow-400/50 hover:scale-105 transition-all duration-300 flex items-center justify-center text-foreground hover:text-yellow-400"
             >
               <Star className="w-5 h-5 md:w-6 md:h-6" />
-              {favoritesCount > 0 && (
+              {!favoritesLoading && favorites.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
-                  {favoritesCount}
+                  {favorites.length}
                 </span>
               )}
             </Link>
