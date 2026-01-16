@@ -23,7 +23,21 @@ export async function GET() {
 
     if (error) throw error
 
-    return NextResponse.json({ countries: countries || [] })
+    const countriesWithCount = await Promise.all(
+      (countries || []).map(async (country) => {
+        const { count } = await supabase
+          .from("channels")
+          .select("id", { count: "exact", head: true })
+          .eq("country_id", country.id)
+
+        return {
+          ...country,
+          channel_count: count || 0,
+        }
+      }),
+    )
+
+    return NextResponse.json({ countries: countriesWithCount })
   } catch (error) {
     console.error("[v0] Failed to fetch countries:", error)
     return NextResponse.json({ error: "Failed to fetch countries" }, { status: 500 })
