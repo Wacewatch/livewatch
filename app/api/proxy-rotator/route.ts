@@ -16,144 +16,163 @@ export async function GET(request: Request) {
       .from("proxy_pool")
       .select("*")
       .eq("is_active", true)
-      .gte("success_rate", 70)
+      .gte("success_rate", 50)
+      .order("speed_ms", { ascending: true, nullsFirst: false })
       .order("success_rate", { ascending: false })
-      .order("speed_ms", { ascending: true })
-      .limit(5)
+      .limit(20)
 
-    if (!proxies || proxies.length === 0) {
-      console.log("[v0] No active proxy found, fetching directly")
-      const response = await fetch(url, {
+    console.log("[v0] Proxy rotator: Found", proxies?.length || 0, "active proxies")
+
+    // Function to fetch with a specific proxy or direct
+    const fetchWithProxy = async (targetUrl: string, proxyInfo?: any): Promise<Response> => {
+      const startTime = Date.now()
+
+      const response = await fetch(targetUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          Origin: "https://livewatch.sbs",
-          Referer: "https://livewatch.sbs/",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Referer: "https://tvvoo.live/",
+          Accept: "*/*",
+          "Accept-Encoding": "identity",
+          Origin: "https://tvvoo.live",
         },
+        signal: AbortSignal.timeout(30000),
+        cache: "no-store",
       })
 
-      const data = await response.arrayBuffer()
+      const responseTime = Date.now() - startTime
 
-      const contentType =
-        url.endsWith(".ts") || url.includes("/seg-")
-          ? "video/MP2T"
-          : response.headers.get("Content-Type") || "application/octet-stream"
-
-      return new NextResponse(data, {
-        status: response.status,
-        headers: {
-          "Content-Type": contentType,
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Cache-Control": "public, max-age=3600",
-        },
-      })
-    }
-
-    const proxy = proxies[0]
-    console.log(
-      "[v0] Using best rotating proxy:",
-      proxy.proxy_url,
-      "SR:",
-      proxy.success_rate,
-      "Speed:",
-      proxy.speed_ms,
-      "ms",
-    )
-
-    const startTime = Date.now()
-    let success = false
-    let attempts = 0
-    const maxAttempts = Math.min(proxies.length, 3)
-
-    while (attempts < maxAttempts) {
-      try {
-        const currentProxy = proxies[attempts]
-        console.log(`[v0] Attempt ${attempts + 1}/${maxAttempts} with proxy:`, currentProxy.proxy_url)
-
-        const response = await fetch(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            Origin: "https://livewatch.sbs",
-            Referer: "https://livewatch.sbs/",
-          },
-          signal: AbortSignal.timeout(15000),
-        })
-
-        const responseTime = Date.now() - startTime
-        success = response.ok
-
-        if (!success) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-
-        const data = await response.arrayBuffer()
+      // Update proxy stats if we used one
+      if (proxyInfo) {
+        const newAvgSpeed = proxyInfo.speed_ms ? Math.floor((proxyInfo.speed_ms + responseTime) / 2) : responseTime
 
         await supabase
           .from("proxy_pool")
           .update({
             last_used: new Date().toISOString(),
-            times_used: currentProxy.times_used + 1,
-            speed_ms: Math.floor(
-              ((currentProxy.speed_ms || 0) * currentProxy.times_used + responseTime) / (currentProxy.times_used + 1),
-            ),
-            success_rate: Math.min(100, currentProxy.success_rate + 1),
+            times_used: (proxyInfo.times_used || 0) + 1,
+            speed_ms: newAvgSpeed,
+            success_rate: Math.min(100, (proxyInfo.success_rate || 50) + 1),
           })
-          .eq("id", currentProxy.id)
+          .eq("id", proxyInfo.id)
+      }
 
-        await supabase.from("proxy_usage_logs").insert({
-          proxy_id: currentProxy.id,
-          success: true,
-          response_time_ms: responseTime,
-          used_at: new Date().toISOString(),
-        })
+      return response
+    }
 
-        const contentType =
-          url.endsWith(".ts") || url.includes("/seg-")
-            ? "video/MP2T"
-            : response.headers.get("Content-Type") || "application/octet-stream"
+    // Try fetching with retries
+    let lastError: Error | null = null
+    const maxRetries = 3
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const proxyToUse = proxies && proxies.length > attempt ? proxies[attempt] : null
+
+      console.log(`[v0] Proxy rotator attempt ${attempt + 1}/${maxRetries}:`, proxyToUse?.proxy_url || "direct fetch")
+
+      try {
+        const response = await fetchWithProxy(url, proxyToUse)
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const contentType = response.headers.get("content-type") || ""
+
+        if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
+          const text = await response.text()
+          console.log("[v0] Proxy rotator: Rewriting M3U8 manifest URLs")
+
+          const baseUrl = new URL(url)
+          const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
+
+          const rewrittenManifest = text
+            .split("\n")
+            .map((line) => {
+              if (line.startsWith("#") || line.trim() === "") {
+                return line
+              }
+
+              if (line.trim().length > 0 && !line.startsWith("#")) {
+                let absoluteUrl = line.trim()
+
+                if (!absoluteUrl.startsWith("http://") && !absoluteUrl.startsWith("https://")) {
+                  absoluteUrl = baseUrlStr + absoluteUrl
+                }
+
+                return `/api/proxy-rotator?url=${encodeURIComponent(absoluteUrl)}`
+              }
+
+              return line
+            })
+            .join("\n")
+
+          console.log("[v0] Proxy rotator: M3U8 manifest rewritten successfully")
+
+          return new NextResponse(rewrittenManifest, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/vnd.apple.mpegurl",
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Methods": "GET, OPTIONS",
+              "Access-Control-Allow-Headers": "Content-Type, Range",
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
+          })
+        }
+
+        // Handle binary data (TS segments, etc.)
+        const data = await response.arrayBuffer()
+
+        const finalContentType =
+          url.endsWith(".ts") || url.includes("/seg-") ? "video/MP2T" : contentType || "application/octet-stream"
+
+        console.log("[v0] Proxy rotator: Success, size:", data.byteLength, "bytes")
 
         return new NextResponse(data, {
-          status: response.status,
+          status: 200,
           headers: {
-            "Content-Type": contentType,
+            "Content-Type": finalContentType,
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Range",
             "Cache-Control": "public, max-age=3600",
+            "Accept-Ranges": "bytes",
           },
         })
       } catch (error) {
-        const currentProxy = proxies[attempts]
-        const errorMessage = error instanceof Error ? error.message : "Proxy failed"
+        lastError = error instanceof Error ? error : new Error(String(error))
+        console.error(`[v0] Proxy rotator attempt ${attempt + 1} failed:`, lastError.message)
 
-        console.log(`[v0] Proxy ${attempts + 1} failed:`, errorMessage)
-
-        await supabase.from("proxy_usage_logs").insert({
-          proxy_id: currentProxy.id,
-          success: false,
-          error_message: errorMessage,
-          used_at: new Date().toISOString(),
-        })
-
-        const newSuccessRate = Math.max(0, currentProxy.success_rate - 5)
-        await supabase
-          .from("proxy_pool")
-          .update({
-            success_rate: newSuccessRate,
-            is_active: newSuccessRate >= 40,
-          })
-          .eq("id", currentProxy.id)
-
-        attempts++
-
-        if (attempts >= maxAttempts) {
-          throw error
+        // Update proxy stats on failure
+        if (proxyToUse) {
+          const newSuccessRate = Math.max(0, (proxyToUse.success_rate || 50) - 5)
+          await supabase
+            .from("proxy_pool")
+            .update({
+              success_rate: newSuccessRate,
+              is_active: newSuccessRate >= 30,
+            })
+            .eq("id", proxyToUse.id)
         }
       }
     }
 
-    throw new Error("All proxies failed")
+    // All retries failed
+    console.error("[v0] Proxy rotator: All attempts failed")
+    return NextResponse.json({ error: "All proxy attempts failed", details: lastError?.message }, { status: 500 })
   } catch (error) {
     console.error("[v0] Proxy rotator error:", error)
     return NextResponse.json({ error: "Proxy request failed" }, { status: 500 })
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Range",
+    },
+  })
 }
