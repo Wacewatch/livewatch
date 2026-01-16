@@ -13,6 +13,8 @@ interface ChannelsClientProps {
   country: string
 }
 
+const DEFAULT_CHANNEL_LOGO = "https://i.imgur.com/ovX7j6R.png"
+
 function getQualityBadge(quality: string) {
   switch (quality?.toUpperCase()) {
     case "4K":
@@ -192,58 +194,58 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
 
           <div className="flex items-center gap-2 md:gap-3">
             <UserMenu />
-            <button
-              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
-                showOnlyFavorites
-                  ? "border-yellow-400/50 text-yellow-400 scale-110"
-                  : "border-border/50 text-foreground hover:border-primary/50 hover:scale-105"
-              }`}
+            <Link
+              href="/favorites"
+              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center border-border/50 text-foreground hover:border-yellow-400/50 hover:text-yellow-400 hover:scale-105`}
             >
-              <Star className="w-5 h-5 md:w-6 md:h-6" fill={showOnlyFavorites ? "currentColor" : "none"} />
+              <Star className="w-5 h-5 md:w-6 md:h-6" />
               {favoritesCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
                   {favoritesCount}
                 </span>
               )}
+            </Link>
+            <button
+              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
+                showOnlyFavorites
+                  ? "border-yellow-400/50 text-yellow-400 scale-110 bg-yellow-400/10"
+                  : "border-border/50 text-foreground hover:border-primary/50 hover:scale-105"
+              }`}
+              title={showOnlyFavorites ? "Afficher toutes les chaînes" : "Afficher uniquement les favoris"}
+            >
+              <Star className="w-5 h-5 md:w-6 md:h-6" fill={showOnlyFavorites ? "currentColor" : "none"} />
             </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10">
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
-            <div className="flex items-center gap-2">
-              <TvMinimal className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
-                {country}
-              </h2>
+        <div className="mb-6 glass-card border border-border/50 rounded-2xl p-4 md:p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                <TvMinimal className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+                  {country}
+                </h1>
+                <p className="text-muted-foreground text-sm">{filteredChannels.length} chaînes disponibles</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-6 text-muted-foreground text-sm">
-            <span className="flex items-center gap-2">
-              <TvMinimal className="w-4 h-4" />
-              {filteredChannels.length} chaînes
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              En direct
-            </span>
-          </div>
-        </div>
 
-        <div className="mb-8">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${getCategoryButtonStyle(cat, selectedCategory === cat)}`}
-              >
-                {cat === "all" ? "Toutes" : cat}
-              </button>
-            ))}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`flex-shrink-0 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-semibold transition-all duration-200 ${getCategoryButtonStyle(cat, selectedCategory === cat)}`}
+                >
+                  {cat === "all" ? "Toutes" : cat}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -265,20 +267,14 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
                   <div className="absolute inset-0 flex items-center justify-center p-4">
-                    {channel.logo ? (
-                      <Image
-                        src={channel.logo || "/placeholder.svg"}
-                        alt={channel.baseName}
-                        width={120}
-                        height={60}
-                        className="object-contain max-h-16 drop-shadow-2xl"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30 flex items-center justify-center backdrop-blur-sm border border-cyan-500/20">
-                        <div className="text-4xl font-black text-cyan-400">TV</div>
-                      </div>
-                    )}
+                    <Image
+                      src={channel.logo || DEFAULT_CHANNEL_LOGO}
+                      alt={channel.baseName}
+                      width={120}
+                      height={60}
+                      className="object-contain max-h-16 drop-shadow-2xl"
+                      unoptimized
+                    />
                   </div>
 
                   <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
@@ -305,14 +301,12 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                   </h3>
 
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Category badge */}
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${getCategoryBadge(channel.category || "")}`}
                     >
                       {channel.category || "Divers"}
                     </span>
 
-                    {/* Quality badge */}
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${getQualityBadge(channel.quality || "HD")}`}
                     >
@@ -320,7 +314,6 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                       {channel.quality || "HD"}
                     </span>
 
-                    {/* Language badge */}
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-slate-500/20 text-slate-400 border-slate-500/30">
                       <Globe className="w-2.5 h-2.5" />
                       {channel.language || "FR"}

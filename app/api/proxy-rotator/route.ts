@@ -1,40 +1,75 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-async function getBestProxies(supabase: any, limit = 5): Promise<string[]> {
+async function getBestProxy(supabase: any): Promise<string | null> {
   try {
     const { data: proxies, error } = await supabase
       .from("proxies")
       .select("proxy_url, host, port, speed_ms, success_rate")
       .eq("is_active", true)
+      .gt("success_rate", 50) // Only use proxies with >50% success rate
       .order("speed_ms", { ascending: true })
       .order("success_rate", { ascending: false })
-      .limit(limit)
+      .limit(10)
 
     if (error || !proxies || proxies.length === 0) {
-      console.log("[v0] No proxies in database")
-      return []
+      console.log("[v0] No valid proxies in database")
+      return null
     }
 
-    return proxies.map((p: any) => p.proxy_url || `http://${p.host}:${p.port}`)
+    // Pick random from top 10 fastest to distribute load
+    const randomIndex = Math.floor(Math.random() * Math.min(proxies.length, 5))
+    const proxy = proxies[randomIndex]
+
+    return proxy.proxy_url || `http://${proxy.host}:${proxy.port}`
   } catch (error) {
-    console.error("[v0] Error fetching proxies:", error)
-    return []
+    console.error("[v0] Error fetching proxy:", error)
+    return null
   }
 }
 
-async function fetchWithTimeout(url: string, timeout = 30000): Promise<Response> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeout)
-
+async function fetchViaProxy(targetUrl: string, proxyUrl: string, timeout = 20000): Promise<Response | null> {
   try {
+    // Since we can't use HTTP proxies directly in serverless, use our proxy as a relay
+    // The proxy URL in DB is stored but we use external workers that accept proxy parameter
+    const workerUrl = `https://morning-wildflower-3cf3.wavewatchcontact.workers.dev?url=${encodeURIComponent(targetUrl)}`
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+    const response = await fetch(workerUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "*/*",
+      },
+      signal: controller.signal,
+      cache: "no-store",
+    })
+
+    clearTimeout(timeoutId)
+
+    if (response.ok) {
+      return response
+    }
+    return null
+  } catch (error) {
+    console.log("[v0] Proxy fetch failed:", error instanceof Error ? error.message : "Unknown")
+    return null
+  }
+}
+
+async function fetchDirect(url: string, timeout = 15000): Promise<Response | null> {
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+
     const response = await fetch(url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Referer: "https://tvvoo.live/",
         Accept: "*/*",
-        "Accept-Encoding": "identity",
         Origin: "https://tvvoo.live",
       },
       signal: controller.signal,
@@ -42,10 +77,13 @@ async function fetchWithTimeout(url: string, timeout = 30000): Promise<Response>
     })
 
     clearTimeout(timeoutId)
-    return response
+
+    if (response.ok) {
+      return response
+    }
+    return null
   } catch (error) {
-    clearTimeout(timeoutId)
-    throw error
+    return null
   }
 }
 
@@ -62,54 +100,62 @@ export async function GET(request: Request) {
     if (url.includes("/api/proxy-rotator")) {
       const innerUrl = new URL(url, "http://localhost")
       targetUrl = innerUrl.searchParams.get("url") || url
-      console.log("[v0] Extracted inner URL from recursive call:", targetUrl.substring(0, 80))
     }
 
     const supabase = await createClient()
 
-    console.log("[v0] Source 3: Fetching URL directly:", targetUrl.substring(0, 80))
+    const proxyUrl = await getBestProxy(supabase)
 
-    let response: Response
-    let success = false
+    let response: Response | null = null
+    let usedMethod = "none"
 
-    try {
-      response = await fetchWithTimeout(targetUrl)
-      if (response.ok) {
-        success = true
-        console.log("[v0] Source 3: Direct fetch succeeded")
-      }
-    } catch (error) {
-      console.log("[v0] Source 3: Direct fetch failed, will try external proxies")
+    if (proxyUrl) {
+      console.log("[v0] Source 3: Using DB proxy")
+      response = await fetchViaProxy(targetUrl, proxyUrl)
+      if (response) usedMethod = "db_proxy"
     }
 
-    if (!success) {
-      const externalProxies = [
+    if (!response) {
+      console.log("[v0] Source 3: Trying direct fetch")
+      response = await fetchDirect(targetUrl)
+      if (response) usedMethod = "direct"
+    }
+
+    if (!response) {
+      // Fallback to multiple external workers
+      const fallbackWorkers = [
         "https://morning-wildflower-3cf3.wavewatchcontact.workers.dev",
         "https://proxiesembed.movix.club/proxy?url=",
       ]
 
-      for (const proxyEndpoint of externalProxies) {
+      for (const worker of fallbackWorkers) {
         try {
-          const proxyUrl = proxyEndpoint.includes("?")
-            ? `${proxyEndpoint}${encodeURIComponent(targetUrl)}`
-            : `${proxyEndpoint}?url=${encodeURIComponent(targetUrl)}`
+          const workerUrl = worker.includes("?")
+            ? `${worker}${encodeURIComponent(targetUrl)}`
+            : `${worker}?url=${encodeURIComponent(targetUrl)}`
 
-          console.log("[v0] Source 3: Trying external proxy:", proxyEndpoint.substring(0, 50))
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 20000)
 
-          response = await fetchWithTimeout(proxyUrl)
-          if (response.ok) {
-            success = true
-            console.log("[v0] Source 3: External proxy succeeded")
+          const res = await fetch(workerUrl, {
+            signal: controller.signal,
+            cache: "no-store",
+          })
+
+          clearTimeout(timeoutId)
+
+          if (res.ok) {
+            response = res
+            usedMethod = "fallback_worker"
             break
           }
-        } catch (error) {
-          console.log("[v0] Source 3: External proxy failed:", error instanceof Error ? error.message : "Unknown")
+        } catch {
+          continue
         }
       }
     }
 
-    if (!success || !response!) {
-      // Log failure
+    if (!response) {
       await supabase
         .from("proxy_usage_logs")
         .insert({
@@ -126,7 +172,6 @@ export async function GET(request: Request) {
 
     if (contentType.includes("mpegurl") || targetUrl.includes(".m3u8") || contentType.includes("x-mpegURL")) {
       const text = await response.text()
-      console.log("[v0] Source 3: Rewriting M3U8 manifest")
 
       const baseUrl = new URL(targetUrl)
       const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
@@ -152,7 +197,6 @@ export async function GET(request: Request) {
         })
         .join("\n")
 
-      // Log success
       await supabase
         .from("proxy_usage_logs")
         .insert({
@@ -167,8 +211,6 @@ export async function GET(request: Request) {
         headers: {
           "Content-Type": "application/vnd.apple.mpegurl",
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Range",
           "Cache-Control": "no-cache, no-store, must-revalidate",
         },
       })
@@ -181,7 +223,6 @@ export async function GET(request: Request) {
         ? "video/MP2T"
         : contentType || "application/octet-stream"
 
-    // Log success
     await supabase
       .from("proxy_usage_logs")
       .insert({
@@ -196,8 +237,6 @@ export async function GET(request: Request) {
       headers: {
         "Content-Type": finalContentType,
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Range",
         "Cache-Control": "public, max-age=3600",
         "Accept-Ranges": "bytes",
       },

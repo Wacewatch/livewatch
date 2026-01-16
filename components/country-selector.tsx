@@ -1,10 +1,12 @@
 "use client"
 
-import { Globe } from "lucide-react"
+import { Globe, Star } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { UserMenu } from "@/components/user-menu"
+import { useUserRole } from "@/lib/hooks/use-user-role"
+import { useFavorites } from "@/lib/hooks/use-favorites"
 
 const ALL_COUNTRIES = [
   { name: "France", code: "fr" },
@@ -34,6 +36,8 @@ interface CountryStatus {
 export function CountrySelector() {
   const [countryStatuses, setCountryStatuses] = useState<CountryStatus[]>([])
   const [loading, setLoading] = useState(true)
+  const { isAdmin } = useUserRole()
+  const { count: favoritesCount } = useFavorites()
 
   useEffect(() => {
     const fetchCountries = async () => {
@@ -44,7 +48,6 @@ export function CountrySelector() {
           if (data.countryStatuses) {
             setCountryStatuses(data.countryStatuses)
           } else {
-            // Fallback: all enabled
             setCountryStatuses(ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })))
           }
         } else {
@@ -77,7 +80,20 @@ export function CountrySelector() {
             </Link>
           </div>
 
-          <UserMenu />
+          <div className="flex items-center gap-2 md:gap-3">
+            <Link
+              href="/favorites"
+              className="relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border border-border/50 hover:border-yellow-400/50 hover:scale-105 transition-all duration-300 flex items-center justify-center text-foreground hover:text-yellow-400"
+            >
+              <Star className="w-5 h-5 md:w-6 md:h-6" />
+              {favoritesCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
+                  {favoritesCount}
+                </span>
+              )}
+            </Link>
+            <UserMenu />
+          </div>
         </div>
       </header>
 
@@ -101,7 +117,7 @@ export function CountrySelector() {
             {ALL_COUNTRIES.map((country) => {
               const isEnabled = getCountryStatus(country.name)
 
-              if (!isEnabled) {
+              if (!isEnabled && !isAdmin) {
                 return (
                   <div
                     key={country.code}
@@ -128,8 +144,17 @@ export function CountrySelector() {
                 <Link
                   key={country.code}
                   href={`/channels/${encodeURIComponent(country.name)}`}
-                  className="group glass-card border border-border/50 rounded-2xl p-6 md:p-8 hover:border-primary/50 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
+                  className={`group glass-card border rounded-2xl p-6 md:p-8 hover:scale-105 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center gap-4 relative ${
+                    !isEnabled
+                      ? "border-orange-500/50 opacity-75"
+                      : "border-border/50 hover:border-primary/50 hover:shadow-primary/20"
+                  }`}
                 >
+                  {!isEnabled && (
+                    <div className="absolute top-2 right-2 bg-orange-500/80 text-white text-xs px-2 py-1 rounded-full">
+                      Maintenance
+                    </div>
+                  )}
                   <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg group-hover:scale-110 transition-transform duration-300">
                     <Image
                       src={`https://flagcdn.com/w160/${country.code}.png`}
