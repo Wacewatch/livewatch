@@ -9,8 +9,6 @@ import {
   UserCircle,
   Activity,
   TrendingUp,
-  Edit,
-  Merge,
   Key,
   Copy,
   Home,
@@ -27,7 +25,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 
 interface Stats {
   totalUsers: number
@@ -716,7 +713,7 @@ export function AdminDashboard() {
       {/* REMOVED "Synchronisation du Catalogue" section */}
 
       {/* Stats Cards */}
-      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3">
         <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -826,7 +823,6 @@ export function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {/* Changed to display all 17 countries */}
           {countries.map((country) => (
             <div
               key={country.id}
@@ -1021,80 +1017,6 @@ export function AdminDashboard() {
           </div>
         </Card>
       </div>
-
-      {/* Channel Management - Full Width */}
-      <Card className="p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-          <h2 className="text-lg md:text-xl font-bold">Gestion des Chaînes</h2>
-          <div className="flex gap-2 flex-wrap">
-            <Button onClick={() => openCreateDialog("create")} size="sm" className="bg-green-500 hover:bg-green-600">
-              Créer une chaîne
-            </Button>
-            {isMergeMode ? (
-              <>
-                <Button
-                  onClick={() => openCreateDialog("merge")}
-                  size="sm"
-                  variant="outline"
-                  disabled={selectedChannels.length < 2}
-                >
-                  <Merge className="mr-2 h-4 w-4" />
-                  Fusionner ({selectedChannels.length})
-                </Button>
-                <Button onClick={() => setIsMergeMode(false)} size="sm" variant="ghost">
-                  Annuler
-                </Button>
-              </>
-            ) : (
-              <Button onClick={() => setIsMergeMode(true)} size="sm" variant="outline">
-                Mode Fusion
-              </Button>
-            )}
-            <Button onClick={syncCatalogNow} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
-              Synchroniser
-            </Button>
-          </div>
-        </div>
-
-        <Input
-          placeholder="Rechercher une chaîne..."
-          value={channelSearch}
-          onChange={(e) => setChannelSearch(e.target.value)}
-          className="mb-4"
-        />
-
-        <div className="max-h-[600px] overflow-y-auto space-y-2">
-          {filteredChannels.map((channel) => (
-            <div
-              key={channel.id}
-              className={`flex items-center justify-between p-3 rounded-lg border ${
-                selectedChannels.includes(channel.id) ? "bg-purple-500/20 border-purple-500" : "bg-card"
-              }`}
-            >
-              <div className="flex items-center gap-3 flex-1">
-                {isMergeMode && (
-                  <Checkbox
-                    checked={selectedChannels.includes(channel.id)}
-                    onCheckedChange={() => toggleChannelSelection(channel.id)}
-                  />
-                )}
-                <TvMinimal className="h-5 w-5 text-cyan-500" />
-                <div className="flex-1">
-                  <div className="font-medium">{channel.name}</div>
-                  <div className="text-xs text-muted-foreground">ID: {channel.id}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button onClick={() => openEditDialog(channel)} size="sm" variant="ghost">
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Switch checked={channel.enabled} onCheckedChange={(checked) => toggleChannel(channel.id, checked)} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       {/* Dialog: Create/Merge Channel */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
