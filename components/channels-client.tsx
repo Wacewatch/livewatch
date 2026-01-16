@@ -194,27 +194,21 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
 
           <div className="flex items-center gap-2 md:gap-3">
             <UserMenu />
-            <Link
-              href="/favorites"
-              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center border-border/50 text-foreground hover:border-yellow-400/50 hover:text-yellow-400 hover:scale-105`}
-            >
-              <Star className="w-5 h-5 md:w-6 md:h-6" />
-              {favoritesCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
-                  {favoritesCount}
-                </span>
-              )}
-            </Link>
             <button
               onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
               className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
                 showOnlyFavorites
                   ? "border-yellow-400/50 text-yellow-400 scale-110 bg-yellow-400/10"
-                  : "border-border/50 text-foreground hover:border-primary/50 hover:scale-105"
+                  : "border-border/50 text-foreground hover:border-yellow-400/50 hover:text-yellow-400 hover:scale-105"
               }`}
               title={showOnlyFavorites ? "Afficher toutes les chaînes" : "Afficher uniquement les favoris"}
             >
               <Star className="w-5 h-5 md:w-6 md:h-6" fill={showOnlyFavorites ? "currentColor" : "none"} />
+              {favoritesCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
+                  {favoritesCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
