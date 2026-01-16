@@ -27,18 +27,27 @@ export async function GET() {
 
     // Try to get real stats if available (Node.js runtime)
     if (typeof process !== "undefined") {
-      if (typeof process.memoryUsage === "function") {
-        const mem = process.memoryUsage()
-        memoryUsed = mem.heapUsed
-        memoryTotal = mem.heapTotal
-      }
-      if (typeof process.uptime === "function") {
-        uptimeSeconds = process.uptime()
-      }
-      if (typeof process.cpuUsage === "function") {
-        const cpu = process.cpuUsage()
-        cpuPercent = uptimeSeconds > 0 ? Math.min(((cpu.user + cpu.system) / 1000000 / uptimeSeconds) * 100, 100) : 0
-      }
+      try {
+        if (process.memoryUsage && typeof process.memoryUsage === "function") {
+          const mem = process.memoryUsage()
+          memoryUsed = mem.heapUsed
+          memoryTotal = mem.heapTotal
+        }
+      } catch {}
+
+      try {
+        if (process.uptime && typeof process.uptime === "function") {
+          uptimeSeconds = process.uptime()
+        }
+      } catch {}
+
+      try {
+        if (process.cpuUsage && typeof process.cpuUsage === "function") {
+          const cpu = process.cpuUsage()
+          cpuPercent = uptimeSeconds > 0 ? Math.min(((cpu.user + cpu.system) / 1000000 / uptimeSeconds) * 100, 100) : 0
+        }
+      } catch {}
+
       if (process.platform) {
         platform = process.platform
       }
@@ -47,7 +56,7 @@ export async function GET() {
       }
     }
 
-    // If memory stats not available, estimate based on active connections
+    // Get active connections from database
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     const { count: activeConnections } = await supabase
       .from("active_sessions")
@@ -61,8 +70,8 @@ export async function GET() {
 
     // Estimate memory if not available from process
     if (memoryTotal === 0) {
-      memoryTotal = 512 * 1024 * 1024 // 512 MB assumed
-      memoryUsed = Math.min((activeConnections || 1) * 10 * 1024 * 1024 + 50 * 1024 * 1024, memoryTotal * 0.9)
+      memoryTotal = 256 * 1024 * 1024 // 256 MB assumed for Vercel
+      memoryUsed = Math.min((activeConnections || 1) * 5 * 1024 * 1024 + 30 * 1024 * 1024, memoryTotal * 0.9)
     }
 
     const estimatedBandwidthMBps = (activeConnections || 0) * 2.5
@@ -70,25 +79,29 @@ export async function GET() {
 
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
-    // Count Source 1 usage (default proxy)
-    const { count: source1Count } = await supabase
+    // Source 1 - count from channel_views (default proxy)
+    const { count: viewCount } = await supabase
       .from("channel_views")
       .select("id", { count: "exact", head: true })
       .gte("viewed_at", fiveMinutesAgo)
 
-    // Count Source 2 usage (stream-alt)
+    // Source 2 - count logs without source field or source='source2'
     const { count: source2Count } = await supabase
       .from("proxy_usage_logs")
       .select("id", { count: "exact", head: true })
       .gte("used_at", fiveMinutesAgo)
-      .is("proxy_id", null)
+      .or("source.is.null,source.eq.source2")
 
-    // Count Source 3 usage (proxy-rotator)
+    // Source 3 - count logs with source='source3'
     const { count: source3Count } = await supabase
       .from("proxy_usage_logs")
       .select("id", { count: "exact", head: true })
       .gte("used_at", fiveMinutesAgo)
-      .not("proxy_id", "is", null)
+      .eq("source", "source3")
+
+    // Calculate Source 1 as views minus other sources
+    const source1Count = Math.max(0, (viewCount || 0) - (source2Count || 0) - (source3Count || 0))
+    const totalRequests = (viewCount || 0) + (source2Count || 0) + (source3Count || 0)
 
     const memoryUsedMB = memoryUsed / 1024 / 1024
     const memoryTotalMB = memoryTotal / 1024 / 1024
@@ -111,9 +124,10 @@ export async function GET() {
         activeConnections: activeConnections || 0,
         requestsPerMinute,
         bandwidthEstimate: estimatedBandwidthGBph > 0 ? `~${estimatedBandwidthGBph.toFixed(2)} GB/h` : "0.00 GB/h",
-        source1: source1Count || 0,
+        source1: source1Count,
         source2: source2Count || 0,
         source3: source3Count || 0,
+        total: totalRequests,
       },
       system: {
         platform,

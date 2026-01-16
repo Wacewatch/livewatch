@@ -99,6 +99,7 @@ interface ServerStats {
     source1?: number // Added for the update
     source2?: number // Added for the update
     source3?: number // Added for the update
+    total?: number // Added for the update
   }
   system: {
     uptime: string
@@ -211,7 +212,14 @@ export function AdminDashboard() {
   const [proxyListLimit, setProxyListLimit] = useState(10)
   const [proxySort, setProxySort] = useState<"speed" | "success" | "country">("speed")
 
+  const [pageLoading, setPageLoading] = useState(true)
+  const [dataLoading, setDataLoading] = useState(true)
+
   useEffect(() => {
+    // Show page immediately
+    setPageLoading(false)
+
+    // Then fetch data
     fetchDashboardData()
     fetchServerStats()
     fetchSyncStatus()
@@ -225,11 +233,11 @@ export function AdminDashboard() {
   }, [])
 
   const fetchDashboardData = async () => {
+    setDataLoading(true) // Set data loading to true when fetching starts
     try {
-      const [statsRes, usersRes, channelsRes, keysRes, countriesRes, proxyRes] = await Promise.all([
+      const [statsRes, usersRes, keysRes, countriesRes, proxyRes] = await Promise.all([
         fetch("/api/admin/stats"),
         fetch("/api/admin/users"),
-        fetch("/api/admin/channels"),
         fetch("/api/admin/vip-keys"),
         fetch("/api/admin/countries"),
         fetch("/api/admin/proxy-pool"),
@@ -243,11 +251,6 @@ export function AdminDashboard() {
       if (usersRes.ok) {
         const usersData = await usersRes.json()
         setUsers(usersData.users || [])
-      }
-
-      if (channelsRes.ok) {
-        const channelsData = await channelsRes.json()
-        setChannels(channelsData.channels || [])
       }
 
       if (keysRes.ok) {
@@ -272,7 +275,7 @@ export function AdminDashboard() {
     } catch (error) {
       console.error("[v0] Failed to fetch dashboard data:", error)
     } finally {
-      setLoading(false)
+      setDataLoading(false) // Set data loading to false when fetching ends
     }
   }
 
@@ -627,13 +630,12 @@ export function AdminDashboard() {
     return 0
   })
 
-  if (loading) {
+  if (pageLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
           <Loader2 className="mx-auto h-12 w-12 animate-spin text-cyan-500" />
-          <p className="mt-4 text-muted-foreground">Chargement du tableau de bord...</p>
-          <p className="mt-2 text-xs text-muted-foreground">Récupération des données...</p>
+          <p className="mt-4 text-muted-foreground">Chargement...</p>
         </div>
       </div>
     )
@@ -655,14 +657,15 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* Server Monitoring */}
-      {serverStats && (
-        <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-l-4 border-l-blue-500 p-4">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-blue-500" />
-              CPU App
-            </h3>
+      {/* Server Monitoring - show loading indicator if data not ready */}
+      <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        {/* CPU Card */}
+        <Card className="border-l-4 border-l-blue-500 p-4">
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-blue-500" />
+            CPU App
+          </h3>
+          {serverStats ? (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Usage:</span>
@@ -673,13 +676,21 @@ export function AdminDashboard() {
               </div>
               <div className="text-xs text-muted-foreground">{serverStats.cpu.model}</div>
             </div>
-          </Card>
+          ) : (
+            <div className="animate-pulse space-y-2">
+              <div className="h-4 bg-muted rounded w-1/2"></div>
+              <div className="h-2 bg-muted rounded"></div>
+            </div>
+          )}
+        </Card>
 
-          <Card className="border-l-4 border-l-purple-500 p-4">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-purple-500" />
-              RAM App
-            </h3>
+        {/* RAM Card */}
+        <Card className="border-l-4 border-l-purple-500 p-4">
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-purple-500" />
+            RAM App
+          </h3>
+          {serverStats ? (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Usage:</span>
@@ -695,80 +706,98 @@ export function AdminDashboard() {
                 {serverStats.memory.used} / {serverStats.memory.total}
               </div>
             </div>
-          </Card>
+          ) : (
+            <div className="animate-pulse space-y-2">
+              <div className="h-4 bg-muted rounded w-1/2"></div>
+              <div className="h-2 bg-muted rounded"></div>
+            </div>
+          )}
+        </Card>
 
-          {serverStats.network && (
-            <Card className="border-l-4 border-l-cyan-500 p-4">
-              <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-cyan-500" />
-                Réseau
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="text-xs font-medium text-muted-foreground mb-2">Par Source:</div>
-                <div className="grid grid-cols-3 gap-1 text-xs">
-                  <div className="p-1 rounded bg-cyan-500/10 text-center">
-                    <div className="font-bold text-cyan-400">S1</div>
-                    <div>{serverStats.network.source1 || 0}</div>
-                  </div>
-                  <div className="p-1 rounded bg-green-500/10 text-center">
-                    <div className="font-bold text-green-400">S2</div>
-                    <div>{serverStats.network.source2 || 0}</div>
-                  </div>
-                  <div className="p-1 rounded bg-purple-500/10 text-center">
-                    <div className="font-bold text-purple-400">S3</div>
-                    <div>{serverStats.network.source3 || 0}</div>
-                  </div>
+        <Card className="border-l-4 border-l-green-500 p-4">
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-green-500" />
+            Réseau
+          </h3>
+          {serverStats?.network ? (
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground mb-2">Par Source:</div>
+              <div className="grid grid-cols-3 gap-1 text-center">
+                <div className="bg-cyan-500/20 rounded p-1">
+                  <div className="text-xs text-cyan-400">S1</div>
+                  <div className="font-bold text-sm">{serverStats.network.source1 || 0}</div>
                 </div>
-                <div className="flex justify-between mt-2">
-                  <span className="text-muted-foreground">Total:</span>
-                  <span className="font-medium">{serverStats.network.activeConnections}</span>
+                <div className="bg-orange-500/20 rounded p-1">
+                  <div className="text-xs text-orange-400">S2</div>
+                  <div className="font-bold text-sm">{serverStats.network.source2 || 0}</div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Req/min:</span>
-                  <span className="font-medium">{serverStats.network.requestsPerMinute}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Bande:</span>
-                  <span className="font-medium text-xs">{serverStats.network.bandwidthEstimate}</span>
+                <div className="bg-purple-500/20 rounded p-1">
+                  <div className="text-xs text-purple-400">S3</div>
+                  <div className="font-bold text-sm">{serverStats.network.source3 || 0}</div>
                 </div>
               </div>
-            </Card>
+              <div className="flex justify-between text-xs mt-2">
+                <span className="text-muted-foreground">Total:</span>
+                <span>{serverStats.network.total || serverStats.network.activeConnections}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Req/min:</span>
+                <span>{serverStats.network.requestsPerMinute}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Bande:</span>
+                <span>{serverStats.network.bandwidthEstimate}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="animate-pulse space-y-2">
+              <div className="h-4 bg-muted rounded w-1/2"></div>
+              <div className="h-4 bg-muted rounded w-3/4"></div>
+            </div>
           )}
+        </Card>
 
-          <Card className="border-l-4 border-l-green-500 p-4">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-500" />
-              Système
-            </h3>
+        {/* System Card */}
+        <Card className="border-l-4 border-l-orange-500 p-4">
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-orange-500" />
+            Système
+          </h3>
+          {serverStats ? (
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Uptime:</span>
-                <span className="font-medium">{serverStats.system.uptime}</span>
+                <span className="font-bold">{serverStats.system.uptime}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Platform:</span>
-                <span className="font-medium">{serverStats.system.platform}</span>
+                <span>{serverStats.system.platform}</span>
               </div>
-              {serverStats.system.nodeVersion && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Node:</span>
-                  <span className="font-medium text-xs">{serverStats.system.nodeVersion}</span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Node:</span>
+                <span>{serverStats.system.nodeVersion || "v20.x"}</span>
+              </div>
             </div>
-          </Card>
-        </div>
-      )}
+          ) : (
+            <div className="animate-pulse space-y-2">
+              <div className="h-4 bg-muted rounded w-1/2"></div>
+              <div className="h-4 bg-muted rounded w-3/4"></div>
+            </div>
+          )}
+        </Card>
+      </div>
 
       {/* REMOVED "Synchronisation du Catalogue" section */}
 
-      {/* Stats Cards */}
-      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Stats Cards - show loading indicators */}
+      <div className="mb-6 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
         <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Utilisateurs</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.totalUsers || 0}</p>
+              <p className="text-xl md:text-2xl font-bold">
+                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.totalUsers || 0}
+              </p>
             </div>
             <Users className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
           </div>
@@ -778,7 +807,9 @@ export function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Chaînes</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.totalChannels || 0}</p>
+              <p className="text-xl md:text-2xl font-bold">
+                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.totalChannels || 0}
+              </p>
               <p className="text-[10px] text-muted-foreground">Tous pays confondus</p>
             </div>
             <TvMinimal className="h-6 w-6 md:h-8 md:w-8 text-cyan-500" />
@@ -789,7 +820,9 @@ export function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">VIP</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.vipUsers || 0}</p>
+              <p className="text-xl md:text-2xl font-bold">
+                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.vipUsers || 0}
+              </p>
             </div>
             <Crown className="h-6 w-6 md:h-8 md:w-8 text-orange-500" />
           </div>
@@ -799,7 +832,9 @@ export function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Admins</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.adminUsers || 0}</p>
+              <p className="text-xl md:text-2xl font-bold">
+                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.adminUsers || 0}
+              </p>
             </div>
             <Shield className="h-6 w-6 md:h-8 md:w-8 text-red-500" />
           </div>
