@@ -18,12 +18,36 @@ export async function GET() {
   }
 
   try {
-    const processMemory = process.memoryUsage()
-    const processUptime = process.uptime()
+    let memoryUsed = 0
+    let memoryTotal = 0
+    let cpuPercent = 0
+    let uptimeSeconds = 0
+    let platform = "vercel"
+    let nodeVersion = "v20.x"
 
-    const cpuUsage = process.cpuUsage()
-    const cpuPercent = ((cpuUsage.user + cpuUsage.system) / 1000000 / processUptime / 1000) * 100
+    // Try to get real stats if available (Node.js runtime)
+    if (typeof process !== "undefined") {
+      if (typeof process.memoryUsage === "function") {
+        const mem = process.memoryUsage()
+        memoryUsed = mem.heapUsed
+        memoryTotal = mem.heapTotal
+      }
+      if (typeof process.uptime === "function") {
+        uptimeSeconds = process.uptime()
+      }
+      if (typeof process.cpuUsage === "function") {
+        const cpu = process.cpuUsage()
+        cpuPercent = uptimeSeconds > 0 ? Math.min(((cpu.user + cpu.system) / 1000000 / uptimeSeconds) * 100, 100) : 0
+      }
+      if (process.platform) {
+        platform = process.platform
+      }
+      if (process.version) {
+        nodeVersion = process.version
+      }
+    }
 
+    // If memory stats not available, estimate based on active connections
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     const { count: activeConnections } = await supabase
       .from("active_sessions")
@@ -35,18 +59,22 @@ export async function GET() {
 
     const requestsPerMinute = recentViews?.length || 0
 
+    // Estimate memory if not available from process
+    if (memoryTotal === 0) {
+      memoryTotal = 512 * 1024 * 1024 // 512 MB assumed
+      memoryUsed = Math.min((activeConnections || 1) * 10 * 1024 * 1024 + 50 * 1024 * 1024, memoryTotal * 0.9)
+    }
+
     const estimatedBandwidthMBps = (activeConnections || 0) * 2.5
     const estimatedBandwidthGBph = (estimatedBandwidthMBps * 60 * 60) / 1024
 
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
-    // Count Source 1 usage (proxy requests)
+    // Count Source 1 usage (default proxy)
     const { count: source1Count } = await supabase
       .from("channel_views")
       .select("id", { count: "exact", head: true })
       .gte("viewed_at", fiveMinutesAgo)
-      .not("channel_id", "ilike", "%source2%")
-      .not("channel_id", "ilike", "%source3%")
 
     // Count Source 2 usage (stream-alt)
     const { count: source2Count } = await supabase
@@ -62,17 +90,22 @@ export async function GET() {
       .gte("used_at", fiveMinutesAgo)
       .not("proxy_id", "is", null)
 
+    const memoryUsedMB = memoryUsed / 1024 / 1024
+    const memoryTotalMB = memoryTotal / 1024 / 1024
+    const memoryFreeMB = memoryTotalMB - memoryUsedMB
+    const memoryPercent = memoryTotal > 0 ? (memoryUsed / memoryTotal) * 100 : 0
+
     return NextResponse.json({
       cpu: {
         model: "Next.js App Process",
         cores: 1,
-        usage: Math.min(Number(cpuPercent.toFixed(2)), 100),
+        usage: Number(cpuPercent.toFixed(2)),
       },
       memory: {
-        total: (processMemory.heapTotal / 1024 / 1024).toFixed(2) + " MB",
-        used: (processMemory.heapUsed / 1024 / 1024).toFixed(2) + " MB",
-        free: ((processMemory.heapTotal - processMemory.heapUsed) / 1024 / 1024).toFixed(2) + " MB",
-        usagePercent: ((processMemory.heapUsed / processMemory.heapTotal) * 100).toFixed(2),
+        total: memoryTotalMB.toFixed(2) + " MB",
+        used: memoryUsedMB.toFixed(2) + " MB",
+        free: memoryFreeMB.toFixed(2) + " MB",
+        usagePercent: memoryPercent.toFixed(2),
       },
       network: {
         activeConnections: activeConnections || 0,
@@ -83,10 +116,10 @@ export async function GET() {
         source3: source3Count || 0,
       },
       system: {
-        platform: process.platform,
-        uptime: Math.floor(processUptime / 3600) + "h " + Math.floor((processUptime % 3600) / 60) + "m",
-        uptimeSeconds: processUptime,
-        nodeVersion: process.version,
+        platform,
+        uptime: Math.floor(uptimeSeconds / 3600) + "h " + Math.floor((uptimeSeconds % 3600) / 60) + "m",
+        uptimeSeconds,
+        nodeVersion,
       },
     })
   } catch (error) {
