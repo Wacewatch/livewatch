@@ -23,30 +23,29 @@ export async function GET() {
 
     if (error) throw error
 
+    const countryCodeMap: Record<string, string> = {
+      France: "fr",
+      Italy: "it",
+      Spain: "es",
+      Portugal: "pt",
+      Germany: "de",
+      "United Kingdom": "gb",
+      Belgium: "be",
+      Netherlands: "nl",
+      Switzerland: "ch",
+      Albania: "al",
+      Turkey: "tr",
+      Arabia: "sa",
+      Balkans: "rs",
+      Russia: "ru",
+      Romania: "ro",
+      Poland: "pl",
+      Bulgaria: "bg",
+    }
+
     const countriesWithCount = await Promise.all(
       (countries || []).map(async (country) => {
         try {
-          // Map country name to TvVoo country code
-          const countryCodeMap: Record<string, string> = {
-            France: "fr",
-            Italy: "it",
-            Spain: "es",
-            Portugal: "pt",
-            Germany: "de",
-            "United Kingdom": "gb",
-            Belgium: "be",
-            Netherlands: "nl",
-            Switzerland: "ch",
-            Albania: "al",
-            Turkey: "tr",
-            Arabia: "sa",
-            Balkans: "rs",
-            Russia: "ru",
-            Romania: "ro",
-            Poland: "pl",
-            Bulgaria: "bg",
-          }
-
           const countryCode = countryCodeMap[country.name] || country.id.toLowerCase()
           const response = await fetch(`https://tvvoo.io/api/channels/${countryCode}`)
           const data = await response.json()

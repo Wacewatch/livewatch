@@ -147,7 +147,7 @@ export async function POST(request: Request) {
           let added = 0
           let skipped = 0
 
-          for (const line of proxyLines.slice(0, 200)) {
+          for (const line of proxyLines) {
             const parts = line.split(":")
             if (parts.length >= 2) {
               const host = parts[0].trim()

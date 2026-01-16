@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import {
   Users,
   LaptopMinimal as TvMinimal,
-  Star,
   Shield,
   Crown,
   UserCircle,
@@ -717,7 +716,7 @@ export function AdminDashboard() {
       {/* REMOVED "Synchronisation du Catalogue" section */}
 
       {/* Stats Cards */}
-      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
         <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -758,16 +757,7 @@ export function AdminDashboard() {
             <Shield className="h-6 w-6 md:h-8 md:w-8 text-red-500" />
           </div>
         </Card>
-
-        <Card className="border-l-4 border-l-yellow-500 bg-gradient-to-br from-yellow-500/10 to-transparent p-3 md:p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">Favoris</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.totalFavorites || 0}</p>
-            </div>
-            <Star className="h-6 w-6 md:h-8 md:w-8 text-yellow-500" />
-          </div>
-        </Card>
+        {/* Removed Favoris card */}
       </div>
 
       {/* Online Stats and Live Viewers */}
@@ -836,6 +826,7 @@ export function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {/* Changed to display all 17 countries */}
           {countries.map((country) => (
             <div
               key={country.id}
@@ -921,6 +912,31 @@ export function AdminDashboard() {
             <Trash2 className="h-4 w-4 mr-2" />
             Supprimer inactifs
           </Button>
+          {/* Added proxy list table */}
+          <div className="mt-4 overflow-x-auto w-full">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-2">Proxy</th>
+                  <th className="text-left p-2">Pays</th>
+                  <th className="text-left p-2">Vitesse</th>
+                  <th className="text-left p-2">Taux de succès</th>
+                  <th className="text-left p-2">Actif</th>
+                </tr>
+              </thead>
+              <tbody>
+                {proxies.slice(0, 50).map((proxy) => (
+                  <tr key={proxy.id} className="border-b">
+                    <td className="p-2 font-mono text-xs">{proxy.proxy_url}</td>
+                    <td className="p-2">?</td> {/* Placeholder for country */}
+                    <td className="p-2">{proxy.speed_ms}ms</td>
+                    <td className="p-2">{proxy.success_rate}%</td>
+                    <td className="p-2">{proxy.is_active ? "✓" : "✗"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </Card>
 
