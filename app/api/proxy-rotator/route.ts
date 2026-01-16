@@ -1,17 +1,59 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-const PROXY_ENDPOINTS = [
+async function getBestProxy(supabase: any): Promise<string | null> {
+  try {
+    // Get the fastest active proxy from the database
+    const { data: proxies, error } = await supabase
+      .from("proxies")
+      .select("proxy_url, host, port, speed_ms, success_rate")
+      .eq("is_active", true)
+      .order("speed_ms", { ascending: true })
+      .order("success_rate", { ascending: false })
+      .limit(10)
+
+    if (error || !proxies || proxies.length === 0) {
+      console.log("[v0] No proxies in database, using fallback")
+      return null
+    }
+
+    // Return a random proxy from the top 5 fastest
+    const topProxies = proxies.slice(0, 5)
+    const selectedProxy = topProxies[Math.floor(Math.random() * topProxies.length)]
+
+    console.log(
+      `[v0] Selected proxy: ${selectedProxy.host}:${selectedProxy.port} (${selectedProxy.speed_ms}ms, ${selectedProxy.success_rate}% success)`,
+    )
+
+    return selectedProxy.proxy_url || `http://${selectedProxy.host}:${selectedProxy.port}`
+  } catch (error) {
+    console.error("[v0] Error fetching proxies:", error)
+    return null
+  }
+}
+
+// Fallback proxy endpoints when no proxies in DB
+const FALLBACK_PROXIES = [
   "https://morning-wildflower-3cf3.wavewatchcontact.workers.dev",
   "https://proxiesembed.movix.club/proxy?url=",
   "https://fgqmaalhy7acgwwhm.ngoldpklyoc.workers.dev/?url=",
 ]
 
-async function tryFetchWithProxy(url: string, proxyEndpoint: string, timeout = 15000): Promise<Response> {
+async function tryFetchWithProxy(url: string, proxyEndpoint: string, timeout = 20000): Promise<Response> {
   const isMovixProxy = proxyEndpoint.includes("movix.club")
-  const proxyUrl = isMovixProxy
-    ? `${proxyEndpoint}${encodeURIComponent(url)}`
-    : `${proxyEndpoint}?url=${encodeURIComponent(url)}`
+  const isWorker = proxyEndpoint.includes("workers.dev")
+
+  let proxyUrl: string
+  if (isMovixProxy) {
+    proxyUrl = `${proxyEndpoint}${encodeURIComponent(url)}`
+  } else if (isWorker) {
+    proxyUrl = proxyEndpoint.includes("?")
+      ? `${proxyEndpoint}${encodeURIComponent(url)}`
+      : `${proxyEndpoint}?url=${encodeURIComponent(url)}`
+  } else {
+    // HTTP proxy - use direct fetch through proxy
+    proxyUrl = url // For HTTP proxies, we'd need a different approach
+  }
 
   const response = await fetch(proxyUrl, {
     headers: {
@@ -44,29 +86,56 @@ export async function GET(request: Request) {
 
     const supabase = await createClient()
 
+    const dbProxy = await getBestProxy(supabase)
+
+    // Build list of proxies to try: DB proxy first, then fallbacks
+    const proxiesToTry: string[] = []
+    if (dbProxy) {
+      proxiesToTry.push(dbProxy)
+    }
+    proxiesToTry.push(...FALLBACK_PROXIES)
+
     let lastError: Error | null = null
     let successfulResponse: Response | null = null
     let usedProxyIndex = retryIndex
 
-    // Start from retryIndex and try up to 3 proxies
-    for (let i = 0; i < 3; i++) {
-      const proxyIndex = (retryIndex + i) % PROXY_ENDPOINTS.length
-      const proxyEndpoint = PROXY_ENDPOINTS[proxyIndex]
+    const maxAttempts = Math.min(5, proxiesToTry.length)
+    for (let i = 0; i < maxAttempts; i++) {
+      const proxyIndex = (retryIndex + i) % proxiesToTry.length
+      const proxyEndpoint = proxiesToTry[proxyIndex]
 
       try {
-        console.log(
-          `[v0] Source 3: Trying proxy ${proxyIndex + 1}/${PROXY_ENDPOINTS.length}: ${proxyEndpoint.substring(0, 50)}...`,
-        )
+        console.log(`[v0] Source 3: Trying proxy ${i + 1}/${maxAttempts}: ${proxyEndpoint.substring(0, 60)}...`)
         successfulResponse = await tryFetchWithProxy(url, proxyEndpoint)
         usedProxyIndex = proxyIndex
-        console.log(`[v0] Source 3: Proxy ${proxyIndex + 1} succeeded`)
+        console.log(`[v0] Source 3: Proxy ${i + 1} succeeded`)
+
+        // Update proxy success in DB if it was a DB proxy
+        if (i === 0 && dbProxy) {
+          await supabase
+            .from("proxies")
+            .update({
+              times_used: supabase.rpc ? undefined : 1,
+              last_used: new Date().toISOString(),
+              success_rate: supabase.rpc ? undefined : 100,
+            })
+            .eq("proxy_url", dbProxy)
+            .catch(() => {})
+        }
+
         break
       } catch (error) {
-        console.log(
-          `[v0] Source 3: Proxy ${proxyIndex + 1} failed:`,
-          error instanceof Error ? error.message : "Unknown",
-        )
+        console.log(`[v0] Source 3: Proxy ${i + 1} failed:`, error instanceof Error ? error.message : "Unknown")
         lastError = error instanceof Error ? error : new Error("Unknown error")
+
+        // Mark proxy as potentially bad in DB
+        if (i === 0 && dbProxy) {
+          await supabase
+            .from("proxies")
+            .update({ is_active: false })
+            .eq("proxy_url", dbProxy)
+            .catch(() => {})
+        }
       }
     }
 
@@ -86,7 +155,7 @@ export async function GET(request: Request) {
 
     const contentType = successfulResponse.headers.get("content-type") || ""
 
-    // Handle M3U8 manifests - rewrite URLs to use proxy-rotator with next proxy index
+    // Handle M3U8 manifests
     if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
       const text = await successfulResponse.text()
 

@@ -28,15 +28,29 @@ export async function GET() {
     // Get disabled countries from database
     const { data: dbCountries } = await supabase.from("countries").select("name, enabled")
 
-    const disabledCountries = new Set((dbCountries || []).filter((c) => c.enabled === false).map((c) => c.name))
+    const countryStatusMap = new Map<string, boolean>()
+    ;(dbCountries || []).forEach((c) => {
+      countryStatusMap.set(c.name, c.enabled !== false)
+    })
 
-    // Return only enabled countries
-    const enabledCountries = ALL_COUNTRIES.filter((c) => !disabledCountries.has(c.name)).map((c) => c.name)
+    const countryStatuses = ALL_COUNTRIES.map((c) => ({
+      name: c.name,
+      enabled: countryStatusMap.has(c.name) ? countryStatusMap.get(c.name) : true,
+    }))
 
-    return NextResponse.json({ countries: enabledCountries })
+    // Also return just enabled countries for backward compatibility
+    const enabledCountries = countryStatuses.filter((c) => c.enabled).map((c) => c.name)
+
+    return NextResponse.json({
+      countries: enabledCountries,
+      countryStatuses: countryStatuses,
+    })
   } catch (error) {
     console.error("[v0] Failed to fetch enabled countries:", error)
     // Return all countries on error
-    return NextResponse.json({ countries: ALL_COUNTRIES.map((c) => c.name) })
+    return NextResponse.json({
+      countries: ALL_COUNTRIES.map((c) => c.name),
+      countryStatuses: ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })),
+    })
   }
 }

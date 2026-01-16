@@ -26,8 +26,13 @@ const ALL_COUNTRIES = [
   { name: "Bulgaria", code: "bg" },
 ]
 
+interface CountryStatus {
+  name: string
+  enabled: boolean
+}
+
 export function CountrySelector() {
-  const [enabledCountries, setEnabledCountries] = useState<string[]>([])
+  const [countryStatuses, setCountryStatuses] = useState<CountryStatus[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -36,14 +41,17 @@ export function CountrySelector() {
         const res = await fetch("/api/countries/enabled")
         if (res.ok) {
           const data = await res.json()
-          setEnabledCountries(data.countries || ALL_COUNTRIES.map((c) => c.name))
+          if (data.countryStatuses) {
+            setCountryStatuses(data.countryStatuses)
+          } else {
+            // Fallback: all enabled
+            setCountryStatuses(ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })))
+          }
         } else {
-          // If API fails, show all countries
-          setEnabledCountries(ALL_COUNTRIES.map((c) => c.name))
+          setCountryStatuses(ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })))
         }
       } catch {
-        // If API fails, show all countries
-        setEnabledCountries(ALL_COUNTRIES.map((c) => c.name))
+        setCountryStatuses(ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })))
       } finally {
         setLoading(false)
       }
@@ -52,7 +60,10 @@ export function CountrySelector() {
     fetchCountries()
   }, [])
 
-  const visibleCountries = ALL_COUNTRIES.filter((c) => enabledCountries.includes(c.name))
+  const getCountryStatus = (countryName: string): boolean => {
+    const status = countryStatuses.find((s) => s.name === countryName)
+    return status?.enabled ?? true
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,26 +98,53 @@ export function CountrySelector() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-            {visibleCountries.map((country) => (
-              <Link
-                key={country.code}
-                href={`/channels/${encodeURIComponent(country.name)}`}
-                className="group glass-card border border-border/50 rounded-2xl p-6 md:p-8 hover:border-primary/50 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
-              >
-                <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg group-hover:scale-110 transition-transform duration-300">
-                  <Image
-                    src={`https://flagcdn.com/w160/${country.code}.png`}
-                    alt={`${country.name} flag`}
-                    fill
-                    className="object-cover"
-                    loading="lazy"
-                  />
-                </div>
-                <h3 className="text-lg md:text-xl font-bold text-foreground text-center group-hover:text-primary transition-colors">
-                  {country.name}
-                </h3>
-              </Link>
-            ))}
+            {ALL_COUNTRIES.map((country) => {
+              const isEnabled = getCountryStatus(country.name)
+
+              if (!isEnabled) {
+                return (
+                  <div
+                    key={country.code}
+                    className="relative glass-card border border-border/30 rounded-2xl p-6 md:p-8 opacity-50 grayscale cursor-not-allowed flex flex-col items-center justify-center gap-4"
+                  >
+                    <div className="absolute top-2 right-2 bg-orange-500/80 text-white text-xs px-2 py-1 rounded-full">
+                      Maintenance
+                    </div>
+                    <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg">
+                      <Image
+                        src={`https://flagcdn.com/w160/${country.code}.png`}
+                        alt={`${country.name} flag`}
+                        fill
+                        className="object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                    <h3 className="text-lg md:text-xl font-bold text-muted-foreground text-center">{country.name}</h3>
+                  </div>
+                )
+              }
+
+              return (
+                <Link
+                  key={country.code}
+                  href={`/channels/${encodeURIComponent(country.name)}`}
+                  className="group glass-card border border-border/50 rounded-2xl p-6 md:p-8 hover:border-primary/50 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
+                >
+                  <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    <Image
+                      src={`https://flagcdn.com/w160/${country.code}.png`}
+                      alt={`${country.name} flag`}
+                      fill
+                      className="object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <h3 className="text-lg md:text-xl font-bold text-foreground text-center group-hover:text-primary transition-colors">
+                    {country.name}
+                  </h3>
+                </Link>
+              )
+            })}
           </div>
         )}
       </main>

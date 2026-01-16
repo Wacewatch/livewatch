@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import {
   Users,
   LaptopMinimal as TvMinimal,
@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Radio,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -148,11 +149,19 @@ interface ProxySource {
   sync_interval_minutes: number
 }
 
+interface SourceConfig {
+  source1_enabled: boolean
+  source2_enabled: boolean
+  source3_enabled: boolean
+}
+
 interface CollapsibleState {
   countries: boolean
   proxyRotator: boolean
   users: boolean
   vipKeys: boolean
+  // Add sources to CollapsibleState
+  sources: boolean
 }
 
 export function AdminDashboard() {
@@ -208,39 +217,47 @@ export function AdminDashboard() {
     proxyRotator: false,
     users: false,
     vipKeys: false,
+    // Initialize sources collapsed state
+    sources: false,
   })
   const [proxyListLimit, setProxyListLimit] = useState(10)
   const [proxySort, setProxySort] = useState<"speed" | "success" | "country">("speed")
 
   const [pageLoading, setPageLoading] = useState(true)
-  const [dataLoading, setDataLoading] = useState(true)
+
+  const [statsLoaded, setStatsLoaded] = useState(false)
+  const statsLoadedRef = useRef(false)
+
+  const [sourceConfig, setSourceConfig] = useState<SourceConfig>({
+    source1_enabled: true,
+    source2_enabled: true,
+    source3_enabled: true,
+  })
 
   useEffect(() => {
-    // Show page immediately
     setPageLoading(false)
 
-    // Then fetch data
-    fetchDashboardData()
-    fetchServerStats()
-    fetchSyncStatus()
+    if (!statsLoadedRef.current) {
+      statsLoadedRef.current = true
+      fetchInitialData()
+    }
 
     const interval = setInterval(() => {
-      fetchDashboardData()
       fetchServerStats()
-      fetchSyncStatus()
     }, 10000)
+
     return () => clearInterval(interval)
   }, [])
 
-  const fetchDashboardData = async () => {
-    setDataLoading(true) // Set data loading to true when fetching starts
+  const fetchInitialData = async () => {
     try {
-      const [statsRes, usersRes, keysRes, countriesRes, proxyRes] = await Promise.all([
+      const [statsRes, usersRes, keysRes, countriesRes, proxyRes, sourceConfigRes] = await Promise.all([
         fetch("/api/admin/stats"),
         fetch("/api/admin/users"),
         fetch("/api/admin/vip-keys"),
         fetch("/api/admin/countries"),
         fetch("/api/admin/proxy-pool"),
+        fetch("/api/admin/source-config"), // Added for the update
       ])
 
       if (statsRes.ok) {
@@ -272,10 +289,42 @@ export function AdminDashboard() {
           activeProxies: proxyData.activeProxies || 0,
         })
       }
+
+      // Fetch source config
+      if (sourceConfigRes.ok) {
+        const configData = await sourceConfigRes.json()
+        setSourceConfig(configData)
+      }
+
+      setStatsLoaded(true)
+    } catch (error) {
+      console.error("[v0] Failed to fetch initial data:", error)
+    }
+  }
+
+  const fetchDashboardData = async () => {
+    try {
+      const [countriesRes, proxyRes] = await Promise.all([
+        fetch("/api/admin/countries"),
+        fetch("/api/admin/proxy-pool"),
+      ])
+
+      if (countriesRes.ok) {
+        const countriesData = await countriesRes.json()
+        setCountries(countriesData.countries || [])
+      }
+
+      if (proxyRes.ok) {
+        const proxyData = await proxyRes.json()
+        setProxies(proxyData.proxies || [])
+        setProxySources(proxyData.proxySources || [])
+        setProxyStats({
+          totalProxies: proxyData.totalProxies || 0,
+          activeProxies: proxyData.activeProxies || 0,
+        })
+      }
     } catch (error) {
       console.error("[v0] Failed to fetch dashboard data:", error)
-    } finally {
-      setDataLoading(false) // Set data loading to false when fetching ends
     }
   }
 
@@ -347,9 +396,31 @@ export function AdminDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: countryId, enabled }),
       })
-      fetchDashboardData()
+      const countriesRes = await fetch("/api/admin/countries")
+      if (countriesRes.ok) {
+        const countriesData = await countriesRes.json()
+        setCountries(countriesData.countries || [])
+      }
     } catch (error) {
       console.error("[v0] Failed to toggle country:", error)
+    }
+  }
+
+  const toggleSource = async (sourceNumber: 1 | 2 | 3, enabled: boolean) => {
+    const key = `source${sourceNumber}_enabled` as keyof SourceConfig
+    const newConfig = { ...sourceConfig, [key]: enabled }
+    setSourceConfig(newConfig)
+
+    try {
+      await fetch("/api/admin/source-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newConfig),
+      })
+    } catch (error) {
+      console.error("[v0] Failed to toggle source:", error)
+      // Revert on error
+      setSourceConfig(sourceConfig)
     }
   }
 
@@ -685,9 +756,9 @@ export function AdminDashboard() {
         </Card>
 
         {/* RAM Card */}
-        <Card className="border-l-4 border-l-purple-500 p-4">
+        <Card className="border-l-4 border-l-fuchsia-500 p-4">
           <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-            <Activity className="h-4 w-4 text-purple-500" />
+            <Activity className="h-4 w-4 text-fuchsia-500" />
             RAM App
           </h3>
           {serverStats ? (
@@ -698,7 +769,7 @@ export function AdminDashboard() {
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-purple-500 transition-all"
+                  className="h-full bg-fuchsia-500 transition-all"
                   style={{ width: `${serverStats.memory.usagePercent}%` }}
                 />
               </div>
@@ -714,9 +785,10 @@ export function AdminDashboard() {
           )}
         </Card>
 
-        <Card className="border-l-4 border-l-green-500 p-4">
+        {/* Network Card - Show stats by source */}
+        <Card className="border-l-4 border-l-emerald-500 p-4">
           <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-green-500" />
+            <TrendingUp className="h-4 w-4 text-emerald-500" />
             Réseau
           </h3>
           {serverStats?.network ? (
@@ -736,7 +808,7 @@ export function AdminDashboard() {
                   <div className="font-bold text-sm">{serverStats.network.source3 || 0}</div>
                 </div>
               </div>
-              <div className="flex justify-between text-xs mt-2">
+              <div className="flex justify-between text-xs pt-1 border-t border-border/50">
                 <span className="text-muted-foreground">Total:</span>
                 <span>{serverStats.network.total || serverStats.network.activeConnections}</span>
               </div>
@@ -758,9 +830,9 @@ export function AdminDashboard() {
         </Card>
 
         {/* System Card */}
-        <Card className="border-l-4 border-l-orange-500 p-4">
+        <Card className="border-l-4 border-l-amber-500 p-4">
           <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-orange-500" />
+            <TrendingUp className="h-4 w-4 text-amber-500" />
             Système
           </h3>
           {serverStats ? (
@@ -775,7 +847,7 @@ export function AdminDashboard() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Node:</span>
-                <span>{serverStats.system.nodeVersion || "v20.x"}</span>
+                <span>{serverStats.system.nodeVersion}</span>
               </div>
             </div>
           ) : (
@@ -789,111 +861,168 @@ export function AdminDashboard() {
 
       {/* REMOVED "Synchronisation du Catalogue" section */}
 
-      {/* Stats Cards - show loading indicators */}
-      <div className="mb-6 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-3 md:p-4">
+      {/* Stats Cards - Show values immediately, no loading spinner loop */}
+      <div className="mb-6 grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-4">
+        <Card className="border-l-4 border-l-cyan-500 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">Utilisateurs</p>
-              <p className="text-xl md:text-2xl font-bold">
-                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.totalUsers || 0}
-              </p>
+              <p className="text-sm text-muted-foreground">Utilisateurs</p>
+              <p className="text-2xl md:text-3xl font-bold">{stats?.totalUsers ?? "-"}</p>
             </div>
-            <Users className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
+            <Users className="h-8 w-8 text-cyan-500 opacity-50" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-cyan-500 bg-gradient-to-br from-cyan-500/10 to-transparent p-3 md:p-4">
+        <Card className="border-l-4 border-l-blue-500 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">Chaînes</p>
-              <p className="text-xl md:text-2xl font-bold">
-                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.totalChannels || 0}
-              </p>
-              <p className="text-[10px] text-muted-foreground">Tous pays confondus</p>
+              <p className="text-sm text-muted-foreground">Chaînes</p>
+              <p className="text-2xl md:text-3xl font-bold">{stats?.totalChannels ?? "-"}</p>
+              <p className="text-xs text-muted-foreground">Tous pays confondus</p>
             </div>
-            <TvMinimal className="h-6 w-6 md:h-8 md:w-8 text-cyan-500" />
+            <TvMinimal className="h-8 w-8 text-blue-500 opacity-50" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-orange-500 bg-gradient-to-br from-orange-500/10 to-transparent p-3 md:p-4">
+        <Card className="border-l-4 border-l-orange-500 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">VIP</p>
-              <p className="text-xl md:text-2xl font-bold">
-                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.vipUsers || 0}
-              </p>
+              <p className="text-sm text-muted-foreground">VIP</p>
+              <p className="text-2xl md:text-3xl font-bold">{stats?.vipUsers ?? "-"}</p>
             </div>
-            <Crown className="h-6 w-6 md:h-8 md:w-8 text-orange-500" />
+            <Crown className="h-8 w-8 text-orange-500 opacity-50" />
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500 bg-gradient-to-br from-red-500/10 to-transparent p-3 md:p-4">
+        <Card className="border-l-4 border-l-red-500 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">Admins</p>
-              <p className="text-xl md:text-2xl font-bold">
-                {dataLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.adminUsers || 0}
-              </p>
+              <p className="text-sm text-muted-foreground">Admins</p>
+              <p className="text-2xl md:text-3xl font-bold">{stats?.adminUsers ?? "-"}</p>
             </div>
-            <Shield className="h-6 w-6 md:h-8 md:w-8 text-red-500" />
+            <Shield className="h-8 w-8 text-red-500 opacity-50" />
           </div>
         </Card>
-        {/* Removed Favoris card */}
       </div>
 
       {/* Online Stats and Live Viewers */}
-      <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/10 to-transparent p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold">En ligne</h3>
-            <Activity className="h-5 w-5 text-blue-500" />
+      {/* Reorganized to use grid-cols-3 and added Top Channels */}
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        {/* En ligne */}
+        <Card className="border-l-4 border-l-cyan-500 p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-5 w-5 text-cyan-400" />
+            <h3 className="font-bold">En ligne</h3>
           </div>
-          <p className="text-3xl font-bold mb-2">{stats?.onlineUsers || 0}</p>
-          <div className="text-sm text-muted-foreground space-y-1">
+          <div className="text-4xl font-bold text-cyan-400">{stats?.onlineUsers ?? 0}</div>
+          <div className="mt-2 space-y-1 text-sm text-muted-foreground">
             <div className="flex justify-between">
               <span>Membres:</span>
-              <span className="font-medium">{stats?.membersOnline || 0}</span>
+              <span>{stats?.membersOnline ?? 0}</span>
             </div>
             <div className="flex justify-between">
               <span>Invités:</span>
-              <span className="font-medium">{stats?.guestsOnline || 0}</span>
+              <span>{stats?.guestsOnline ?? 0}</span>
             </div>
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-pink-500 bg-gradient-to-br from-pink-500/10 to-transparent p-3 md:p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">En visionnage</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.liveViewers || 0}</p>
-              <p className="text-xs text-muted-foreground">regardent maintenant</p>
-            </div>
-            <TvMinimal className="h-6 w-6 md:h-8 md:w-8 text-pink-500 animate-pulse" />
+        {/* En visionnage */}
+        <Card className="border-l-4 border-l-pink-500 p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <TvMinimal className="h-5 w-5 text-pink-400" />
+            <h3 className="font-bold">En visionnage</h3>
           </div>
+          <div className="text-4xl font-bold text-pink-400">{stats?.liveViewers ?? 0}</div>
+          <p className="text-sm text-muted-foreground">regardent maintenant</p>
         </Card>
 
-        <Card className="col-span-1 md:col-span-2 p-3 md:p-4">
-          <h3 className="text-sm md:text-base font-bold mb-3">Top Chaînes en Direct</h3>
-          <div className="space-y-2 max-h-[200px] overflow-y-auto">
-            {stats?.currentlyWatching && stats.currentlyWatching.length > 0 ? (
-              stats.currentlyWatching.map((channel, index) => (
-                <div key={channel.channel_id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-muted-foreground">#{index + 1}</span>
-                    <span className="text-sm font-medium truncate">{channel.channel_name}</span>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {channel.viewer_count} <Activity className="ml-1 h-3 w-3 inline" />
-                  </Badge>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">Aucun visionnage en cours</p>
+        {/* Top Chaînes */}
+        <Card className="p-4 max-h-64 overflow-y-auto">
+          <h3 className="font-bold mb-3">Top Chaînes en Direct</h3>
+          <div className="space-y-2">
+            {stats?.topChannels?.slice(0, 5).map((channel, index) => (
+              <div key={channel.channel_id} className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className="text-muted-foreground">#{index + 1}</span>
+                  <span className="truncate max-w-32">{channel.channel_name}</span>
+                </span>
+                <span className="text-cyan-400 flex items-center gap-1">
+                  {channel.view_count}
+                  <TrendingUp className="h-3 w-3" />
+                </span>
+              </div>
+            ))}
+            {(!stats?.topChannels || stats.topChannels.length === 0) && (
+              <p className="text-sm text-muted-foreground">Aucune donnée</p>
             )}
           </div>
         </Card>
       </div>
+
+      <Card className="mb-6 overflow-hidden">
+        <div
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50"
+          onClick={() => toggleCollapse("sources" as any)}
+        >
+          <div className="flex items-center gap-2">
+            <Radio className="h-5 w-5 text-purple-500" />
+            <h2 className="text-lg font-bold">Gestion des Sources</h2>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {
+                [sourceConfig.source1_enabled, sourceConfig.source2_enabled, sourceConfig.source3_enabled].filter(
+                  Boolean,
+                ).length
+              }{" "}
+              activées sur 3
+            </span>
+            {collapsed["sources" as keyof CollapsibleState] ? (
+              <ChevronDown className="h-5 w-5" />
+            ) : (
+              <ChevronUp className="h-5 w-5" />
+            )}
+          </div>
+        </div>
+
+        {!collapsed["sources" as keyof CollapsibleState] && (
+          <div className="p-4 pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <h4 className="font-medium">Source 1</h4>
+                  <p className="text-xs text-muted-foreground">Proxy par défaut</p>
+                </div>
+                <Switch
+                  checked={sourceConfig.source1_enabled}
+                  onCheckedChange={(checked) => toggleSource(1, checked)}
+                />
+              </div>
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <h4 className="font-medium">Source 2</h4>
+                  <p className="text-xs text-muted-foreground">Worker externe</p>
+                </div>
+                <Switch
+                  checked={sourceConfig.source2_enabled}
+                  onCheckedChange={(checked) => toggleSource(2, checked)}
+                />
+              </div>
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <h4 className="font-medium">Source 3</h4>
+                  <p className="text-xs text-muted-foreground">Proxy rotatif</p>
+                </div>
+                <Switch
+                  checked={sourceConfig.source3_enabled}
+                  onCheckedChange={(checked) => toggleSource(3, checked)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
 
       <Card className="mb-6 p-4 md:p-6 border-l-4 border-l-blue-500">
         <div
