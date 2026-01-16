@@ -186,7 +186,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         await fetch("/api/tracking/heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.JSON.stringify({ sessionId: sid }),
+          body: JSON.stringify({ sessionId: sid }),
         })
       } catch (error) {
         console.error("[v0] Heartbeat failed:", error)
@@ -797,7 +797,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   size="sm"
                   variant={currentProxy === "default" ? "default" : "outline"}
                   className={currentProxy === "default" ? "bg-cyan-500" : ""}
-                  disabled={loading}
                 >
                   <Radio className="h-4 w-4 mr-1" />
                   Source 1
@@ -807,7 +806,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   size="sm"
                   variant={currentProxy === "external" ? "default" : "outline"}
                   className={currentProxy === "external" ? "bg-green-500" : ""}
-                  disabled={loading}
                 >
                   <Radio className="h-4 w-4 mr-1" />
                   Source 2
@@ -817,7 +815,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   size="sm"
                   variant={currentProxy === "rotator" ? "default" : "outline"}
                   className={currentProxy === "rotator" ? "bg-purple-500" : ""}
-                  disabled={loading}
                 >
                   <Network className="h-4 w-4 mr-1" />
                   Source 3

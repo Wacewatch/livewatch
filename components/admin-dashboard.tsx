@@ -281,19 +281,7 @@ export function AdminDashboard() {
     }
   }
 
-  const syncCatalogNow = async () => {
-    try {
-      const res = await fetch("/api/admin/sync-catalog", { method: "POST" })
-      if (res.ok) {
-        alert("Synchronisation terminée avec succès !")
-        fetchSyncStatus()
-        fetchDashboardData()
-      }
-    } catch (error) {
-      console.error("[v0] Failed to sync catalog:", error)
-      alert("Échec de la synchronisation")
-    }
-  }
+  // REMOVED syncCatalogNow function since we're removing the Synchronisation du Catalogue module
 
   const toggleChannel = async (channelId: string, enabled: boolean) => {
     try {
@@ -587,6 +575,28 @@ export function AdminDashboard() {
     channel.name.toLowerCase().includes(channelSearch.toLowerCase()),
   )
 
+  // Added function for synchronisation du catalogue
+  const syncCatalogNow = async () => {
+    try {
+      const res = await fetch("/api/admin/sync-catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_now" }),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        alert("Synchronisation du catalogue lancée avec succès !")
+        fetchSyncStatus() // Update sync status immediately
+      } else {
+        alert(`Échec du lancement de la synchronisation: ${data.error || "Erreur inconnue"}`)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to sync catalog:", error)
+      alert("Échec de la synchronisation")
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -704,32 +714,10 @@ export function AdminDashboard() {
         </div>
       )}
 
-      {/* Catalog Sync Status */}
-      {syncStatus && (
-        <Card className="mb-6 p-4 border-l-4 border-l-cyan-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold mb-1">Synchronisation du Catalogue</h3>
-              <div className="text-sm text-muted-foreground">
-                {syncStatus.cached_channels} chaînes en cache
-                {syncStatus.last_sync && (
-                  <span className="ml-2">
-                    • Dernière synchro: {new Date(syncStatus.last_sync.started_at).toLocaleString()}
-                    {syncStatus.last_sync.status === "success" && <span className="text-green-500 ml-1">✓</span>}
-                  </span>
-                )}
-              </div>
-            </div>
-            <Button onClick={syncCatalogNow} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Synchroniser maintenant
-            </Button>
-          </div>
-        </Card>
-      )}
+      {/* REMOVED "Synchronisation du Catalogue" section */}
 
       {/* Stats Cards */}
-      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+      <div className="mb-6 md:mb-8 grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-500/10 to-transparent p-3 md:p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -745,18 +733,9 @@ export function AdminDashboard() {
             <div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Chaînes</p>
               <p className="text-xl md:text-2xl font-bold">{stats?.totalChannels || 0}</p>
+              <p className="text-[10px] text-muted-foreground">Tous pays confondus</p>
             </div>
             <TvMinimal className="h-6 w-6 md:h-8 md:w-8 text-cyan-500" />
-          </div>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500 bg-gradient-to-br from-green-500/10 to-transparent p-3 md:p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs md:text-sm font-medium text-muted-foreground">Actives</p>
-              <p className="text-xl md:text-2xl font-bold">{stats?.enabledChannels || 0}</p>
-            </div>
-            <Activity className="h-6 w-6 md:h-8 md:w-8 text-green-500" />
           </div>
         </Card>
 
@@ -852,7 +831,7 @@ export function AdminDashboard() {
             Gestion des Pays
           </h2>
           <Badge variant="secondary" className="text-xs md:text-sm">
-            {countries.filter((c) => c.enabled).length} activés
+            {countries.filter((c) => c.enabled).length} activés sur {countries.length}
           </Badge>
         </div>
 
@@ -864,9 +843,9 @@ export function AdminDashboard() {
             >
               <div className="flex-1">
                 <div className="font-medium text-sm">{country.name}</div>
-                {(country as any).channel_count !== undefined && (
-                  <div className="text-xs text-muted-foreground mt-1">{(country as any).channel_count} chaînes</div>
-                )}
+                <div className="text-xs text-muted-foreground mt-1">
+                  {country.channel_count !== undefined ? `${country.channel_count} chaînes` : "Chargement..."}
+                </div>
               </div>
               <Switch checked={country.enabled} onCheckedChange={(enabled) => toggleCountry(country.id, enabled)} />
             </div>
