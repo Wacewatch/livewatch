@@ -68,22 +68,17 @@ export async function POST(request: Request) {
     const { action, ...data } = await request.json()
 
     if (action === "update_config") {
-      const updateData: any = {
-        update_interval_minutes: data.update_interval_minutes,
-        auto_update_enabled: data.auto_update_enabled,
-        min_success_rate: data.min_success_rate,
-        max_response_time_ms: data.max_response_time_ms,
-        updated_at: new Date().toISOString(),
-      }
-
-      if (data.git_urls && Array.isArray(data.git_urls)) {
-        updateData.git_urls = data.git_urls
-      } else if (data.git_url) {
-        updateData.git_url = data.git_url
-        updateData.git_urls = [data.git_url]
-      }
-
-      const { error } = await supabase.from("proxy_config").update(updateData).eq("id", 1)
+      const { error } = await supabase
+        .from("proxy_config")
+        .update({
+          git_url: data.git_url,
+          update_interval_minutes: data.update_interval_minutes,
+          auto_update_enabled: data.auto_update_enabled,
+          min_success_rate: data.min_success_rate,
+          max_response_time_ms: data.max_response_time_ms,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", 1)
 
       if (error) throw error
 
@@ -93,72 +88,62 @@ export async function POST(request: Request) {
     if (action === "sync_proxies") {
       const { data: config } = await supabase.from("proxy_config").select("*").single()
 
-      const gitUrls = config?.git_urls || (config?.git_url ? [config.git_url] : [])
-
-      if (!gitUrls || gitUrls.length === 0) {
-        return NextResponse.json({ error: "No Git URLs configured" }, { status: 400 })
+      if (!config?.git_url) {
+        return NextResponse.json({ error: "No Git URL configured" }, { status: 400 })
       }
+
+      console.log("[v0] Fetching proxy list from:", config.git_url)
+      const response = await fetch(config.git_url)
+      const text = await response.text()
+
+      const proxyLines = text
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#"))
+
+      console.log("[v0] Found", proxyLines.length, "proxy entries")
 
       let added = 0
       let skipped = 0
-      let totalProxiesFound = 0
 
-      for (const gitUrl of gitUrls) {
-        console.log("[v0] Fetching proxy list from:", gitUrl)
-        try {
-          const response = await fetch(gitUrl, { signal: AbortSignal.timeout(10000) })
-          const text = await response.text()
+      for (const line of proxyLines.slice(0, 200)) {
+        const parts = line.split(":")
+        if (parts.length >= 2) {
+          const host = parts[0].trim()
+          const port = Number.parseInt(parts[1].trim())
 
-          const proxyLines = text
-            .split("\n")
-            .map((line) => line.trim())
-            .filter((line) => line && !line.startsWith("#"))
+          if (host && !isNaN(port)) {
+            const proxy_url = `http://${host}:${port}`
 
-          totalProxiesFound += proxyLines.length
-          console.log("[v0] Found", proxyLines.length, "proxy entries from", gitUrl)
+            const { error } = await supabase.from("proxy_pool").upsert(
+              {
+                proxy_url,
+                protocol: "http",
+                host,
+                port,
+                is_active: true,
+                last_checked: new Date().toISOString(),
+              },
+              {
+                onConflict: "proxy_url",
+                ignoreDuplicates: true,
+              },
+            )
 
-          for (const line of proxyLines.slice(0, 100)) {
-            const parts = line.split(":")
-            if (parts.length >= 2) {
-              const host = parts[0].trim()
-              const port = Number.parseInt(parts[1].trim())
-
-              if (host && !isNaN(port)) {
-                const proxy_url = `http://${host}:${port}`
-
-                const { error } = await supabase.from("proxy_pool").upsert(
-                  {
-                    proxy_url,
-                    protocol: "http",
-                    host,
-                    port,
-                    is_active: true,
-                    last_checked: new Date().toISOString(),
-                  },
-                  {
-                    onConflict: "proxy_url",
-                    ignoreDuplicates: true,
-                  },
-                )
-
-                if (error) {
-                  skipped++
-                } else {
-                  added++
-                }
-              }
+            if (error) {
+              skipped++
+            } else {
+              added++
             }
           }
-        } catch (err) {
-          console.error("[v0] Failed to fetch from", gitUrl, err)
         }
       }
 
       await supabase.from("proxy_config").update({ last_update: new Date().toISOString() }).eq("id", 1)
 
-      console.log("[v0] Proxy sync complete:", { added, skipped, total: totalProxiesFound })
+      console.log("[v0] Proxy sync complete:", { added, skipped })
 
-      return NextResponse.json({ success: true, added, skipped, total: totalProxiesFound, sources: gitUrls.length })
+      return NextResponse.json({ success: true, added, skipped, total: proxyLines.length })
     }
 
     if (action === "delete_inactive") {
