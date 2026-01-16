@@ -93,22 +93,29 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("role", "admin")
 
-    const { data: currentSessions } = await supabase
+    const { data: activeSessions } = await supabase
       .from("active_sessions")
-      .select("channel_id, channel_name")
+      .select("id, user_id, channel_id, channel_name")
       .gte("last_heartbeat", fiveMinutesAgo)
 
-    const channelViewers = currentSessions?.reduce((acc: Record<string, { name: string; count: number }>, session) => {
-      if (session.channel_id && session.channel_name) {
-        if (!acc[session.channel_id]) {
-          acc[session.channel_id] = { name: session.channel_name, count: 0 }
-        }
-        acc[session.channel_id].count++
-      }
-      return acc
-    }, {})
+    const membersOnline = activeSessions?.filter((s) => s.user_id).length || 0
+    const guestsOnline = (activeSessions?.length || 0) - membersOnline
+    const totalOnline = activeSessions?.length || 0
 
-    const currentlyWatching = Object.entries(channelViewers || {})
+    const sessionsWatching = activeSessions?.filter((s) => s.channel_id && s.channel_name) || []
+    const liveViewersCount = sessionsWatching.length
+
+    const channelViewers: Record<string, { name: string; count: number }> = {}
+    sessionsWatching.forEach((session) => {
+      if (session.channel_id && session.channel_name) {
+        if (!channelViewers[session.channel_id]) {
+          channelViewers[session.channel_id] = { name: session.channel_name, count: 0 }
+        }
+        channelViewers[session.channel_id].count++
+      }
+    })
+
+    const currentlyWatching = Object.entries(channelViewers)
       .map(([channel_id, data]) => ({
         channel_id,
         channel_name: data.name,
@@ -142,8 +149,6 @@ export async function GET() {
       .sort((a, b) => b.view_count - a.view_count)
       .slice(0, 10)
 
-    const totalViewsLastHour = recentViews?.length || 0
-
     const { data: viewsPerDay } = await supabase
       .from("channel_views")
       .select("viewed_at")
@@ -155,16 +160,6 @@ export async function GET() {
       return acc
     }, {})
 
-    const activeSessions = await supabase
-      .from("active_sessions")
-      .select("user_id")
-      .gte("last_heartbeat", fiveMinutesAgo)
-
-    const membersOnline = activeSessions.data?.filter((s) => s.user_id).length || 0
-    const guestsOnline = (activeSessions.data?.length || 0) - membersOnline
-
-    const liveViewers = await supabase.from("active_sessions").select("id").gte("last_heartbeat", fiveMinutesAgo)
-
     return NextResponse.json({
       totalUsers: totalUsers || 0,
       totalChannels: totalChannelsAllCountries,
@@ -174,8 +169,8 @@ export async function GET() {
       adminUsers: adminUsers || 0,
       membersOnline,
       guestsOnline,
-      onlineUsers: membersOnline + guestsOnline,
-      liveViewers: totalViewsLastHour,
+      onlineUsers: totalOnline,
+      liveViewers: liveViewersCount,
       topChannels,
       currentlyWatching,
       viewsPerDay: dailyStats || {},

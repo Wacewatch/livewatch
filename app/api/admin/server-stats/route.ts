@@ -56,28 +56,17 @@ export async function GET() {
       }
     }
 
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
-    const { count: activeConnections } = await supabase
-      .from("active_sessions")
-      .select("id", { count: "exact", head: true })
-      .gte("last_heartbeat", twoMinutesAgo)
-
-    const { count: currentlyWatching } = await supabase
-      .from("active_sessions")
-      .select("id", { count: "exact", head: true })
-      .gte("last_heartbeat", twoMinutesAgo)
-      .not("current_channel", "is", null)
-
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-    const { data: recentViews } = await supabase
-      .from("channel_views")
-      .select("channel_id, channel_name, user_id")
-      .gte("viewed_at", fiveMinutesAgo)
 
-    const uniqueViewerIds = new Set(recentViews?.map((v) => v.user_id || v.channel_name) || [])
-    const uniqueViewersLast5Min = uniqueViewerIds.size
+    const { data: activeSessions } = await supabase
+      .from("active_sessions")
+      .select("id, user_id, channel_id, channel_name")
+      .gte("last_heartbeat", fiveMinutesAgo)
 
-    const activeViewers = currentlyWatching || uniqueViewersLast5Min
+    const activeConnections = activeSessions?.length || 0
+
+    const sessionsWatching = activeSessions?.filter((s) => s.channel_id) || []
+    const activeViewers = sessionsWatching.length
 
     // Requests per minute from channel_views
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
@@ -95,19 +84,27 @@ export async function GET() {
     const estimatedBandwidthMBps = (activeViewers || 0) * 2.5
     const estimatedBandwidthGBph = (estimatedBandwidthMBps * 60 * 60) / 1024
 
-    const { data: proxyLogs } = await supabase.from("proxy_usage_logs").select("source").gte("used_at", fiveMinutesAgo)
+    const { data: proxyLogs } = await supabase
+      .from("proxy_usage_logs")
+      .select("source, channel_id")
+      .gte("used_at", fiveMinutesAgo)
 
-    // Count by source from proxy logs
-    let source2Count = 0
-    let source3Count = 0
+    const source2Channels = new Set<string>()
+    const source3Channels = new Set<string>()
 
     proxyLogs?.forEach((log) => {
-      if (log.source === "source2") source2Count++
-      if (log.source === "source3") source3Count++
+      if (log.channel_id) {
+        if (log.source === "source2") source2Channels.add(log.channel_id)
+        if (log.source === "source3") source3Channels.add(log.channel_id)
+      }
     })
 
-    const totalViewsLast5Min = recentViews?.length || 0
-    const source1Count = Math.max(0, totalViewsLast5Min - source2Count - source3Count)
+    const source2Count = source2Channels.size
+    const source3Count = source3Channels.size
+
+    // But we need to be careful: a viewer might have tried multiple sources
+    // So S1 = activeViewers who are NOT in S2 or S3
+    const source1Count = Math.max(0, activeViewers - source2Count - source3Count)
 
     const memoryUsedMB = memoryUsed / 1024 / 1024
     const memoryTotalMB = memoryTotal / 1024 / 1024
@@ -127,14 +124,14 @@ export async function GET() {
         usagePercent: memoryPercent.toFixed(2),
       },
       network: {
-        activeConnections: activeConnections || 0,
+        activeConnections: activeConnections,
         activeViewers: activeViewers,
         requestsPerMinute: requestsPerMinute || 0,
         bandwidthEstimate: estimatedBandwidthGBph > 0 ? `~${estimatedBandwidthGBph.toFixed(2)} GB/h` : "0.00 GB/h",
         source1: source1Count,
         source2: source2Count,
         source3: source3Count,
-        total: source1Count + source2Count + source3Count,
+        total: activeViewers,
       },
       system: {
         platform,
