@@ -56,67 +56,59 @@ export async function GET() {
       }
     }
 
-    // Get active connections from database
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     const { count: activeConnections } = await supabase
       .from("active_sessions")
       .select("id", { count: "exact", head: true })
       .gte("last_heartbeat", twoMinutesAgo)
 
-    const { count: activeViewers } = await supabase
-      .from("active_sessions")
-      .select("id", { count: "exact", head: true })
-      .gte("last_heartbeat", twoMinutesAgo)
-      .not("current_channel", "is", null)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const { data: recentViewers } = await supabase
+      .from("channel_views")
+      .select("user_id, channel_name")
+      .gte("viewed_at", fiveMinutesAgo)
 
+    // Count unique active viewers
+    const uniqueViewers = new Set(recentViewers?.map((v) => v.user_id || v.channel_name) || [])
+    const activeViewers = uniqueViewers.size
+
+    // Requests per minute from channel_views
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
-    const { data: recentViews } = await supabase.from("channel_views").select("id").gte("viewed_at", oneMinuteAgo)
-
-    const requestsPerMinute = recentViews?.length || 0
+    const { count: requestsPerMinute } = await supabase
+      .from("channel_views")
+      .select("id", { count: "exact", head: true })
+      .gte("viewed_at", oneMinuteAgo)
 
     // Estimate memory if not available from process
     if (memoryTotal === 0) {
-      memoryTotal = 256 * 1024 * 1024 // 256 MB assumed for Vercel
+      memoryTotal = 256 * 1024 * 1024
       memoryUsed = Math.min((activeConnections || 1) * 5 * 1024 * 1024 + 30 * 1024 * 1024, memoryTotal * 0.9)
     }
 
-    const estimatedBandwidthMBps = (activeConnections || 0) * 2.5
+    const estimatedBandwidthMBps = (activeViewers || 0) * 2.5
     const estimatedBandwidthGBph = (estimatedBandwidthMBps * 60 * 60) / 1024
-
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
     const { count: totalViewsCount } = await supabase
       .from("channel_views")
       .select("id", { count: "exact", head: true })
       .gte("viewed_at", fiveMinutesAgo)
 
-    const { count: source2Count } = await supabase
-      .from("proxy_usage_logs")
-      .select("id", { count: "exact", head: true })
-      .gte("used_at", fiveMinutesAgo)
-      .eq("source", "source2")
+    const { data: proxyLogs } = await supabase.from("proxy_usage_logs").select("source").gte("used_at", fiveMinutesAgo)
 
-    const { count: source3Count } = await supabase
-      .from("proxy_usage_logs")
-      .select("id", { count: "exact", head: true })
-      .gte("used_at", fiveMinutesAgo)
-      .eq("source", "source3")
+    // Count by source
+    let source2Count = 0
+    let source3Count = 0
 
-    // This is because most users use Source 1 by default
+    proxyLogs?.forEach((log) => {
+      if (log.source === "source2") source2Count++
+      if (log.source === "source3") source3Count++
+    })
+
     const totalViews = totalViewsCount || 0
-    const s2 = source2Count || 0
-    const s3 = source3Count || 0
+    const source1Count = Math.max(0, totalViews - source2Count - source3Count)
 
-    // If we have active viewers, distribute based on usage
-    const totalActive = activeViewers || 0
-    let source1Count = Math.max(0, totalActive - s2 - s3)
-
-    // If no proxy logs, assume all viewers are on Source 1
-    if (s2 === 0 && s3 === 0 && totalActive > 0) {
-      source1Count = totalActive
-    }
-
-    const totalRequests = source1Count + s2 + s3
+    // If no activity at all, but we have active viewers, assume they're all on Source 1
+    const finalSource1 = totalViews === 0 && activeViewers > 0 ? activeViewers : source1Count
 
     const memoryUsedMB = memoryUsed / 1024 / 1024
     const memoryTotalMB = memoryTotal / 1024 / 1024
@@ -137,13 +129,13 @@ export async function GET() {
       },
       network: {
         activeConnections: activeConnections || 0,
-        activeViewers: activeViewers || 0,
-        requestsPerMinute,
+        activeViewers: activeViewers,
+        requestsPerMinute: requestsPerMinute || 0,
         bandwidthEstimate: estimatedBandwidthGBph > 0 ? `~${estimatedBandwidthGBph.toFixed(2)} GB/h` : "0.00 GB/h",
-        source1: source1Count,
-        source2: s2,
-        source3: s3,
-        total: totalRequests,
+        source1: finalSource1,
+        source2: source2Count,
+        source3: source3Count,
+        total: totalViews > 0 ? totalViews : activeViewers,
       },
       system: {
         platform,
