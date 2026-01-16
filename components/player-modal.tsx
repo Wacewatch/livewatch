@@ -17,6 +17,7 @@ import {
   Check,
   Radio,
   Cast,
+  Network,
 } from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
@@ -24,6 +25,7 @@ import { useUserRole } from "@/lib/hooks/use-user-role"
 import { VipUpgradeModal } from "@/components/vip-upgrade-modal"
 import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -40,7 +42,7 @@ const AD_URLS = [
   "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8",
 ]
 
-type ProxyType = "default" | "external"
+type ProxyType = "default" | "external" | "rotator"
 
 export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
@@ -77,7 +79,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
       const urlParams = new URLSearchParams(window.location.search)
       const sourceParam = urlParams.get("source")
-      const initialProxy: ProxyType = sourceParam === "2" ? "external" : "default"
+      const initialProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : "default"
       console.log("[v0] URL source parameter:", sourceParam, "=> using proxy:", initialProxy)
 
       if (isVip || isAdmin || forceNoAds) {
@@ -323,7 +325,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setAdUnlocked(true)
       const urlParams = new URLSearchParams(window.location.search)
       const sourceParam = urlParams.get("source")
-      const initialProxy: ProxyType = sourceParam === "2" ? "external" : "default"
+      const initialProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : "default"
       loadStreamSource(0, initialProxy)
     }, 800)
   }
@@ -337,7 +339,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = "default") => {
     if (!channel) return
 
-    console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : "2"}`)
+    console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
 
     setLoading(true)
     setError(null)
@@ -346,7 +348,28 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     startLoadingAnimation()
 
     try {
-      if (proxyType === "external") {
+      if (proxyType === "rotator") {
+        console.log("[v0] Fetching stream via rotating proxy for channel:", channel.baseId)
+
+        const response = await fetch(
+          `/api/tvvoo/stream?channel=${encodeURIComponent(channel.baseId)}&countries=${encodeURIComponent(country)}`,
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (data.originalUrl) {
+          const rotatorUrl = `/api/proxy-rotator?url=${encodeURIComponent(data.originalUrl)}`
+          setOriginalStreamUrl(data.originalUrl)
+          setStreamUrl(rotatorUrl)
+          playSource(rotatorUrl, proxyType)
+        } else {
+          throw new Error("Aucune source disponible")
+        }
+      } else if (proxyType === "external") {
         console.log("[v0] Fetching alternative stream via worker for channel:", channel.baseId)
 
         const response = await fetch(`/api/stream-alt?channel=${encodeURIComponent(channel.baseId)}`)
@@ -405,7 +428,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const switchProxySource = (proxyType: ProxyType) => {
     if (proxyType === currentProxy) return
 
-    console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : "2"}`)
+    console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
     setCurrentProxy(proxyType)
     stopTrackingSession()
     loadStreamSource(selectedSourceIndex, proxyType)
@@ -415,7 +438,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     const video = videoRef.current
     if (!video) return
 
-    console.log(`[v0] Démarrage lecture avec Source ${proxyType === "default" ? "1" : "2"}:`, url)
+    console.log(
+      `[v0] Démarrage lecture avec Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}:`,
+      url,
+    )
 
     if (hlsRef.current) {
       hlsRef.current.destroy()
@@ -641,6 +667,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
   const playerLinkSource1 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=1`
   const playerLinkSource2 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=2`
+  const playerLinkSource3 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=3`
 
   return (
     <>
@@ -690,28 +717,36 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             {adUnlocked && (
               <div className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 shrink-0">
                 <Radio className="w-3 sm:w-4 h-3 sm:h-4 text-white/60 mr-0.5 sm:mr-1" />
-                <button
+                <Button
                   onClick={() => switchProxySource("default")}
-                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
-                    currentProxy === "default"
-                      ? "bg-cyan-500 text-black shadow-lg"
-                      : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                  }`}
-                  title="Source 1 (Proxy par défaut)"
+                  size="sm"
+                  variant={currentProxy === "default" ? "default" : "outline"}
+                  className={currentProxy === "default" ? "bg-cyan-500" : ""}
+                  disabled={loading}
                 >
+                  <Radio className="h-4 w-4 mr-1" />
                   Source 1
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => switchProxySource("external")}
-                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold transition-all ${
-                    currentProxy === "external"
-                      ? "bg-emerald-500 text-black shadow-lg"
-                      : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                  }`}
-                  title="Source 2 (Proxy externe)"
+                  size="sm"
+                  variant={currentProxy === "external" ? "default" : "outline"}
+                  className={currentProxy === "external" ? "bg-green-500" : ""}
+                  disabled={loading}
                 >
+                  <Radio className="h-4 w-4 mr-1" />
                   Source 2
-                </button>
+                </Button>
+                <Button
+                  onClick={() => switchProxySource("rotator")}
+                  size="sm"
+                  variant={currentProxy === "rotator" ? "default" : "outline"}
+                  className={currentProxy === "rotator" ? "bg-purple-500" : ""}
+                  disabled={loading}
+                >
+                  <Network className="h-4 w-4 mr-1" />
+                  Source 3
+                </Button>
               </div>
             )}
 
@@ -828,6 +863,24 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     </button>
                   </div>
                 </div>
+
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 3</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={playerLinkSource3}
+                      readOnly
+                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
+                    />
+                    <button
+                      onClick={() => copyToClipboard(playerLinkSource3, "player3")}
+                      className="rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-2 text-white transition-colors shrink-0"
+                    >
+                      {copiedLink === "player3" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -896,7 +949,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               </div>
 
               <p className="text-white/40 text-[10px] sm:text-xs mt-3 sm:mt-4 text-center">
-                {currentProxy === "external" ? "Source 2 (Proxy externe)" : "Source 1 (Proxy par défaut)"}
+                {currentProxy === "external"
+                  ? "Source 2 (Proxy externe)"
+                  : currentProxy === "rotator"
+                    ? "Source 3 (Proxy rotatif)"
+                    : "Source 1 (Proxy par défaut)"}
               </p>
             </div>
           )}
@@ -926,11 +983,19 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     Réessayer
                   </button>
                   <button
-                    onClick={() => switchProxySource(currentProxy === "default" ? "external" : "default")}
+                    onClick={() =>
+                      switchProxySource(
+                        currentProxy === "default" ? "external" : currentProxy === "external" ? "rotator" : "default",
+                      )
+                    }
                     className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm sm:text-base font-bold hover:from-emerald-500 hover:to-emerald-400 transition-all flex items-center gap-2"
                   >
                     <Radio className="w-4 sm:w-5 h-4 sm:h-5" />
-                    {currentProxy === "default" ? "Essayer Source 2" : "Essayer Source 1"}
+                    {currentProxy === "default"
+                      ? "Essayer Source 2"
+                      : currentProxy === "external"
+                        ? "Essayer Source 3"
+                        : "Essayer Source 1"}
                   </button>
                 </div>
               </div>
