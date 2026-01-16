@@ -1,145 +1,114 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-async function getBestProxy(supabase: any): Promise<string | null> {
+async function getBestProxies(supabase: any, limit = 5): Promise<string[]> {
   try {
-    // Get the fastest active proxy from the database
     const { data: proxies, error } = await supabase
       .from("proxies")
       .select("proxy_url, host, port, speed_ms, success_rate")
       .eq("is_active", true)
       .order("speed_ms", { ascending: true })
       .order("success_rate", { ascending: false })
-      .limit(10)
+      .limit(limit)
 
     if (error || !proxies || proxies.length === 0) {
-      console.log("[v0] No proxies in database, using fallback")
-      return null
+      console.log("[v0] No proxies in database")
+      return []
     }
 
-    // Return a random proxy from the top 5 fastest
-    const topProxies = proxies.slice(0, 5)
-    const selectedProxy = topProxies[Math.floor(Math.random() * topProxies.length)]
-
-    console.log(
-      `[v0] Selected proxy: ${selectedProxy.host}:${selectedProxy.port} (${selectedProxy.speed_ms}ms, ${selectedProxy.success_rate}% success)`,
-    )
-
-    return selectedProxy.proxy_url || `http://${selectedProxy.host}:${selectedProxy.port}`
+    return proxies.map((p: any) => p.proxy_url || `http://${p.host}:${p.port}`)
   } catch (error) {
     console.error("[v0] Error fetching proxies:", error)
-    return null
+    return []
   }
 }
 
-// Fallback proxy endpoints when no proxies in DB
-const FALLBACK_PROXIES = [
-  "https://morning-wildflower-3cf3.wavewatchcontact.workers.dev",
-  "https://proxiesembed.movix.club/proxy?url=",
-  "https://fgqmaalhy7acgwwhm.ngoldpklyoc.workers.dev/?url=",
-]
+async function fetchWithTimeout(url: string, timeout = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
 
-async function tryFetchWithProxy(url: string, proxyEndpoint: string, timeout = 20000): Promise<Response> {
-  const isMovixProxy = proxyEndpoint.includes("movix.club")
-  const isWorker = proxyEndpoint.includes("workers.dev")
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Referer: "https://tvvoo.live/",
+        Accept: "*/*",
+        "Accept-Encoding": "identity",
+        Origin: "https://tvvoo.live",
+      },
+      signal: controller.signal,
+      cache: "no-store",
+    })
 
-  let proxyUrl: string
-  if (isMovixProxy) {
-    proxyUrl = `${proxyEndpoint}${encodeURIComponent(url)}`
-  } else if (isWorker) {
-    proxyUrl = proxyEndpoint.includes("?")
-      ? `${proxyEndpoint}${encodeURIComponent(url)}`
-      : `${proxyEndpoint}?url=${encodeURIComponent(url)}`
-  } else {
-    // HTTP proxy - use direct fetch through proxy
-    proxyUrl = url // For HTTP proxies, we'd need a different approach
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    throw error
   }
-
-  const response = await fetch(proxyUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "*/*",
-      "Accept-Language": "en-US,en;q=0.9",
-      Referer: "https://vavoo.to/",
-      Origin: "https://vavoo.to",
-    },
-    signal: AbortSignal.timeout(timeout),
-  })
-
-  if (!response.ok) {
-    throw new Error(`Proxy returned ${response.status}`)
-  }
-
-  return response
 }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const url = searchParams.get("url")
-    const retryIndex = Number.parseInt(searchParams.get("retry") || "0")
 
     if (!url) {
       return NextResponse.json({ error: "URL parameter required" }, { status: 400 })
     }
 
+    let targetUrl = url
+    if (url.includes("/api/proxy-rotator")) {
+      const innerUrl = new URL(url, "http://localhost")
+      targetUrl = innerUrl.searchParams.get("url") || url
+      console.log("[v0] Extracted inner URL from recursive call:", targetUrl.substring(0, 80))
+    }
+
     const supabase = await createClient()
 
-    const dbProxy = await getBestProxy(supabase)
+    console.log("[v0] Source 3: Fetching URL directly:", targetUrl.substring(0, 80))
 
-    // Build list of proxies to try: DB proxy first, then fallbacks
-    const proxiesToTry: string[] = []
-    if (dbProxy) {
-      proxiesToTry.push(dbProxy)
+    let response: Response
+    let success = false
+
+    try {
+      response = await fetchWithTimeout(targetUrl)
+      if (response.ok) {
+        success = true
+        console.log("[v0] Source 3: Direct fetch succeeded")
+      }
+    } catch (error) {
+      console.log("[v0] Source 3: Direct fetch failed, will try external proxies")
     }
-    proxiesToTry.push(...FALLBACK_PROXIES)
 
-    let lastError: Error | null = null
-    let successfulResponse: Response | null = null
-    let usedProxyIndex = retryIndex
+    if (!success) {
+      const externalProxies = [
+        "https://morning-wildflower-3cf3.wavewatchcontact.workers.dev",
+        "https://proxiesembed.movix.club/proxy?url=",
+      ]
 
-    const maxAttempts = Math.min(5, proxiesToTry.length)
-    for (let i = 0; i < maxAttempts; i++) {
-      const proxyIndex = (retryIndex + i) % proxiesToTry.length
-      const proxyEndpoint = proxiesToTry[proxyIndex]
+      for (const proxyEndpoint of externalProxies) {
+        try {
+          const proxyUrl = proxyEndpoint.includes("?")
+            ? `${proxyEndpoint}${encodeURIComponent(targetUrl)}`
+            : `${proxyEndpoint}?url=${encodeURIComponent(targetUrl)}`
 
-      try {
-        console.log(`[v0] Source 3: Trying proxy ${i + 1}/${maxAttempts}: ${proxyEndpoint.substring(0, 60)}...`)
-        successfulResponse = await tryFetchWithProxy(url, proxyEndpoint)
-        usedProxyIndex = proxyIndex
-        console.log(`[v0] Source 3: Proxy ${i + 1} succeeded`)
+          console.log("[v0] Source 3: Trying external proxy:", proxyEndpoint.substring(0, 50))
 
-        // Update proxy success in DB if it was a DB proxy
-        if (i === 0 && dbProxy) {
-          await supabase
-            .from("proxies")
-            .update({
-              times_used: supabase.rpc ? undefined : 1,
-              last_used: new Date().toISOString(),
-              success_rate: supabase.rpc ? undefined : 100,
-            })
-            .eq("proxy_url", dbProxy)
-            .catch(() => {})
-        }
-
-        break
-      } catch (error) {
-        console.log(`[v0] Source 3: Proxy ${i + 1} failed:`, error instanceof Error ? error.message : "Unknown")
-        lastError = error instanceof Error ? error : new Error("Unknown error")
-
-        // Mark proxy as potentially bad in DB
-        if (i === 0 && dbProxy) {
-          await supabase
-            .from("proxies")
-            .update({ is_active: false })
-            .eq("proxy_url", dbProxy)
-            .catch(() => {})
+          response = await fetchWithTimeout(proxyUrl)
+          if (response.ok) {
+            success = true
+            console.log("[v0] Source 3: External proxy succeeded")
+            break
+          }
+        } catch (error) {
+          console.log("[v0] Source 3: External proxy failed:", error instanceof Error ? error.message : "Unknown")
         }
       }
     }
 
-    if (!successfulResponse) {
+    if (!success || !response!) {
       // Log failure
       await supabase
         .from("proxy_usage_logs")
@@ -150,16 +119,16 @@ export async function GET(request: Request) {
         })
         .catch(() => {})
 
-      return NextResponse.json({ error: "All proxies failed", details: lastError?.message }, { status: 500 })
+      return NextResponse.json({ error: "All proxy methods failed" }, { status: 500 })
     }
 
-    const contentType = successfulResponse.headers.get("content-type") || ""
+    const contentType = response.headers.get("content-type") || ""
 
-    // Handle M3U8 manifests
-    if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
-      const text = await successfulResponse.text()
+    if (contentType.includes("mpegurl") || targetUrl.includes(".m3u8") || contentType.includes("x-mpegURL")) {
+      const text = await response.text()
+      console.log("[v0] Source 3: Rewriting M3U8 manifest")
 
-      const baseUrl = new URL(url)
+      const baseUrl = new URL(targetUrl)
       const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
 
       const rewrittenManifest = text
@@ -176,7 +145,7 @@ export async function GET(request: Request) {
               absoluteUrl = baseUrlStr + absoluteUrl
             }
 
-            return `/api/proxy-rotator?url=${encodeURIComponent(absoluteUrl)}&retry=${usedProxyIndex}`
+            return `/api/proxy-rotator?url=${encodeURIComponent(absoluteUrl)}`
           }
 
           return line
@@ -205,11 +174,12 @@ export async function GET(request: Request) {
       })
     }
 
-    // Handle binary data (TS segments)
-    const data = await successfulResponse.arrayBuffer()
+    const data = await response.arrayBuffer()
 
     const finalContentType =
-      url.endsWith(".ts") || url.includes("/seg-") ? "video/MP2T" : contentType || "application/octet-stream"
+      targetUrl.endsWith(".ts") || targetUrl.includes("/seg-")
+        ? "video/MP2T"
+        : contentType || "application/octet-stream"
 
     // Log success
     await supabase

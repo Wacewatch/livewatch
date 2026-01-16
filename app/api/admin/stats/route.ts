@@ -93,19 +93,6 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("role", "admin")
 
-    const { data: activeSessions } = await supabase
-      .from("active_sessions")
-      .select("user_id")
-      .gte("last_heartbeat", fiveMinutesAgo)
-
-    const membersOnline = activeSessions?.filter((s) => s.user_id).length || 0
-    const guestsOnline = (activeSessions?.length || 0) - membersOnline
-
-    const { count: liveViewers } = await supabase
-      .from("active_sessions")
-      .select("id", { count: "exact", head: true })
-      .gte("last_heartbeat", fiveMinutesAgo)
-
     const { data: currentSessions } = await supabase
       .from("active_sessions")
       .select("channel_id, channel_name")
@@ -130,10 +117,11 @@ export async function GET() {
       .sort((a, b) => b.viewer_count - a.viewer_count)
       .slice(0, 10)
 
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     const { data: recentViews } = await supabase
       .from("channel_views")
       .select("channel_id, channel_name")
-      .gte("viewed_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .gte("viewed_at", oneHourAgo)
 
     const viewCounts = recentViews?.reduce((acc: Record<string, { name: string; count: number }>, view) => {
       if (view.channel_id && view.channel_name) {
@@ -165,6 +153,16 @@ export async function GET() {
       return acc
     }, {})
 
+    const activeSessions = await supabase
+      .from("active_sessions")
+      .select("user_id")
+      .gte("last_heartbeat", fiveMinutesAgo)
+
+    const membersOnline = activeSessions.data?.filter((s) => s.user_id).length || 0
+    const guestsOnline = (activeSessions.data?.length || 0) - membersOnline
+
+    const liveViewers = await supabase.from("active_sessions").select("id").gte("last_heartbeat", fiveMinutesAgo)
+
     return NextResponse.json({
       totalUsers: totalUsers || 0,
       totalChannels: totalChannelsAllCountries,
@@ -175,7 +173,7 @@ export async function GET() {
       membersOnline,
       guestsOnline,
       onlineUsers: membersOnline + guestsOnline,
-      liveViewers: liveViewers || 0,
+      liveViewers: liveViewers.count || 0,
       topChannels,
       currentlyWatching,
       viewsPerDay: dailyStats || {},

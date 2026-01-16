@@ -33,7 +33,7 @@ interface PlayerModalProps {
   isOpen: boolean
   onClose: () => void
   forceNoAds?: boolean
-  country?: string
+  country?: "France" | "Spain" | "Portugal" | "Germany" | "Italy" | "Belgium" | "Netherlands" | "Luxembourg"
 }
 
 const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
@@ -68,6 +68,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const maxRetries = 3
+  const [sourceConfig, setSourceConfig] = useState({
+    source1_enabled: true,
+    source2_enabled: true,
+    source3_enabled: true,
+  })
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   // Corrected hlsRef declaration to match the rest of the code
@@ -80,6 +85,13 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     if (isOpen && channel) {
       console.log("[v0] Opening player for channel:", channel.baseName, "country:", country)
       document.body.style.overflow = "hidden"
+
+      fetch("/api/admin/source-config")
+        .then((res) => res.json())
+        .then((config) => {
+          setSourceConfig(config)
+        })
+        .catch(() => {})
 
       const urlParams = new URLSearchParams(window.location.search)
       const sourceParam = urlParams.get("source")
@@ -497,92 +509,10 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         abrBandWidthUpFactor: 0.7,
       }
 
-      if (proxyType === "rotator") {
-        hlsConfig.loader = class CustomLoader {
-          context: any
-          config: any
-          callbacks: any
-          stats: any
-          loader: any
-
-          constructor(config: any) {
-            this.config = config
-          }
-
-          destroy() {
-            if (this.loader) {
-              this.loader.abort()
-            }
-          }
-
-          abort() {
-            if (this.loader) {
-              this.loader.abort()
-            }
-          }
-
-          load(context: any, config: any, callbacks: any) {
-            this.context = context
-            this.config = config
-            this.callbacks = callbacks
-            this.stats = { loading: { start: Date.now(), first: 0, end: 0 }, total: 0, loaded: 0, retry: 0 }
-
-            const url = context.url
-            const proxiedUrl = `/api/proxy-rotator?url=${encodeURIComponent(url)}`
-
-            console.log(
-              "[v0] Rotator loading:",
-              url.includes(".ts") ? "TS segment" : "Manifest",
-              url.substring(url.length - 40),
-            )
-
-            const xhr = new XMLHttpRequest()
-            this.loader = xhr
-
-            xhr.open("GET", proxiedUrl, true)
-            xhr.responseType = context.responseType || "arraybuffer"
-            xhr.timeout = 60000
-
-            xhr.onreadystatechange = () => {
-              if (xhr.readyState === 2 && this.stats.loading.first === 0) {
-                this.stats.loading.first = Date.now()
-              }
-            }
-
-            xhr.onload = () => {
-              this.stats.loading.end = Date.now()
-              this.stats.total = xhr.response.byteLength || 0
-              this.stats.loaded = this.stats.total
-
-              if (xhr.status >= 200 && xhr.status < 300) {
-                callbacks.onSuccess({ url, data: xhr.response }, this.stats, context)
-              } else {
-                callbacks.onError({ code: xhr.status, text: xhr.statusText }, context)
-              }
-            }
-
-            xhr.onerror = () => {
-              callbacks.onError({ code: xhr.status, text: "Network error" }, context)
-            }
-
-            xhr.ontimeout = () => {
-              callbacks.onTimeout(this.stats, context)
-            }
-
-            xhr.send()
-          }
-        }
-      } else if (proxyType === "external") {
-        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
-          console.log("[v0] HLS external requesting:", xhrUrl.substring(0, 100))
-          xhr.withCredentials = false
-          xhr.timeout = 60000
-        }
-      } else {
-        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
-          console.log("[v0] HLS default requesting:", xhrUrl.substring(0, 100))
-          xhr.timeout = 60000
-        }
+      // No custom loader needed for any source - the backend handles URL rewriting
+      hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
+        console.log("[v0] HLS requesting:", xhrUrl.substring(0, 100))
+        xhr.timeout = 60000
       }
 
       const hls = new Hls(hlsConfig)
@@ -623,49 +553,46 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           clearLoadingInterval()
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log("[v0] Network error, trying to recover...")
-              if (
-                data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
-                data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
-              ) {
-                setError("Impossible de charger le flux. Essayez l'autre source.")
-                setLoading(false)
-              } else {
-                hls.startLoad()
-              }
+              console.log("[v0] Network error, attempting recovery...")
+              hls.startLoad()
               break
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log("[v0] Media error, trying to recover...")
+              console.log("[v0] Media error, attempting recovery...")
               hls.recoverMediaError()
               break
             default:
-              setError("Erreur de lecture du flux")
+              setError("Impossible de charger le flux. Essayez l'autre source.")
               setLoading(false)
               break
           }
         }
       })
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      console.log("[v0] Using native HLS support")
+      console.log("[v0] Using native HLS")
       video.src = url
       video.addEventListener(
         "canplay",
         () => {
-          console.log("[v0] Video ready to play (native HLS)")
-          setLoadingProgress(100)
           clearLoadingInterval()
-          setTimeout(() => {
-            setVideoLoaded(true)
-            setLoading(false)
-            startTrackingSession()
-          }, 500)
+          setVideoLoaded(true)
+          setLoading(false)
+          startTrackingSession()
         },
         { once: true },
       )
     } else {
-      clearLoadingInterval()
-      setError("HLS non supporté par ce navigateur")
-      setLoading(false)
+      console.log("[v0] Direct video source")
+      video.src = url
+      video.addEventListener(
+        "canplay",
+        () => {
+          clearLoadingInterval()
+          setVideoLoaded(true)
+          setLoading(false)
+          startTrackingSession()
+        },
+        { once: true },
+      )
     }
     // Attempt to play video after setting source
     video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
@@ -764,6 +691,12 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const playerLinkSource2 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=2`
   const playerLinkSource3 = `${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}&source=3`
 
+  const availableSources = [
+    { type: "default" as ProxyType, enabled: sourceConfig.source1_enabled, name: "Source 1", desc: "Proxy par défaut" },
+    { type: "external" as ProxyType, enabled: sourceConfig.source2_enabled, name: "Source 2", desc: "Proxy externe" },
+    { type: "rotator" as ProxyType, enabled: sourceConfig.source3_enabled, name: "Source 3", desc: "Proxy rotatif" },
+  ].filter((s) => s.enabled)
+
   return (
     <>
       <a
@@ -821,30 +754,36 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 bg-gray-900 border-gray-700">
-                  <DropdownMenuItem
-                    onClick={() => switchProxySource("default")}
-                    className={`flex items-center gap-2 cursor-pointer ${currentProxy === "default" ? "bg-cyan-500/20 text-cyan-400" : "text-white hover:bg-white/10"}`}
-                  >
-                    <Radio className="w-4 h-4" />
-                    <span>Source 1</span>
-                    <span className="ml-auto text-xs text-gray-400">Proxy par défaut</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => switchProxySource("external")}
-                    className={`flex items-center gap-2 cursor-pointer ${currentProxy === "external" ? "bg-green-500/20 text-green-400" : "text-white hover:bg-white/10"}`}
-                  >
-                    <Network className="w-4 h-4" />
-                    <span>Source 2</span>
-                    <span className="ml-auto text-xs text-gray-400">Proxy externe</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => switchProxySource("rotator")}
-                    className={`flex items-center gap-2 cursor-pointer ${currentProxy === "rotator" ? "bg-purple-500/20 text-purple-400" : "text-white hover:bg-white/10"}`}
-                  >
-                    <Network className="w-4 h-4" />
-                    <span>Source 3</span>
-                    <span className="ml-auto text-xs text-gray-400">Proxy rotatif</span>
-                  </DropdownMenuItem>
+                  {sourceConfig.source1_enabled && (
+                    <DropdownMenuItem
+                      onClick={() => switchProxySource("default")}
+                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "default" ? "bg-cyan-500/20 text-cyan-400" : "text-white hover:bg-white/10"}`}
+                    >
+                      <Radio className="w-4 h-4" />
+                      <span>Source 1</span>
+                      <span className="ml-auto text-xs text-gray-400">Proxy par défaut</span>
+                    </DropdownMenuItem>
+                  )}
+                  {sourceConfig.source2_enabled && (
+                    <DropdownMenuItem
+                      onClick={() => switchProxySource("external")}
+                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "external" ? "bg-green-500/20 text-green-400" : "text-white hover:bg-white/10"}`}
+                    >
+                      <Network className="w-4 h-4" />
+                      <span>Source 2</span>
+                      <span className="ml-auto text-xs text-gray-400">Proxy externe</span>
+                    </DropdownMenuItem>
+                  )}
+                  {sourceConfig.source3_enabled && (
+                    <DropdownMenuItem
+                      onClick={() => switchProxySource("rotator")}
+                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "rotator" ? "bg-purple-500/20 text-purple-400" : "text-white hover:bg-white/10"}`}
+                    >
+                      <Network className="w-4 h-4" />
+                      <span>Source 3</span>
+                      <span className="ml-auto text-xs text-gray-400">Proxy rotatif</span>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

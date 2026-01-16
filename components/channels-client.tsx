@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, Filter, ArrowLeft, LaptopMinimal as TvMinimal } from "lucide-react"
+import { Search, Star, Filter, ArrowLeft, LaptopMinimal as TvMinimal, Wifi, Globe } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import type { GroupedChannel } from "@/lib/types"
@@ -11,6 +11,46 @@ import { UserMenu } from "@/components/user-menu"
 
 interface ChannelsClientProps {
   country: string
+}
+
+function getQualityBadge(quality: string) {
+  switch (quality?.toUpperCase()) {
+    case "4K":
+      return "bg-purple-500/20 text-purple-400 border-purple-500/30"
+    case "FHD":
+      return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+    case "HD":
+      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+    case "SD":
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    default:
+      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+  }
+}
+
+function getCategoryBadge(category: string) {
+  switch (category?.toLowerCase()) {
+    case "sport":
+      return "bg-green-500/20 text-green-400 border-green-500/30"
+    case "actualités":
+    case "news":
+      return "bg-red-500/20 text-red-400 border-red-500/30"
+    case "enfants":
+    case "kids":
+      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+    case "cinéma":
+    case "cinema":
+      return "bg-orange-500/20 text-orange-400 border-orange-500/30"
+    case "musique":
+    case "music":
+      return "bg-pink-500/20 text-pink-400 border-pink-500/30"
+    case "documentaire":
+      return "bg-teal-500/20 text-teal-400 border-teal-500/30"
+    case "généraliste":
+      return "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+    default:
+      return "bg-primary/20 text-primary border-primary/30"
+  }
 }
 
 export function ChannelsClient({ country }: ChannelsClientProps) {
@@ -241,12 +281,30 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                 </div>
 
                 <div className="p-4 bg-gradient-to-b from-card/50 to-card">
-                  <h3 className="font-bold text-lg md:text-xl text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors leading-tight">
+                  <h3 className="font-bold text-lg md:text-xl text-foreground mb-3 line-clamp-2 group-hover:text-primary transition-colors leading-tight">
                     {channel.baseName}
                   </h3>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Category badge */}
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${getCategoryBadge(channel.category || "")}`}
+                    >
                       {channel.category || "Divers"}
+                    </span>
+
+                    {/* Quality badge */}
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${getQualityBadge(channel.quality || "HD")}`}
+                    >
+                      <Wifi className="w-2.5 h-2.5" />
+                      {channel.quality || "HD"}
+                    </span>
+
+                    {/* Language badge */}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-slate-500/20 text-slate-400 border-slate-500/30">
+                      <Globe className="w-2.5 h-2.5" />
+                      {channel.language || "FR"}
                     </span>
                   </div>
                 </div>

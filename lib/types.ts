@@ -24,6 +24,9 @@ export interface GroupedChannel {
   genres?: string[]
   type?: string
   language?: string
+  quality?: string // Added quality field
+  country?: string // Added country field
+  isFavorite?: boolean // Added for client-side state
   sources: Array<{
     id: string
     name: string
