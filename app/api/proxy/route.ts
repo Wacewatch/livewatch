@@ -9,18 +9,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Augmenter le timeout à 60 secondes
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
+
+    // Récupérer les headers Range de la requête originale
+    const rangeHeader = request.headers.get("range")
+    
+    const headers: HeadersInit = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "Referer": "https://tvvoo.live/",
+      "Accept": "*/*",
+      "Accept-Encoding": "identity",
+      "Origin": "https://tvvoo.live",
+    }
+
+    // Ajouter le header Range si présent
+    if (rangeHeader) {
+      headers["Range"] = rangeHeader
+    }
 
     const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Referer: "https://tvvoo.live/",
-        Accept: "*/*",
-        "Accept-Encoding": "identity",
-        Origin: "https://tvvoo.live",
-      },
+      headers,
       signal: controller.signal,
     })
 
@@ -73,7 +84,8 @@ export async function GET(request: NextRequest) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Range",
-          "Cache-Control": "public, max-age=2",
+          // Augmenter le cache du manifeste à 5 secondes
+          "Cache-Control": "public, max-age=5",
         },
       })
     }
@@ -81,21 +93,38 @@ export async function GET(request: NextRequest) {
     const isSegment = url.includes(".ts") || contentType.includes("video/mp2t")
 
     if (isSegment && response.body) {
-      // Stream the response body directly without buffering
+      const responseHeaders: HeadersInit = {
+        "Content-Type": contentType || "video/mp2t",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Range",
+        // Cache plus long pour les segments (1 heure)
+        "Cache-Control": "public, max-age=3600, immutable",
+        "Accept-Ranges": "bytes",
+      }
+
+      // Transférer les headers importants de la réponse
+      const contentLength = response.headers.get("content-length")
+      if (contentLength) {
+        responseHeaders["Content-Length"] = contentLength
+      }
+
+      const contentRange = response.headers.get("content-range")
+      if (contentRange) {
+        responseHeaders["Content-Range"] = contentRange
+      }
+
+      // Utiliser le bon status code pour les range requests
+      const status = response.status === 206 ? 206 : 200
+
+      // Stream la réponse directement
       return new NextResponse(response.body, {
-        status: 200,
-        headers: {
-          "Content-Type": contentType || "video/mp2t",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Range",
-          "Cache-Control": "public, max-age=300",
-          "Accept-Ranges": "bytes",
-        },
+        status,
+        headers: responseHeaders,
       })
     }
 
-    // Fallback for other content types
+    // Fallback pour autres types de contenu
     const data = await response.arrayBuffer()
 
     return new NextResponse(data, {

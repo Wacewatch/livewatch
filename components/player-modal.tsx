@@ -28,8 +28,8 @@ import { VipUpgradeModal } from "@/components/vip-upgrade-modal"
 import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button" // Assuming Button component is available
-import { Badge } from "@/components/ui/badge" // Assuming Badge component is available
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -89,11 +89,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
-  // Corrected hlsRef declaration to match the rest of the code
   const hlsRef = useRef<any>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hiddenLinkRef = useRef<HTMLAnchorElement>(null)
   const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const bufferHealthCheckRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (isOpen && channel) {
@@ -134,7 +134,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
       setCurrentProxy(initialProxy)
-      setCurrentCustomSourceId(null) // Reset custom source on open
+      setCurrentCustomSourceId(null)
       setLoadingProgress(0)
       setLoadingStatus("")
       setRetryCount(0)
@@ -142,6 +142,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       document.body.style.overflow = ""
       stopTrackingSession()
       clearLoadingInterval()
+      clearBufferHealthCheck()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -156,6 +157,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       document.body.style.overflow = ""
       stopTrackingSession()
       clearLoadingInterval()
+      clearBufferHealthCheck()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -167,6 +169,13 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     if (loadingIntervalRef.current) {
       clearInterval(loadingIntervalRef.current)
       loadingIntervalRef.current = null
+    }
+  }
+
+  const clearBufferHealthCheck = () => {
+    if (bufferHealthCheckRef.current) {
+      clearInterval(bufferHealthCheckRef.current)
+      bufferHealthCheckRef.current = null
     }
   }
 
@@ -420,7 +429,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           throw new Error("Aucune source disponible")
         }
       } else if (proxyType === "rotator") {
-        // ... existing code for rotator ...
         console.log("[v0] Fetching stream via rotating proxy for channel:", channel.baseId)
 
         const response = await fetch(
@@ -442,7 +450,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           throw new Error("Aucune source disponible")
         }
       } else if (proxyType === "external") {
-        // ... existing code for external ...
         console.log("[v0] Fetching alternative stream via worker for channel:", channel.baseId)
 
         const response = await fetch(`/api/stream-alt?channel=${encodeURIComponent(channel.baseId)}`)
@@ -464,7 +471,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           throw new Error("Aucune source alternative disponible")
         }
       } else {
-        // ... existing code for default ...
         console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
 
         const response = await fetch(
@@ -516,16 +522,16 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     console.log(`[v0] Switching to custom source: ${sourceId}`)
     setRetryCount(0)
     stopTrackingSession()
-    loadStreamSource(selectedSourceIndex, "default", sourceId) // Pass "default" for proxyType as custom source handles its own proxying
+    loadStreamSource(selectedSourceIndex, "default", sourceId)
   }
 
   const switchProxySource = (proxyType: ProxyType) => {
-    if (proxyType === currentProxy && !currentCustomSourceId) return // Don't switch if already on this proxy type and not on a custom source
+    if (proxyType === currentProxy && !currentCustomSourceId) return
 
     console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
     setCurrentProxy(proxyType)
-    setCurrentCustomSourceId(null) // Clear custom source when switching to default proxies
-    setRetryCount(0) // Reset retry count when switching source
+    setCurrentCustomSourceId(null)
+    setRetryCount(0)
     stopTrackingSession()
     loadStreamSource(selectedSourceIndex, proxyType)
   }
@@ -544,6 +550,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       hlsRef.current = null
     }
 
+    clearBufferHealthCheck()
+
     const isM3U8 =
       url.includes(".m3u8") || url.includes("m3u8") || url.includes("proxy") || url.includes("custom-proxy")
 
@@ -554,30 +562,47 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         debug: false,
         enableWorker: true,
         lowLatencyMode: false,
+        
+        // BUFFERS OPTIMISÉS
         backBufferLength: 90,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 80 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        fragLoadingTimeOut: 60000,
-        fragLoadingMaxRetry: 10,
-        fragLoadingRetryDelay: 300,
-        manifestLoadingTimeOut: 30000,
-        manifestLoadingMaxRetry: 8,
-        levelLoadingTimeOut: 30000,
-        levelLoadingMaxRetry: 8,
+        maxBufferLength: 45,
+        maxMaxBufferLength: 90,
+        maxBufferSize: 100 * 1000 * 1000,
+        maxBufferHole: 0.3,
+        
+        // TIMEOUTS AUGMENTÉS
+        fragLoadingTimeOut: 90000,
+        fragLoadingMaxRetry: 15,
+        fragLoadingRetryDelay: 500,
+        manifestLoadingTimeOut: 45000,
+        manifestLoadingMaxRetry: 10,
+        levelLoadingTimeOut: 45000,
+        levelLoadingMaxRetry: 10,
+        
+        // QUALITÉ ET DÉMARRAGE
         startLevel: -1,
         autoStartLoad: true,
         startFragPrefetch: true,
-        abrEwmaDefaultEstimate: 1000000,
-        abrBandWidthFactor: 0.95,
-        abrBandWidthUpFactor: 0.7,
+        
+        // ABR plus conservateur
+        abrEwmaDefaultEstimate: 500000,
+        abrBandWidthFactor: 0.8,
+        abrBandWidthUpFactor: 0.6,
+        abrMaxWithRealBitrate: true,
+        
+        // PROGRESSIVE LOADING
+        progressive: true,
+        
+        // STALL DETECTION
+        highBufferWatchdogPeriod: 3,
+        nudgeMaxRetry: 10,
       }
 
-      // No custom loader needed for any source - the backend handles URL rewriting
       hlsConfig.xhrSetup = (xhr: XMLHttpRequest, xhrUrl: string) => {
         console.log("[v0] HLS requesting:", xhrUrl.substring(0, 100))
-        xhr.timeout = 60000
+        xhr.timeout = 90000
+        xhr.setRequestHeader('Accept', '*/*')
+        xhr.setRequestHeader('Accept-Encoding', 'identity')
       }
 
       const hls = new Hls(hlsConfig)
@@ -590,6 +615,19 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         console.log("[v0] HLS manifest parsed, levels:", data.levels?.length)
         setLoadingProgress(95)
         setLoadingStatus("Presque prêt...")
+        
+        if (hls.config) {
+          hls.config.maxBufferLength = 45
+        }
+      })
+
+      hls.on(Hls.Events.FRAG_BUFFERED, (event, data) => {
+        console.log("[v0] Fragment buffered:", data.frag?.sn)
+        
+        if (video.buffered.length > 0) {
+          const buffered = video.buffered.end(0) - video.currentTime
+          console.log("[v0] Buffer disponible:", buffered.toFixed(2), "secondes")
+        }
       })
 
       video.addEventListener(
@@ -608,30 +646,84 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         { once: true },
       )
 
+      video.addEventListener("waiting", () => {
+        console.log("[v0] Video buffering...")
+      })
+
+      video.addEventListener("playing", () => {
+        console.log("[v0] Video playing")
+      })
+
       hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-        console.log("[v0] Fragment loaded:", data.frag?.sn)
+        const loadTime = data.frag.stats?.loading?.end ? 
+          data.frag.stats.loading.end - data.frag.stats.loading.start : 0
+        console.log(`[v0] Fragment ${data.frag.sn} loaded in ${loadTime}ms`)
       })
 
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.error("[v0] HLS error:", data.type, data.details, data)
+        
         if (data.fatal) {
           clearLoadingInterval()
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.log("[v0] Network error, attempting recovery...")
-              hls.startLoad()
+              setTimeout(() => {
+                if (hlsRef.current) {
+                  hls.startLoad()
+                }
+              }, 1000)
               break
+              
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.log("[v0] Media error, attempting recovery...")
               hls.recoverMediaError()
               break
+              
             default:
+              console.error("[v0] Fatal error, cannot recover")
               setError("Impossible de charger le flux. Essayez l'autre source.")
               setLoading(false)
+              
+              const availableSources = [
+                { type: "default" as ProxyType, enabled: sourceConfig.source1_enabled },
+                { type: "external" as ProxyType, enabled: sourceConfig.source2_enabled },
+                { type: "rotator" as ProxyType, enabled: sourceConfig.source3_enabled },
+              ].filter((s) => s.enabled)
+              
+              if (availableSources.length > 1) {
+                setTimeout(() => {
+                  const nextProxy = currentProxy === "default" ? "external" : 
+                                  currentProxy === "external" ? "rotator" : "default"
+                  console.log("[v0] Auto-switching to:", nextProxy)
+                  switchProxySource(nextProxy)
+                }, 2000)
+              }
               break
           }
+        } else {
+          console.warn("[v0] Non-fatal HLS error:", data.details)
         }
       })
+
+      // Surveillance de la santé du buffer
+      bufferHealthCheckRef.current = setInterval(() => {
+        if (video && !video.paused) {
+          const buffered = video.buffered
+          if (buffered.length > 0) {
+            const bufferEnd = buffered.end(buffered.length - 1)
+            const bufferAhead = bufferEnd - video.currentTime
+            
+            console.log(`[v0] Buffer health: ${bufferAhead.toFixed(1)}s ahead`)
+            
+            if (bufferAhead < 5 && hls.levels.length > 1) {
+              console.log("[v0] Low buffer, reducing quality")
+              hls.currentLevel = Math.max(0, hls.currentLevel - 1)
+            }
+          }
+        }
+      }, 5000)
+
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       console.log("[v0] Using native HLS")
       video.src = url
@@ -659,7 +751,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         { once: true },
       )
     }
-    // Attempt to play video after setting source
+    
     video.play().catch((e) => console.log("[v0] Autoplay blocked:", e))
   }
 
@@ -668,7 +760,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setVideoLoaded(false)
     setError(null)
     stopTrackingSession()
-    loadStreamSource(selectedSourceIndex, currentProxy, currentCustomSourceId ?? undefined) // Pass current custom source if active
+    loadStreamSource(selectedSourceIndex, currentProxy, currentCustomSourceId ?? undefined)
   }
 
   const toggleFullscreen = () => {
@@ -685,7 +777,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const switchSource = (index: number) => {
     setSelectedSourceIndex(index)
     stopTrackingSession()
-    loadStreamSource(index, currentProxy, currentCustomSourceId ?? undefined) // Pass current custom source if active
+    loadStreamSource(index, currentProxy, currentCustomSourceId ?? undefined)
   }
 
   const handleCast = () => {
@@ -810,13 +902,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             {adUnlocked && (
               <DropdownMenu open={sourceMenuOpen} onOpenChange={setSourceMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  {/* <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 transition-all">
-                    <Radio className="w-4 h-4" />
-                    <span className="text-sm font-medium">
-                      {currentProxy === "default" ? "Source 1" : currentProxy === "external" ? "Source 2" : "Source 3"}
-                    </span>
-                    <ChevronDown className="w-4 h-4" />
-                  </button> */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -834,7 +919,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 bg-gray-900 border-gray-700">
-                  {/* Source 1 - Default */}
                   {(sourceConfig.source1_enabled || isAdmin) && (
                     <DropdownMenuItem
                       onClick={() => {
@@ -851,7 +935,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     </DropdownMenuItem>
                   )}
 
-                  {/* Source 2 - External Worker */}
                   {(sourceConfig.source2_enabled || isAdmin) && (
                     <DropdownMenuItem
                       onClick={() => {
@@ -868,7 +951,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     </DropdownMenuItem>
                   )}
 
-                  {/* Source 3 - Rotator */}
                   {(sourceConfig.source3_enabled || isAdmin) && (
                     <DropdownMenuItem
                       onClick={() => {
@@ -885,7 +967,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     </DropdownMenuItem>
                   )}
 
-                  {/* Custom Sources */}
                   {customSources.length > 0 && (
                     <>
                       <div className="border-t border-slate-700 my-1" />
@@ -1161,7 +1242,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   {customSources.length > 0 && (
                     <button
                       onClick={() => {
-                        // Try the next available custom source if current one failed
                         const currentIndex = customSources.findIndex((s) => s.id === currentCustomSourceId)
                         const nextIndex = (currentIndex + 1) % customSources.length
                         switchToCustomSource(customSources[nextIndex].id)
