@@ -23,6 +23,8 @@ import {
   MessageSquare,
   LinkIcon,
   Zap,
+  Edit,
+  Server,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -183,11 +185,23 @@ interface CollapsibleState {
   sources: boolean
   globalBanner: boolean
   countryBanners: boolean
+  // @ts-ignore - Add customSources to collapsed state
+  customSources: boolean // Added
 }
 
 interface ExternalProxyConfig {
   url: string
   enabled: boolean
+}
+
+interface CustomProxySource {
+  id: string
+  name: string
+  proxy_url: string
+  description: string
+  enabled: boolean
+  sort_order: number
+  created_at: string
 }
 
 export function AdminDashboard() {
@@ -269,6 +283,8 @@ export function AdminDashboard() {
     sources: false,
     globalBanner: false,
     countryBanners: true,
+    // @ts-ignore - Add customSources to collapsed state
+    customSources: false, // Added
   })
   const [proxyListLimit, setProxyListLimit] = useState(10)
   const [proxySort, setProxySort] = useState<"speed" | "success" | "country">("speed")
@@ -291,6 +307,11 @@ export function AdminDashboard() {
     source2_enabled: true,
     source3_enabled: true,
   })
+
+  const [customSources, setCustomSources] = useState<CustomProxySource[]>([])
+  const [showAddCustomSourceDialog, setShowAddCustomSourceDialog] = useState(false)
+  const [newCustomSource, setNewCustomSource] = useState({ name: "", proxy_url: "", description: "" })
+  const [editingCustomSource, setEditingCustomSource] = useState<CustomProxySource | null>(null)
 
   const fetchRealtimeStats = useCallback(async () => {
     try {
@@ -351,10 +372,11 @@ export function AdminDashboard() {
       setLoadingProgress(50)
 
       setLoadingModules((prev) => ({ ...prev, sources: true }))
-      const [keysRes, sourceConfigRes, bannersRes] = await Promise.all([
+      const [keysRes, sourceConfigRes, bannersRes, customSourcesRes] = await Promise.all([
         fetch("/api/admin/vip-keys"),
         fetch("/api/admin/source-config"),
         fetch("/api/admin/banners"),
+        fetch("/api/admin/custom-sources"),
       ])
       if (keysRes.ok) {
         const keysData = await keysRes.json()
@@ -375,6 +397,10 @@ export function AdminDashboard() {
         if (bannersData.countryBanners) {
           setCountryBanners(bannersData.countryBanners)
         }
+      }
+      if (customSourcesRes.ok) {
+        const customSourcesData = await customSourcesRes.json()
+        setCustomSources(customSourcesData.sources || [])
       }
       setLoadingModules((prev) => ({ ...prev, sources: false }))
       setLoadingProgress(70)
@@ -752,6 +778,98 @@ export function AdminDashboard() {
       }
     } catch (error) {
       console.error("[v0] Failed to save country banner:", error)
+    }
+  }
+
+  const addCustomSource = async () => {
+    if (!newCustomSource.name || !newCustomSource.proxy_url) {
+      alert("Le nom et l'URL du proxy sont requis")
+      return
+    }
+
+    try {
+      const res = await fetch("/api/admin/custom-sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCustomSource),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        alert("Source ajoutée avec succès !")
+        setShowAddCustomSourceDialog(false)
+        setNewCustomSource({ name: "", proxy_url: "", description: "" })
+        // Refresh custom sources
+        const customSourcesRes = await fetch("/api/admin/custom-sources")
+        if (customSourcesRes.ok) {
+          const customSourcesData = await customSourcesRes.json()
+          setCustomSources(customSourcesData.sources || [])
+        }
+      } else {
+        alert(`Erreur: ${data.error || "Échec de l'ajout"}`)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to add custom source:", error)
+      alert("Échec de l'ajout de la source")
+    }
+  }
+
+  const toggleCustomSource = async (id: string, enabled: boolean) => {
+    try {
+      await fetch("/api/admin/custom-sources", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, enabled }),
+      })
+      // Refresh custom sources
+      const customSourcesRes = await fetch("/api/admin/custom-sources")
+      if (customSourcesRes.ok) {
+        const customSourcesData = await customSourcesRes.json()
+        setCustomSources(customSourcesData.sources || [])
+      }
+    } catch (error) {
+      console.error("[v0] Failed to toggle custom source:", error)
+    }
+  }
+
+  const deleteCustomSource = async (id: string) => {
+    if (!confirm("Supprimer cette source personnalisée ?")) return
+
+    try {
+      await fetch("/api/admin/custom-sources", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+      // Refresh custom sources
+      const customSourcesRes = await fetch("/api/admin/custom-sources")
+      if (customSourcesRes.ok) {
+        const customSourcesData = await customSourcesRes.json()
+        setCustomSources(customSourcesData.sources || [])
+      }
+    } catch (error) {
+      console.error("[v0] Failed to delete custom source:", error)
+    }
+  }
+
+  const updateCustomSource = async () => {
+    if (!editingCustomSource) return
+
+    try {
+      await fetch("/api/admin/custom-sources", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingCustomSource),
+      })
+      setEditingCustomSource(null)
+      // Refresh custom sources
+      const customSourcesRes = await fetch("/api/admin/custom-sources")
+      if (customSourcesRes.ok) {
+        const customSourcesData = await customSourcesRes.json()
+        setCustomSources(customSourcesData.sources || [])
+      }
+    } catch (error) {
+      console.error("[v0] Failed to update custom source:", error)
     }
   }
 
@@ -1563,6 +1681,112 @@ export function AdminDashboard() {
             </div>
           )}
         </Card>
+
+        <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+          <div
+            className="p-4 border-b border-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-700/30 transition-colors"
+            onClick={() => toggleCollapse("customSources" as keyof CollapsibleState)}
+          >
+            <div className="flex items-center gap-3">
+              <Server className="h-5 w-5 text-purple-400" />
+              <div>
+                <h2 className="text-lg font-semibold">Sources Proxy Personnalisées</h2>
+                <p className="text-sm text-slate-400">Gérez vos propres proxy (PHP, TS, etc.) pour le streaming</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-400">
+                {customSources.filter((s) => s.enabled).length} activée(s) sur {customSources.length}
+              </span>
+              {(collapsed as any).customSources ? (
+                <ChevronDown className="h-5 w-5 text-slate-400" />
+              ) : (
+                <ChevronUp className="h-5 w-5 text-slate-400" />
+              )}
+            </div>
+          </div>
+
+          {!(collapsed as any).customSources && (
+            <div className="p-4 space-y-4">
+              {/* Add Source Button */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setShowAddCustomSourceDialog(true)}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter une Source
+                </Button>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                <h4 className="text-purple-400 font-medium mb-2">Format de l'URL Proxy</h4>
+                <p className="text-sm text-slate-300 mb-2">
+                  L'URL doit se terminer par le paramètre pour recevoir l'URL du stream. Exemples :
+                </p>
+                <code className="text-xs bg-slate-900 p-2 rounded block text-green-400">
+                  https://votre-vps.com/proxy.php?url=
+                </code>
+                <code className="text-xs bg-slate-900 p-2 rounded block text-green-400 mt-1">
+                  https://votre-server.com/stream-proxy.ts?stream=
+                </code>
+                <p className="text-xs text-slate-400 mt-2">
+                  Le stream M3U8 sera automatiquement ajouté à la fin de l'URL.
+                </p>
+              </div>
+
+              {/* Sources List */}
+              {customSources.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">Aucune source personnalisée configurée</div>
+              ) : (
+                <div className="space-y-3">
+                  {customSources.map((source, index) => (
+                    <div
+                      key={source.id}
+                      className={`p-4 rounded-lg border ${
+                        source.enabled ? "bg-slate-700/50 border-purple-500/30" : "bg-slate-800/30 border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={source.enabled ? "default" : "secondary"}
+                              className={source.enabled ? "bg-purple-500" : ""}
+                            >
+                              Source {index + 4}
+                            </Badge>
+                            <h4 className="font-medium">{source.name}</h4>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1 font-mono truncate max-w-md">{source.proxy_url}</p>
+                          {source.description && <p className="text-sm text-slate-400 mt-1">{source.description}</p>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingCustomSource(source)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Switch
+                            checked={source.enabled}
+                            onCheckedChange={(checked) => toggleCustomSource(source.id, checked)}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-400 hover:text-red-300"
+                            onClick={() => deleteCustomSource(source.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Dialogs */}
@@ -1682,6 +1906,98 @@ export function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showAddCustomSourceDialog} onOpenChange={setShowAddCustomSourceDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle>Ajouter une Source Proxy</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nom</Label>
+              <Input
+                value={newCustomSource.name}
+                onChange={(e) => setNewCustomSource({ ...newCustomSource, name: e.target.value })}
+                placeholder="Ex: Mon Proxy VPS"
+                className="bg-slate-700 border-slate-600"
+              />
+            </div>
+            <div>
+              <Label>URL du Proxy</Label>
+              <Input
+                value={newCustomSource.proxy_url}
+                onChange={(e) => setNewCustomSource({ ...newCustomSource, proxy_url: e.target.value })}
+                placeholder="https://votre-vps.com/proxy.php?url="
+                className="bg-slate-700 border-slate-600 font-mono text-sm"
+              />
+              <p className="text-xs text-slate-400 mt-1">L'URL du stream sera ajoutée automatiquement à la fin</p>
+            </div>
+            <div>
+              <Label>Description (optionnel)</Label>
+              <Input
+                value={newCustomSource.description}
+                onChange={(e) => setNewCustomSource({ ...newCustomSource, description: e.target.value })}
+                placeholder="Description de la source..."
+                className="bg-slate-700 border-slate-600"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCustomSourceDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={addCustomSource} className="bg-purple-600 hover:bg-purple-700">
+              Ajouter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingCustomSource} onOpenChange={() => setEditingCustomSource(null)}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle>Modifier la Source</DialogTitle>
+          </DialogHeader>
+          {editingCustomSource && (
+            <div className="space-y-4">
+              <div>
+                <Label>Nom</Label>
+                <Input
+                  value={editingCustomSource.name}
+                  onChange={(e) => setEditingCustomSource({ ...editingCustomSource, name: e.target.value })}
+                  className="bg-slate-700 border-slate-600"
+                />
+              </div>
+              <div>
+                <Label>URL du Proxy</Label>
+                <Input
+                  value={editingCustomSource.proxy_url}
+                  onChange={(e) => setEditingCustomSource({ ...editingCustomSource, proxy_url: e.target.value })}
+                  className="bg-slate-700 border-slate-600 font-mono text-sm"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Input
+                  value={editingCustomSource.description}
+                  onChange={(e) => setEditingCustomSource({ ...editingCustomSource, description: e.target.value })}
+                  className="bg-slate-700 border-slate-600"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCustomSource(null)}>
+              Annuler
+            </Button>
+            <Button onClick={updateCustomSource} className="bg-purple-600 hover:bg-purple-700">
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ... existing code (rest of dialogs) ... */}
     </div>
   )
 }

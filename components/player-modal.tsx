@@ -19,6 +19,7 @@ import {
   Cast,
   Network,
   ChevronDown,
+  Server,
 } from "lucide-react"
 import type { ChannelWithFavorite } from "@/lib/types"
 import Hls from "hls.js"
@@ -27,6 +28,8 @@ import { VipUpgradeModal } from "@/components/vip-upgrade-modal"
 import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button" // Assuming Button component is available
+import { Badge } from "@/components/ui/badge" // Assuming Badge component is available
 
 interface PlayerModalProps {
   channel: ChannelWithFavorite | null
@@ -34,6 +37,14 @@ interface PlayerModalProps {
   onClose: () => void
   forceNoAds?: boolean
   country?: "France" | "Spain" | "Portugal" | "Germany" | "Italy" | "Belgium" | "Netherlands" | "Luxembourg"
+}
+
+interface CustomProxySource {
+  id: string
+  name: string
+  proxy_url: string
+  enabled: boolean
+  sort_order: number
 }
 
 const AD_URL = "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8"
@@ -73,6 +84,9 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     source2_enabled: true,
     source3_enabled: true,
   })
+  const [customSources, setCustomSources] = useState<CustomProxySource[]>([])
+  const [currentCustomSourceId, setCurrentCustomSourceId] = useState<string | null>(null)
+
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   // Corrected hlsRef declaration to match the rest of the code
@@ -90,6 +104,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         .then((res) => res.json())
         .then((config) => {
           setSourceConfig(config)
+        })
+        .catch(() => {})
+
+      fetch("/api/admin/custom-sources")
+        .then((res) => res.json())
+        .then((data) => {
+          const enabledSources = (data.sources || []).filter((s: CustomProxySource) => s.enabled || isAdmin)
+          setCustomSources(enabledSources)
         })
         .catch(() => {})
 
@@ -112,6 +134,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
       setCurrentProxy(initialProxy)
+      setCurrentCustomSourceId(null) // Reset custom source on open
       setLoadingProgress(0)
       setLoadingStatus("")
       setRetryCount(0)
@@ -175,7 +198,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       const response = await fetch("/api/tracking/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.JSON.stringify({
           channelId: channel.baseId,
           channelName: channel.baseName,
         }),
@@ -353,10 +376,20 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     }
   }
 
-  const loadStreamSource = async (sourceIndex: number = selectedSourceIndex, proxyType: ProxyType = "default") => {
+  const loadStreamSource = async (
+    sourceIndex: number = selectedSourceIndex,
+    proxyType: ProxyType = "default",
+    customSourceId?: string,
+  ) => {
     if (!channel) return
 
-    console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
+    if (customSourceId) {
+      console.log(`[v0] Lancement de la Source personnalisée: ${customSourceId}`)
+      setCurrentCustomSourceId(customSourceId)
+    } else {
+      console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
+      setCurrentCustomSourceId(null)
+    }
 
     setLoading(true)
     setError(null)
@@ -365,7 +398,29 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     startLoadingAnimation()
 
     try {
-      if (proxyType === "rotator") {
+      if (customSourceId) {
+        console.log("[v0] Fetching stream via custom proxy source:", customSourceId)
+
+        const response = await fetch(
+          `/api/tvvoo/stream?channel=${encodeURIComponent(channel.baseId)}&countries=${encodeURIComponent(country)}`,
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (data.originalUrl) {
+          const customProxyUrl = `/api/custom-proxy?url=${encodeURIComponent(data.originalUrl)}&source=${customSourceId}`
+          setOriginalStreamUrl(data.originalUrl)
+          setStreamUrl(customProxyUrl)
+          playSource(customProxyUrl, proxyType)
+        } else {
+          throw new Error("Aucune source disponible")
+        }
+      } else if (proxyType === "rotator") {
+        // ... existing code for rotator ...
         console.log("[v0] Fetching stream via rotating proxy for channel:", channel.baseId)
 
         const response = await fetch(
@@ -379,7 +434,6 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         const data = await response.json()
 
         if (data.originalUrl) {
-          // Use proxy-rotator which now rewrites M3U8 URLs like /api/proxy does
           const rotatorUrl = `/api/proxy-rotator?url=${encodeURIComponent(data.originalUrl)}`
           setOriginalStreamUrl(data.originalUrl)
           setStreamUrl(rotatorUrl)
@@ -388,6 +442,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           throw new Error("Aucune source disponible")
         }
       } else if (proxyType === "external") {
+        // ... existing code for external ...
         console.log("[v0] Fetching alternative stream via worker for channel:", channel.baseId)
 
         const response = await fetch(`/api/stream-alt?channel=${encodeURIComponent(channel.baseId)}`)
@@ -409,6 +464,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           throw new Error("Aucune source alternative disponible")
         }
       } else {
+        // ... existing code for default ...
         console.log("[v0] Fetching TvVoo stream for channel:", channel.baseId, "country:", country)
 
         const response = await fetch(
@@ -438,14 +494,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     } catch (err) {
       console.error("[v0] Error loading stream:", err)
 
-      if (proxyType === "rotator" && retryCount < maxRetries) {
-        console.log(`[v0] Source 3 failed, retrying with different proxy (attempt ${retryCount + 1}/${maxRetries})`)
+      if ((proxyType === "rotator" || customSourceId) && retryCount < maxRetries) {
+        console.log(`[v0] Source failed, retrying (attempt ${retryCount + 1}/${maxRetries})`)
         setRetryCount((prev) => prev + 1)
         toast({
           title: "Tentative avec un autre proxy...",
           description: `Essai ${retryCount + 1}/${maxRetries}`,
         })
-        setTimeout(() => loadStreamSource(sourceIndex, proxyType), 1000)
+        setTimeout(() => loadStreamSource(sourceIndex, proxyType, customSourceId), 1000)
         return
       }
 
@@ -456,11 +512,19 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     }
   }
 
+  const switchToCustomSource = (sourceId: string) => {
+    console.log(`[v0] Switching to custom source: ${sourceId}`)
+    setRetryCount(0)
+    stopTrackingSession()
+    loadStreamSource(selectedSourceIndex, "default", sourceId) // Pass "default" for proxyType as custom source handles its own proxying
+  }
+
   const switchProxySource = (proxyType: ProxyType) => {
-    if (proxyType === currentProxy) return
+    if (proxyType === currentProxy && !currentCustomSourceId) return // Don't switch if already on this proxy type and not on a custom source
 
     console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
     setCurrentProxy(proxyType)
+    setCurrentCustomSourceId(null) // Clear custom source when switching to default proxies
     setRetryCount(0) // Reset retry count when switching source
     stopTrackingSession()
     loadStreamSource(selectedSourceIndex, proxyType)
@@ -480,7 +544,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       hlsRef.current = null
     }
 
-    const isM3U8 = url.includes(".m3u8") || url.includes("m3u8") || url.includes("proxy")
+    const isM3U8 =
+      url.includes(".m3u8") || url.includes("m3u8") || url.includes("proxy") || url.includes("custom-proxy")
 
     if (isM3U8 && Hls.isSupported()) {
       console.log("[v0] Using HLS.js for M3U8 stream")
@@ -603,7 +668,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setVideoLoaded(false)
     setError(null)
     stopTrackingSession()
-    loadStreamSource(selectedSourceIndex, currentProxy)
+    loadStreamSource(selectedSourceIndex, currentProxy, currentCustomSourceId ?? undefined) // Pass current custom source if active
   }
 
   const toggleFullscreen = () => {
@@ -620,7 +685,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const switchSource = (index: number) => {
     setSelectedSourceIndex(index)
     stopTrackingSession()
-    loadStreamSource(index, currentProxy)
+    loadStreamSource(index, currentProxy, currentCustomSourceId ?? undefined) // Pass current custom source if active
   }
 
   const handleCast = () => {
@@ -745,53 +810,100 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
             {adUnlocked && (
               <DropdownMenu open={sourceMenuOpen} onOpenChange={setSourceMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 transition-all">
+                  {/* <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 transition-all">
                     <Radio className="w-4 h-4" />
                     <span className="text-sm font-medium">
                       {currentProxy === "default" ? "Source 1" : currentProxy === "external" ? "Source 2" : "Source 3"}
                     </span>
                     <ChevronDown className="w-4 h-4" />
-                  </button>
+                  </button> */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-slate-800/80 border-slate-600 hover:bg-slate-700 text-white"
+                  >
+                    <Network className="h-4 w-4 mr-2" />
+                    {currentCustomSourceId
+                      ? `Source ${customSources.findIndex((s) => s.id === currentCustomSourceId) + 4}`
+                      : currentProxy === "default"
+                        ? "Source 1"
+                        : currentProxy === "external"
+                          ? "Source 2"
+                          : "Source 3"}
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 bg-gray-900 border-gray-700">
+                  {/* Source 1 - Default */}
                   {(sourceConfig.source1_enabled || isAdmin) && (
                     <DropdownMenuItem
-                      onClick={() => switchProxySource("default")}
-                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "default" ? "bg-cyan-500/20 text-cyan-400" : "text-white hover:bg-white/10"}`}
+                      onClick={() => {
+                        switchProxySource("default")
+                        setSourceMenuOpen(false)
+                      }}
+                      className={`${currentProxy === "default" && !currentCustomSourceId ? "bg-cyan-500/20 text-cyan-400" : ""} ${!sourceConfig.source1_enabled ? "opacity-50" : ""}`}
                     >
-                      <Radio className="w-4 h-4 text-cyan-400" />
-                      <span>Source 1 - Proxy par défaut</span>
+                      <Radio className="h-4 w-4 mr-2 text-cyan-400" />
+                      Source 1 - Proxy par défaut
                       {!sourceConfig.source1_enabled && (
-                        <span className="text-xs text-orange-400 ml-auto">(désactivée)</span>
+                        <Badge className="ml-2 text-xs bg-orange-500">Désactivée</Badge>
                       )}
-                      {currentProxy === "default" && <Check className="w-4 h-4 ml-auto text-cyan-400" />}
                     </DropdownMenuItem>
                   )}
+
+                  {/* Source 2 - External Worker */}
                   {(sourceConfig.source2_enabled || isAdmin) && (
                     <DropdownMenuItem
-                      onClick={() => switchProxySource("external")}
-                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "external" ? "bg-amber-500/20 text-amber-400" : "text-white hover:bg-white/10"}`}
+                      onClick={() => {
+                        switchProxySource("external")
+                        setSourceMenuOpen(false)
+                      }}
+                      className={`${currentProxy === "external" && !currentCustomSourceId ? "bg-orange-500/20 text-orange-400" : ""} ${!sourceConfig.source2_enabled ? "opacity-50" : ""}`}
                     >
-                      <Network className="w-4 h-4 text-amber-400" />
-                      <span>Source 2 - Worker externe</span>
+                      <Cast className="h-4 w-4 mr-2 text-orange-400" />
+                      Source 2 - Worker externe
                       {!sourceConfig.source2_enabled && (
-                        <span className="text-xs text-orange-400 ml-auto">(désactivée)</span>
+                        <Badge className="ml-2 text-xs bg-orange-500">Désactivée</Badge>
                       )}
-                      {currentProxy === "external" && <Check className="w-4 h-4 ml-auto text-amber-400" />}
                     </DropdownMenuItem>
                   )}
+
+                  {/* Source 3 - Rotator */}
                   {(sourceConfig.source3_enabled || isAdmin) && (
                     <DropdownMenuItem
-                      onClick={() => switchProxySource("rotator")}
-                      className={`flex items-center gap-2 cursor-pointer ${currentProxy === "rotator" ? "bg-purple-500/20 text-purple-400" : "text-white hover:bg-white/10"}`}
+                      onClick={() => {
+                        switchProxySource("rotator")
+                        setSourceMenuOpen(false)
+                      }}
+                      className={`${currentProxy === "rotator" && !currentCustomSourceId ? "bg-purple-500/20 text-purple-400" : ""} ${!sourceConfig.source3_enabled ? "opacity-50" : ""}`}
                     >
-                      <Cast className="w-4 h-4 text-purple-400" />
-                      <span>Source 3 - Proxy rotatif</span>
+                      <Network className="h-4 w-4 mr-2 text-purple-400" />
+                      Source 3 - Proxy rotatif
                       {!sourceConfig.source3_enabled && (
-                        <span className="text-xs text-orange-400 ml-auto">(désactivée)</span>
+                        <Badge className="ml-2 text-xs bg-orange-500">Désactivée</Badge>
                       )}
-                      {currentProxy === "rotator" && <Check className="w-4 h-4 ml-auto text-purple-400" />}
                     </DropdownMenuItem>
+                  )}
+
+                  {/* Custom Sources */}
+                  {customSources.length > 0 && (
+                    <>
+                      <div className="border-t border-slate-700 my-1" />
+                      {customSources.map((source, index) => (
+                        <DropdownMenuItem
+                          key={source.id}
+                          onClick={() => {
+                            switchToCustomSource(source.id)
+                            setSourceMenuOpen(false)
+                          }}
+                          className={`${currentCustomSourceId === source.id ? "bg-purple-500/20 text-purple-400" : ""} ${!source.enabled ? "opacity-50" : ""}`}
+                        >
+                          <Server className="h-4 w-4 mr-2 text-green-400" />
+                          Source {index + 4} - {source.name}
+                          {!source.enabled && <Badge className="ml-2 text-xs bg-orange-500">Désactivée</Badge>}
+                        </DropdownMenuItem>
+                      ))}
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -996,11 +1108,13 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               </div>
 
               <p className="text-white/40 text-[10px] sm:text-xs mt-3 sm:mt-4 text-center">
-                {currentProxy === "external"
-                  ? "Source 2 (Proxy externe)"
-                  : currentProxy === "rotator"
-                    ? "Source 3 (Proxy rotatif)"
-                    : "Source 1 (Proxy par défaut)"}
+                {currentCustomSourceId
+                  ? `Source personnalisée - ${currentCustomSourceId.substring(0, 8)}...`
+                  : currentProxy === "external"
+                    ? "Source 2 (Proxy externe)"
+                    : currentProxy === "rotator"
+                      ? "Source 3 (Proxy rotatif)"
+                      : "Source 1 (Proxy par défaut)"}
               </p>
             </div>
           )}
@@ -1044,6 +1158,20 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                         ? "Essayer Source 3"
                         : "Essayer Source 1"}
                   </button>
+                  {customSources.length > 0 && (
+                    <button
+                      onClick={() => {
+                        // Try the next available custom source if current one failed
+                        const currentIndex = customSources.findIndex((s) => s.id === currentCustomSourceId)
+                        const nextIndex = (currentIndex + 1) % customSources.length
+                        switchToCustomSource(customSources[nextIndex].id)
+                      }}
+                      className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 text-white text-sm sm:text-base font-bold hover:from-cyan-500 hover:to-cyan-400 transition-all flex items-center gap-2"
+                    >
+                      <Server className="w-4 sm:w-5 h-4 sm:h-5" />
+                      Essayer Source Perso.
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
