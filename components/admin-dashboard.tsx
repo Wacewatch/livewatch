@@ -22,6 +22,7 @@ import {
   Plus,
   MessageSquare,
   LinkIcon,
+  Zap,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -93,7 +94,7 @@ interface ServerStats {
     model: string
   }
   memory: {
-    usagePercent: number
+    usagePercent: number | string // Changed to allow string for initial loading state
     used: string
     total: string
   }
@@ -156,6 +157,7 @@ interface SourceConfig {
   source1_enabled: boolean
   source2_enabled: boolean
   source3_enabled: boolean
+  external_proxy_url?: string // Added to SourceConfig
 }
 
 interface GlobalBanner {
@@ -215,8 +217,15 @@ export function AdminDashboard() {
   const [vipKeys, setVipKeys] = useState<VipKey[]>([])
   const [showVipKeyDialog, setShowVipKeyDialog] = useState(false)
   const [newGeneratedKey, setNewGeneratedKey] = useState("")
-  const [serverStats, setServerStats] = useState<ServerStats | null>(null)
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null)
+  const [serverStats, setServerStats] = useState<ServerStats | null>({
+    cpu: { usage: 0, cores: 0, model: "" },
+    memory: { usagePercent: "0%", used: "0B", total: "0B" }, // Initial state for memory
+    system: { uptime: "", platform: "" },
+  }) // Initial state for serverStats
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>({
+    cached_channels: 0,
+    last_sync: { started_at: "", status: "idle" },
+  })
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createMode, setCreateMode] = useState<"create" | "merge">("create")
   const [createForm, setCreateForm] = useState({
@@ -852,40 +861,47 @@ export function AdminDashboard() {
             </div>
           </Card>
 
+          {/* RAM App Card - Updated */}
           <Card className="p-4 glass-card border border-border/50">
-            <div className="flex items-center justify-between">
-              <div className="w-full">
-                <p className="text-sm text-yellow-400 flex items-center gap-1">
-                  <Activity className="w-4 h-4" />
-                  RAM App
-                </p>
-                {serverStats ? (
-                  <>
-                    <p className="text-2xl font-bold text-foreground mt-2">
-                      {serverStats.memory.usagePercent.toFixed(2)}%
-                    </p>
-                    <div className="w-full bg-border/50 rounded-full h-1.5 mt-2">
-                      <div
-                        className="bg-gradient-to-r from-pink-400 to-rose-500 h-1.5 rounded-full transition-all"
-                        style={{ width: `${Math.min(serverStats.memory.usagePercent, 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {serverStats.memory.used} / {serverStats.memory.total}
-                    </p>
-                  </>
-                ) : (
-                  <div className="h-16 flex items-center">
-                    <div className="animate-pulse bg-border/50 rounded h-8 w-20" />
+            <div>
+              <p className="text-sm text-pink-400 flex items-center gap-1">
+                <Zap className="w-4 h-4" />
+                RAM App
+              </p>
+              {serverStats ? (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-muted-foreground">Usage:</span>
+                    <span className="text-lg font-bold text-foreground">
+                      {typeof serverStats.memory?.usagePercent === "number"
+                        ? serverStats.memory.usagePercent.toFixed(2)
+                        : serverStats.memory?.usagePercent || 0}
+                      %
+                    </span>
                   </div>
-                )}
-              </div>
+                  <div className="w-full bg-border/30 rounded-full h-2 mb-2">
+                    <div
+                      className="bg-gradient-to-r from-pink-500 to-purple-500 h-2 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(typeof serverStats.memory?.usagePercent === "number" ? serverStats.memory.usagePercent : Number.parseFloat(serverStats.memory?.usagePercent as string) || 0, 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {serverStats.memory?.used || "0"} / {serverStats.memory?.total || "0"}
+                  </p>
+                </div>
+              ) : (
+                <div className="h-16 flex items-center">
+                  <div className="animate-pulse bg-border/50 rounded h-12 w-full" />
+                </div>
+              )}
             </div>
           </Card>
 
           <Card className="p-4 glass-card border border-border/50">
             <div>
-              <p className="text-sm text-green-400 flex items-center gap-1">
+              <p className="text-sm text-blue-400 flex items-center gap-1">
                 <Network className="w-4 h-4" />
                 Réseau
               </p>
@@ -1318,7 +1334,7 @@ export function AdminDashboard() {
 
               {/* External Proxy URL display */}
               {externalProxyUrl && (
-                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30">
+                <div className="p-3 rounded-lg glass-card border border-purple-500/10">
                   <p className="text-xs text-purple-400 font-medium mb-1">Proxy Externe (PHP)</p>
                   <p className="text-sm text-foreground truncate">{externalProxyUrl}</p>
                 </div>
