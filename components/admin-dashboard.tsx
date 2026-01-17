@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Radio,
   Plus,
+  MessageSquare,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -139,7 +140,6 @@ interface Proxy {
   country?: string // Added for the update
 }
 
-// Added for the update
 interface ProxySource {
   id: number
   name: string
@@ -155,13 +155,29 @@ interface SourceConfig {
   source3_enabled: boolean
 }
 
+interface GlobalBanner {
+  message: string
+  enabled: boolean
+  bg_color: string
+  text_color: string
+}
+
+interface CountryBanner {
+  country_name: string
+  message: string
+  enabled: boolean
+  bg_color: string
+  text_color: string
+}
+
 interface CollapsibleState {
   countries: boolean
   proxyRotator: boolean
   users: boolean
   vipKeys: boolean
-  // Add sources to CollapsibleState
   sources: boolean
+  globalBanner: boolean // Added
+  countryBanners: boolean // Added
 }
 
 export function AdminDashboard() {
@@ -216,13 +232,24 @@ export function AdminDashboard() {
   const [showAddProxyDialog, setShowAddProxyDialog] = useState(false)
   const [newProxy, setNewProxy] = useState({ host: "", port: "" })
 
+  const [globalBanner, setGlobalBanner] = useState<GlobalBanner>({
+    message: "",
+    enabled: false,
+    bg_color: "#3b82f6",
+    text_color: "#ffffff",
+  })
+  const [countryBanners, setCountryBanners] = useState<CountryBanner[]>([])
+  const [editingCountryBanner, setEditingCountryBanner] = useState<string | null>(null)
+  const [newCountryBannerMessage, setNewCountryBannerMessage] = useState("")
+
   const [collapsed, setCollapsed] = useState<CollapsibleState>({
     countries: false,
     proxyRotator: false,
     users: false,
     vipKeys: false,
-    // Initialize sources collapsed state
     sources: false,
+    globalBanner: false, // Added
+    countryBanners: true, // Added
   })
   const [proxyListLimit, setProxyListLimit] = useState(10)
   const [proxySort, setProxySort] = useState<"speed" | "success" | "country">("speed")
@@ -285,9 +312,11 @@ export function AdminDashboard() {
       setLoadingProgress(50)
 
       setLoadingModules((prev) => ({ ...prev, sources: true }))
-      const [keysRes, sourceConfigRes] = await Promise.all([
+      const [keysRes, sourceConfigRes, bannersRes] = await Promise.all([
+        // Fetch banners
         fetch("/api/admin/vip-keys"),
         fetch("/api/admin/source-config"),
+        fetch("/api/admin/banners"),
       ])
       if (keysRes.ok) {
         const keysData = await keysRes.json()
@@ -296,6 +325,15 @@ export function AdminDashboard() {
       if (sourceConfigRes.ok) {
         const configData = await sourceConfigRes.json()
         setSourceConfig(configData)
+      }
+      if (bannersRes.ok) {
+        const bannersData = await bannersRes.json()
+        if (bannersData.globalBanner) {
+          setGlobalBanner(bannersData.globalBanner)
+        }
+        if (bannersData.countryBanners) {
+          setCountryBanners(bannersData.countryBanners)
+        }
       }
       setLoadingModules((prev) => ({ ...prev, sources: false }))
       setLoadingProgress(70)
@@ -829,6 +867,51 @@ export function AdminDashboard() {
     )
   }
 
+  const updateGlobalBanner = async () => {
+    try {
+      await fetch("/api/admin/banners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_global",
+          ...globalBanner,
+        }),
+      })
+      alert("Bandeau global mis à jour !")
+    } catch (error) {
+      console.error("[v0] Failed to update global banner:", error)
+    }
+  }
+
+  const updateCountryBanner = async (countryName: string, message: string, enabled: boolean) => {
+    try {
+      await fetch("/api/admin/banners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_country",
+          country: countryName,
+          message,
+          enabled,
+        }),
+      })
+
+      // Update local state
+      setCountryBanners((prev) => {
+        const existing = prev.find((b) => b.country_name === countryName)
+        if (existing) {
+          return prev.map((b) => (b.country_name === countryName ? { ...b, message, enabled } : b))
+        }
+        return [...prev, { country_name: countryName, message, enabled, bg_color: "#f59e0b", text_color: "#000000" }]
+      })
+
+      setEditingCountryBanner(null)
+      setNewCountryBannerMessage("")
+    } catch (error) {
+      console.error("[v0] Failed to update country banner:", error)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Removed old loading bar, replaced by the centered overlay above */}
@@ -1181,6 +1264,20 @@ export function AdminDashboard() {
                       toggleCountry(country.id, enabled)
                     }}
                   />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingCountryBanner(country.name)
+                      setNewCountryBannerMessage(
+                        countryBanners.find((b) => b.country_name === country.name)?.message || "",
+                      )
+                    }}
+                    className="ml-2"
+                  >
+                    <MessageSquare className="h-4 w-4 text-yellow-500" />
+                  </Button>
+                  {/* End CHANGE */}
                 </div>
               ))}
             </div>
@@ -1344,6 +1441,83 @@ export function AdminDashboard() {
                 </div>
               )}
             </>
+          )}
+        </Card>
+
+        <Card className="glass-card border-border/50 overflow-hidden">
+          <div
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+            onClick={() => toggleCollapse("globalBanner")}
+          >
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-5 h-5 text-blue-400" />
+              <h2 className="text-xl font-bold">Bandeau Page Principale</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-blue-400 border-blue-400/30">
+                {globalBanner.enabled ? "Actif" : "Inactif"}
+              </Badge>
+              {collapsed.globalBanner ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </div>
+          </div>
+
+          {!collapsed.globalBanner && (
+            <div className="p-4 pt-0 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Ce message sera affiché en haut de la page de sélection des pays
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={globalBanner.enabled}
+                    onCheckedChange={(checked) => setGlobalBanner((prev) => ({ ...prev, enabled: checked }))}
+                  />
+                  <Label>Activer le bandeau</Label>
+                </div>
+
+                <Input
+                  placeholder="Message du bandeau..."
+                  value={globalBanner.message}
+                  onChange={(e) => setGlobalBanner((prev) => ({ ...prev, message: e.target.value }))}
+                  className="bg-white/5 border-white/10"
+                />
+
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <Label className="text-xs text-muted-foreground">Couleur de fond</Label>
+                    <Input
+                      type="color"
+                      value={globalBanner.bg_color}
+                      onChange={(e) => setGlobalBanner((prev) => ({ ...prev, bg_color: e.target.value }))}
+                      className="h-10 p-1 bg-white/5 border-white/10"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Label className="text-xs text-muted-foreground">Couleur du texte</Label>
+                    <Input
+                      type="color"
+                      value={globalBanner.text_color}
+                      onChange={(e) => setGlobalBanner((prev) => ({ ...prev, text_color: e.target.value }))}
+                      className="h-10 p-1 bg-white/5 border-white/10"
+                    />
+                  </div>
+                </div>
+
+                {globalBanner.message && (
+                  <div
+                    className="p-3 rounded-lg text-center font-semibold"
+                    style={{ backgroundColor: globalBanner.bg_color, color: globalBanner.text_color }}
+                  >
+                    Aperçu: {globalBanner.message}
+                  </div>
+                )}
+
+                <Button onClick={updateGlobalBanner} className="w-full">
+                  Sauvegarder
+                </Button>
+              </div>
+            </div>
           )}
         </Card>
 
@@ -1763,6 +1937,67 @@ export function AdminDashboard() {
                 Annuler
               </Button>
               <Button onClick={addSingleProxy}>Ajouter</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog: Country Banner */}
+        <Dialog open={!!editingCountryBanner} onOpenChange={() => setEditingCountryBanner(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Modifier le bandeau pour {editingCountryBanner}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Laissez le message vide pour désactiver le bandeau pour ce pays.
+              </p>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={!!countryBanners.find((b) => b.country_name === editingCountryBanner)?.enabled}
+                  onCheckedChange={(checked) => {
+                    if (editingCountryBanner) {
+                      updateCountryBanner(editingCountryBanner, newCountryBannerMessage, checked)
+                    }
+                  }}
+                />
+                <Label>Activer le bandeau</Label>
+              </div>
+              <Input
+                placeholder="Message du bandeau..."
+                value={newCountryBannerMessage}
+                onChange={(e) => setNewCountryBannerMessage(e.target.value)}
+                className="bg-white/5 border-white/10"
+              />
+              {newCountryBannerMessage && (
+                <div
+                  className="p-3 rounded-lg text-center font-semibold"
+                  style={{
+                    backgroundColor:
+                      countryBanners.find((b) => b.country_name === editingCountryBanner)?.bg_color || "#f59e0b",
+                    color: countryBanners.find((b) => b.country_name === editingCountryBanner)?.text_color || "#ffffff",
+                  }}
+                >
+                  Aperçu: {newCountryBannerMessage}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingCountryBanner(null)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={() => {
+                  if (editingCountryBanner) {
+                    updateCountryBanner(
+                      editingCountryBanner,
+                      newCountryBannerMessage,
+                      !!countryBanners.find((b) => b.country_name === editingCountryBanner)?.enabled,
+                    )
+                  }
+                }}
+              >
+                Sauvegarder
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

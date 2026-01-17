@@ -1,12 +1,11 @@
 "use client"
 
-import { Globe, Star } from "lucide-react"
+import { Globe, AlertTriangle } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { UserMenu } from "@/components/user-menu"
 import { useUserRole } from "@/lib/hooks/use-user-role"
-import { useFavorites } from "@/lib/hooks/use-favorites"
 
 const ALL_COUNTRIES = [
   { name: "France", code: "fr" },
@@ -33,18 +32,26 @@ interface CountryStatus {
   enabled: boolean
 }
 
+interface GlobalBanner {
+  message: string
+  enabled: boolean
+  bg_color: string
+  text_color: string
+}
+
 export function CountrySelector() {
   const [countryStatuses, setCountryStatuses] = useState<CountryStatus[]>([])
   const [loading, setLoading] = useState(true)
+  const [globalBanner, setGlobalBanner] = useState<GlobalBanner | null>(null)
   const { isAdmin } = useUserRole()
-  const { favorites, loading: favoritesLoading } = useFavorites()
 
   useEffect(() => {
-    const fetchCountries = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch("/api/countries/enabled")
-        if (res.ok) {
-          const data = await res.json()
+        // Fetch country statuses
+        const countryRes = await fetch("/api/countries/enabled")
+        if (countryRes.ok) {
+          const data = await countryRes.json()
           if (data.countryStatuses) {
             setCountryStatuses(data.countryStatuses)
           } else {
@@ -53,6 +60,15 @@ export function CountrySelector() {
         } else {
           setCountryStatuses(ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })))
         }
+
+        // Fetch global banner
+        const bannerRes = await fetch("/api/admin/banners")
+        if (bannerRes.ok) {
+          const bannerData = await bannerRes.json()
+          if (bannerData.globalBanner) {
+            setGlobalBanner(bannerData.globalBanner)
+          }
+        }
       } catch {
         setCountryStatuses(ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })))
       } finally {
@@ -60,7 +76,7 @@ export function CountrySelector() {
       }
     }
 
-    fetchCountries()
+    fetchData()
   }, [])
 
   const getCountryStatus = (countryName: string): boolean => {
@@ -70,6 +86,19 @@ export function CountrySelector() {
 
   return (
     <div className="min-h-screen bg-background">
+      {globalBanner?.enabled && globalBanner?.message && (
+        <div
+          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2"
+          style={{
+            backgroundColor: globalBanner.bg_color || "#3b82f6",
+            color: globalBanner.text_color || "#ffffff",
+          }}
+        >
+          <AlertTriangle className="w-5 h-5" />
+          {globalBanner.message}
+        </div>
+      )}
+
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
@@ -81,17 +110,6 @@ export function CountrySelector() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
-            <Link
-              href="/favorites"
-              className="relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border border-border/50 hover:border-yellow-400/50 hover:scale-105 transition-all duration-300 flex items-center justify-center text-foreground hover:text-yellow-400"
-            >
-              <Star className="w-5 h-5 md:w-6 md:h-6" />
-              {!favoritesLoading && favorites.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
-                  {favorites.length}
-                </span>
-              )}
-            </Link>
             <UserMenu />
           </div>
         </div>

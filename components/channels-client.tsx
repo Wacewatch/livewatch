@@ -1,9 +1,12 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, ArrowLeft, LaptopMinimal as TvMinimal, Wifi, Globe } from "lucide-react"
+import { Search, Star, ArrowLeft, LaptopMinimal as TvMinimal, Wifi, Globe, Ban, AlertTriangle } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
+import { useUserRole } from "@/lib/hooks/use-user-role"
 import type { GroupedChannel } from "@/lib/types"
 import Image from "next/image"
 import Link from "next/link"
@@ -14,6 +17,13 @@ interface ChannelsClientProps {
 }
 
 const DEFAULT_CHANNEL_LOGO = "https://i.imgur.com/ovX7j6R.png"
+
+interface CountryBanner {
+  message: string
+  enabled: boolean
+  bg_color: string
+  text_color: string
+}
 
 function getQualityBadge(quality: string) {
   switch (quality?.toUpperCase()) {
@@ -87,42 +97,95 @@ function getCategoryButtonStyle(category: string, isSelected: boolean) {
 
 export function ChannelsClient({ country }: ChannelsClientProps) {
   const [channels, setChannels] = useState<GroupedChannel[]>([])
+  const [disabledChannels, setDisabledChannels] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedChannel, setSelectedChannel] = useState<GroupedChannel | null>(null)
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [countryBanner, setCountryBanner] = useState<CountryBanner | null>(null)
 
   const { favorites, toggleFavorite, count: favoritesCount } = useFavorites()
+  const { isAdmin } = useUserRole()
 
   useEffect(() => {
-    const fetchChannels = async () => {
+    const fetchData = async () => {
       try {
+        // Fetch channels
         const response = await fetch(`/api/tvvoo/channels?countries=${encodeURIComponent(country)}`)
-
-        if (!response.ok) {
-          setLoading(false)
-          return
+        if (response.ok) {
+          const data = await response.json()
+          setChannels(data)
         }
 
-        const data = await response.json()
-        setChannels(data)
+        // Fetch disabled channels
+        const disabledRes = await fetch("/api/admin/disabled-channels")
+        if (disabledRes.ok) {
+          const disabledData = await disabledRes.json()
+          const disabledSet = new Set<string>(disabledData.channels?.map((c: any) => c.channel_id) || [])
+          setDisabledChannels(disabledSet)
+        }
+
+        // Fetch country banner
+        const bannerRes = await fetch(`/api/admin/banners?country=${encodeURIComponent(country)}`)
+        if (bannerRes.ok) {
+          const bannerData = await bannerRes.json()
+          if (bannerData.banner) {
+            setCountryBanner(bannerData.banner)
+          }
+        }
       } catch (error) {
-        console.error("[v0] Error fetching channels:", error)
+        console.error("[v0] Error fetching data:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchChannels()
+    fetchData()
   }, [country])
+
+  const toggleChannelDisabled = async (channel: GroupedChannel, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    const isCurrentlyDisabled = disabledChannels.has(channel.baseId)
+
+    try {
+      if (isCurrentlyDisabled) {
+        // Enable the channel
+        await fetch("/api/admin/disabled-channels", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channel_id: channel.baseId }),
+        })
+        setDisabledChannels((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(channel.baseId)
+          return newSet
+        })
+      } else {
+        // Disable the channel
+        await fetch("/api/admin/disabled-channels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            channel_id: channel.baseId,
+            channel_name: channel.baseName,
+          }),
+        })
+        setDisabledChannels((prev) => new Set([...prev, channel.baseId]))
+      }
+    } catch (error) {
+      console.error("[v0] Error toggling channel:", error)
+    }
+  }
 
   const channelsWithFavorites = useMemo(() => {
     return channels.map((ch) => ({
       ...ch,
       isFavorite: favorites.includes(ch.baseId),
+      isDisabled: disabledChannels.has(ch.baseId),
     }))
-  }, [channels, favorites])
+  }, [channels, favorites, disabledChannels])
 
   const categories = useMemo(() => {
     const cats = new Set(channels.map((c) => c.category).filter(Boolean))
@@ -131,6 +194,10 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
 
   const filteredChannels = useMemo(() => {
     let filtered = channelsWithFavorites
+
+    if (!isAdmin) {
+      filtered = filtered.filter((c) => !c.isDisabled)
+    }
 
     if (showOnlyFavorites) {
       filtered = filtered.filter((c) => c.isFavorite)
@@ -146,7 +213,7 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
     }
 
     return filtered.sort((a, b) => a.baseName.localeCompare(b.baseName))
-  }, [channelsWithFavorites, searchQuery, showOnlyFavorites, selectedCategory])
+  }, [channelsWithFavorites, searchQuery, showOnlyFavorites, selectedCategory, isAdmin])
 
   if (loading) {
     return (
@@ -165,6 +232,19 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {countryBanner?.enabled && countryBanner?.message && (
+        <div
+          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2"
+          style={{
+            backgroundColor: countryBanner.bg_color || "#f59e0b",
+            color: countryBanner.text_color || "#000000",
+          }}
+        >
+          <AlertTriangle className="w-5 h-5" />
+          {countryBanner.message}
+        </div>
+      )}
+
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
@@ -253,8 +333,12 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
             {filteredChannels.map((channel) => (
               <div
                 key={channel.baseId}
-                onClick={() => setSelectedChannel(channel)}
-                className="group glass-card border border-border/50 rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
+                onClick={() => !channel.isDisabled && setSelectedChannel(channel)}
+                className={`group glass-card border rounded-2xl overflow-hidden transition-all duration-300 ${
+                  channel.isDisabled
+                    ? "border-red-500/50 opacity-60 cursor-not-allowed"
+                    : "border-border/50 cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20"
+                }`}
               >
                 <div className="relative h-40 overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20" />
@@ -271,10 +355,33 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                     />
                   </div>
 
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                    LIVE
-                  </div>
+                  {channel.isDisabled && (
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
+                      <Ban className="w-3 h-3" />
+                      Désactivée
+                    </div>
+                  )}
+
+                  {!channel.isDisabled && (
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                      LIVE
+                    </div>
+                  )}
+
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => toggleChannelDisabled(channel, e)}
+                      className={`absolute top-3 right-12 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                        channel.isDisabled
+                          ? "bg-green-500 text-white hover:bg-green-600"
+                          : "bg-red-500/80 text-white hover:bg-red-600"
+                      }`}
+                      title={channel.isDisabled ? "Réactiver la chaîne" : "Désactiver la chaîne"}
+                    >
+                      <Ban className="w-4 h-4" />
+                    </button>
+                  )}
 
                   <button
                     onClick={(e) => {
