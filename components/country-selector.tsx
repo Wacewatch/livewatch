@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, AlertTriangle } from "lucide-react"
+import { Globe, AlertTriangle, X } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
@@ -43,9 +43,15 @@ export function CountrySelector() {
   const [countryStatuses, setCountryStatuses] = useState<CountryStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [globalBanner, setGlobalBanner] = useState<GlobalBanner | null>(null)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
   const { isAdmin } = useUserRole()
 
   useEffect(() => {
+    const dismissed = localStorage.getItem("global_banner_dismissed")
+    if (dismissed) {
+      setBannerDismissed(true)
+    }
+
     const fetchData = async () => {
       try {
         // Fetch country statuses
@@ -79,6 +85,11 @@ export function CountrySelector() {
     fetchData()
   }, [])
 
+  const dismissBanner = () => {
+    setBannerDismissed(true)
+    localStorage.setItem("global_banner_dismissed", "true")
+  }
+
   const getCountryStatus = (countryName: string): boolean => {
     const status = countryStatuses.find((s) => s.name === countryName)
     return status?.enabled ?? true
@@ -86,19 +97,6 @@ export function CountrySelector() {
 
   return (
     <div className="min-h-screen bg-background">
-      {globalBanner?.enabled && globalBanner?.message && (
-        <div
-          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2"
-          style={{
-            backgroundColor: globalBanner.bg_color || "#3b82f6",
-            color: globalBanner.text_color || "#ffffff",
-          }}
-        >
-          <AlertTriangle className="w-5 h-5" />
-          {globalBanner.message}
-        </div>
-      )}
-
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
@@ -114,6 +112,26 @@ export function CountrySelector() {
           </div>
         </div>
       </header>
+
+      {globalBanner?.enabled && globalBanner?.message && !bannerDismissed && (
+        <div
+          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2 relative"
+          style={{
+            backgroundColor: globalBanner.bg_color || "#3b82f6",
+            color: globalBanner.text_color || "#ffffff",
+          }}
+        >
+          <AlertTriangle className="w-5 h-5" />
+          <span>{globalBanner.message}</span>
+          <button
+            onClick={dismissBanner}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-black/20 transition-colors"
+            title="Fermer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
       <main className="max-w-screen-2xl mx-auto p-6 md:p-10 lg:p-16">
         <div className="text-center mb-12 md:mb-16">

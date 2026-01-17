@@ -3,7 +3,18 @@
 import type React from "react"
 
 import { useState, useEffect, useMemo } from "react"
-import { Search, Star, ArrowLeft, LaptopMinimal as TvMinimal, Wifi, Globe, Ban, AlertTriangle } from "lucide-react"
+import {
+  Search,
+  Star,
+  ArrowLeft,
+  LaptopMinimal as TvMinimal,
+  Wifi,
+  Globe,
+  Ban,
+  AlertTriangle,
+  X,
+  Pencil,
+} from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import { useUserRole } from "@/lib/hooks/use-user-role"
@@ -25,100 +36,44 @@ interface CountryBanner {
   text_color: string
 }
 
-function getQualityBadge(quality: string) {
-  switch (quality?.toUpperCase()) {
-    case "4K":
-      return "bg-purple-500/20 text-purple-400 border-purple-500/30"
-    case "FHD":
-      return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-    case "HD":
-      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-    case "SD":
-      return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    default:
-      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-  }
-}
-
-function getCategoryBadge(category: string) {
-  switch (category?.toLowerCase()) {
-    case "sport":
-      return "bg-green-500/20 text-green-400 border-green-500/30"
-    case "actualités":
-    case "news":
-      return "bg-red-500/20 text-red-400 border-red-500/30"
-    case "enfants":
-    case "kids":
-      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-    case "cinéma":
-    case "cinema":
-      return "bg-orange-500/20 text-orange-400 border-orange-500/30"
-    case "musique":
-    case "music":
-      return "bg-pink-500/20 text-pink-400 border-pink-500/30"
-    case "documentaire":
-      return "bg-teal-500/20 text-teal-400 border-teal-500/30"
-    case "généraliste":
-      return "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
-    default:
-      return "bg-primary/20 text-primary border-primary/30"
-  }
-}
-
-function getCategoryButtonStyle(category: string, isSelected: boolean) {
-  if (isSelected) {
-    switch (category?.toLowerCase()) {
-      case "sport":
-        return "bg-green-500 text-white shadow-lg shadow-green-500/30"
-      case "actualités":
-      case "news":
-        return "bg-red-500 text-white shadow-lg shadow-red-500/30"
-      case "enfants":
-      case "kids":
-        return "bg-yellow-500 text-black shadow-lg shadow-yellow-500/30"
-      case "cinéma":
-      case "cinema":
-        return "bg-orange-500 text-white shadow-lg shadow-orange-500/30"
-      case "musique":
-      case "music":
-        return "bg-pink-500 text-white shadow-lg shadow-pink-500/30"
-      case "documentaire":
-        return "bg-teal-500 text-white shadow-lg shadow-teal-500/30"
-      case "généraliste":
-        return "bg-cyan-500 text-white shadow-lg shadow-cyan-500/30"
-      case "divers":
-        return "bg-purple-500 text-white shadow-lg shadow-purple-500/30"
-      default:
-        return "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
-    }
-  }
-  return "glass-card border border-border/50 text-foreground hover:border-primary/50 hover:bg-primary/10"
+interface ChannelOverride {
+  channel_id: string
+  custom_name: string | null
+  custom_logo: string | null
 }
 
 export function ChannelsClient({ country }: ChannelsClientProps) {
   const [channels, setChannels] = useState<GroupedChannel[]>([])
   const [disabledChannels, setDisabledChannels] = useState<Set<string>>(new Set())
+  const [channelOverrides, setChannelOverrides] = useState<Map<string, ChannelOverride>>(new Map())
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedChannel, setSelectedChannel] = useState<GroupedChannel | null>(null)
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [countryBanner, setCountryBanner] = useState<CountryBanner | null>(null)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [editingChannel, setEditingChannel] = useState<GroupedChannel | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editLogo, setEditLogo] = useState("")
 
   const { favorites, toggleFavorite, count: favoritesCount } = useFavorites()
   const { isAdmin } = useUserRole()
 
   useEffect(() => {
+    const dismissed = localStorage.getItem(`country_banner_dismissed_${country}`)
+    if (dismissed) {
+      setBannerDismissed(true)
+    }
+
     const fetchData = async () => {
       try {
-        // Fetch channels
         const response = await fetch(`/api/tvvoo/channels?countries=${encodeURIComponent(country)}`)
         if (response.ok) {
           const data = await response.json()
           setChannels(data)
         }
 
-        // Fetch disabled channels
         const disabledRes = await fetch("/api/admin/disabled-channels")
         if (disabledRes.ok) {
           const disabledData = await disabledRes.json()
@@ -126,7 +81,16 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
           setDisabledChannels(disabledSet)
         }
 
-        // Fetch country banner
+        const overridesRes = await fetch("/api/admin/channel-overrides")
+        if (overridesRes.ok) {
+          const overridesData = await overridesRes.json()
+          const overridesMap = new Map<string, ChannelOverride>()
+          overridesData.overrides?.forEach((o: ChannelOverride) => {
+            overridesMap.set(o.channel_id, o)
+          })
+          setChannelOverrides(overridesMap)
+        }
+
         const bannerRes = await fetch(`/api/admin/banners?country=${encodeURIComponent(country)}`)
         if (bannerRes.ok) {
           const bannerData = await bannerRes.json()
@@ -144,6 +108,49 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
     fetchData()
   }, [country])
 
+  const dismissBanner = () => {
+    setBannerDismissed(true)
+    localStorage.setItem(`country_banner_dismissed_${country}`, "true")
+  }
+
+  const openEditModal = (channel: GroupedChannel, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const override = channelOverrides.get(channel.baseId)
+    setEditingChannel(channel)
+    setEditName(override?.custom_name || channel.baseName)
+    setEditLogo(override?.custom_logo || channel.logo || "")
+  }
+
+  const saveChannelEdit = async () => {
+    if (!editingChannel) return
+
+    try {
+      await fetch("/api/admin/channel-overrides", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel_id: editingChannel.baseId,
+          custom_name: editName || null,
+          custom_logo: editLogo || null,
+        }),
+      })
+
+      setChannelOverrides((prev) => {
+        const newMap = new Map(prev)
+        newMap.set(editingChannel.baseId, {
+          channel_id: editingChannel.baseId,
+          custom_name: editName || null,
+          custom_logo: editLogo || null,
+        })
+        return newMap
+      })
+
+      setEditingChannel(null)
+    } catch (error) {
+      console.error("[v0] Error saving channel override:", error)
+    }
+  }
+
   const toggleChannelDisabled = async (channel: GroupedChannel, e: React.MouseEvent) => {
     e.stopPropagation()
 
@@ -151,7 +158,6 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
 
     try {
       if (isCurrentlyDisabled) {
-        // Enable the channel
         await fetch("/api/admin/disabled-channels", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -163,7 +169,6 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
           return newSet
         })
       } else {
-        // Disable the channel
         await fetch("/api/admin/disabled-channels", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -180,12 +185,17 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
   }
 
   const channelsWithFavorites = useMemo(() => {
-    return channels.map((ch) => ({
-      ...ch,
-      isFavorite: favorites.includes(ch.baseId),
-      isDisabled: disabledChannels.has(ch.baseId),
-    }))
-  }, [channels, favorites, disabledChannels])
+    return channels.map((ch) => {
+      const override = channelOverrides.get(ch.baseId)
+      return {
+        ...ch,
+        baseName: override?.custom_name || ch.baseName,
+        logo: override?.custom_logo || ch.logo,
+        isFavorite: favorites.includes(ch.baseId),
+        isDisabled: disabledChannels.has(ch.baseId),
+      }
+    })
+  }, [channels, favorites, disabledChannels, channelOverrides])
 
   const categories = useMemo(() => {
     const cats = new Set(channels.map((c) => c.category).filter(Boolean))
@@ -232,19 +242,6 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {countryBanner?.enabled && countryBanner?.message && (
-        <div
-          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2"
-          style={{
-            backgroundColor: countryBanner.bg_color || "#f59e0b",
-            color: countryBanner.text_color || "#000000",
-          }}
-        >
-          <AlertTriangle className="w-5 h-5" />
-          {countryBanner.message}
-        </div>
-      )}
-
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
@@ -293,6 +290,26 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
           </div>
         </div>
       </header>
+
+      {countryBanner?.enabled && countryBanner?.message && !bannerDismissed && (
+        <div
+          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2 relative"
+          style={{
+            backgroundColor: countryBanner.bg_color || "#f59e0b",
+            color: countryBanner.text_color || "#000000",
+          }}
+        >
+          <AlertTriangle className="w-5 h-5" />
+          <span>{countryBanner.message}</span>
+          <button
+            onClick={dismissBanner}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-black/20 transition-colors"
+            title="Fermer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
       <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10">
         <div className="mb-6 glass-card border border-border/50 rounded-2xl p-4 md:p-6">
@@ -370,17 +387,26 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                   )}
 
                   {isAdmin && (
-                    <button
-                      onClick={(e) => toggleChannelDisabled(channel, e)}
-                      className={`absolute top-3 right-12 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
-                        channel.isDisabled
-                          ? "bg-green-500 text-white hover:bg-green-600"
-                          : "bg-red-500/80 text-white hover:bg-red-600"
-                      }`}
-                      title={channel.isDisabled ? "Réactiver la chaîne" : "Désactiver la chaîne"}
-                    >
-                      <Ban className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        onClick={(e) => openEditModal(channel, e)}
+                        className="absolute top-3 right-20 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg bg-blue-500/80 text-white hover:bg-blue-600"
+                        title="Modifier la chaîne"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => toggleChannelDisabled(channel, e)}
+                        className={`absolute top-3 right-12 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                          channel.isDisabled
+                            ? "bg-green-500 text-white hover:bg-green-600"
+                            : "bg-red-500/80 text-white hover:bg-red-600"
+                        }`}
+                        title={channel.isDisabled ? "Réactiver la chaîne" : "Désactiver la chaîne"}
+                      >
+                        <Ban className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
 
                   <button
@@ -427,6 +453,74 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
         )}
       </main>
 
+      {editingChannel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="glass-card border border-border/50 rounded-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-foreground">Modifier la chaîne</h2>
+              <button
+                onClick={() => setEditingChannel(null)}
+                className="w-10 h-10 rounded-full glass-card border border-border/50 flex items-center justify-center hover:border-red-500/50 hover:text-red-500 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">Nom de la chaîne</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary focus:outline-none"
+                  placeholder="Nom personnalisé"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">URL du logo</label>
+                <input
+                  type="text"
+                  value={editLogo}
+                  onChange={(e) => setEditLogo(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary focus:outline-none"
+                  placeholder="https://example.com/logo.png"
+                />
+              </div>
+
+              {editLogo && (
+                <div className="flex items-center justify-center p-4 glass-card border border-border/50 rounded-xl">
+                  <Image
+                    src={editLogo || "/placeholder.svg"}
+                    alt="Aperçu du logo"
+                    width={120}
+                    height={60}
+                    className="object-contain max-h-16"
+                    unoptimized
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setEditingChannel(null)}
+                  className="flex-1 px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground hover:border-red-500/50 transition-all"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={saveChannelEdit}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-primary to-accent text-white font-semibold hover:opacity-90 transition-all"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PlayerModal
         channel={selectedChannel}
         isOpen={!!selectedChannel}
@@ -435,4 +529,74 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
       />
     </div>
   )
+}
+
+function getQualityBadge(quality: string) {
+  switch (quality?.toUpperCase()) {
+    case "4K":
+      return "bg-purple-500/20 text-purple-400 border-purple-500/30"
+    case "FHD":
+      return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+    case "HD":
+      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+    case "SD":
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    default:
+      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+  }
+}
+
+function getCategoryBadge(category: string) {
+  switch (category?.toLowerCase()) {
+    case "sport":
+      return "bg-green-500/20 text-green-400 border-green-500/30"
+    case "actualités":
+    case "news":
+      return "bg-red-500/20 text-red-400 border-red-500/30"
+    case "enfants":
+    case "kids":
+      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+    case "cinéma":
+    case "cinema":
+      return "bg-orange-500/20 text-orange-400 border-orange-500/30"
+    case "musique":
+    case "music":
+      return "bg-pink-500/20 text-pink-400 border-pink-500/30"
+    case "documentaire":
+      return "bg-teal-500/20 text-teal-400 border-teal-500/30"
+    case "généraliste":
+      return "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+    default:
+      return "bg-primary/20 text-primary border-primary/30"
+  }
+}
+
+function getCategoryButtonStyle(category: string, isSelected: boolean) {
+  if (isSelected) {
+    switch (category?.toLowerCase()) {
+      case "sport":
+        return "bg-green-500 text-white shadow-lg shadow-green-500/30"
+      case "actualités":
+      case "news":
+        return "bg-red-500 text-white shadow-lg shadow-red-500/30"
+      case "enfants":
+      case "kids":
+        return "bg-yellow-500 text-black shadow-lg shadow-yellow-500/30"
+      case "cinéma":
+      case "cinema":
+        return "bg-orange-500 text-white shadow-lg shadow-orange-500/30"
+      case "musique":
+      case "music":
+        return "bg-pink-500 text-white shadow-lg shadow-pink-500/30"
+      case "documentaire":
+        return "bg-teal-500 text-white shadow-lg shadow-teal-500/30"
+      case "généraliste":
+        return "bg-cyan-500 text-white shadow-lg shadow-cyan-500/30"
+      case "divers":
+        return "bg-purple-500 text-white shadow-lg shadow-purple-500/30"
+      default:
+        return "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+    }
+  }
+  return "glass-card border border-border/50 text-foreground hover:border-primary/50 hover:bg-primary/10"
 }
