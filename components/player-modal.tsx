@@ -198,7 +198,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       const response = await fetch("/api/tracking/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.JSON.stringify({
+        body: JSON.stringify({
           channelId: channel.baseId,
           channelName: channel.baseName,
         }),
