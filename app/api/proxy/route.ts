@@ -1,4 +1,9 @@
+// app/api/proxy/route.ts
 import { type NextRequest, NextResponse } from "next/server"
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -9,23 +14,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Augmenter le timeout à 60 secondes
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    const timeoutId = setTimeout(() => controller.abort(), 90000)
 
-    // Récupérer les headers Range de la requête originale
     const rangeHeader = request.headers.get("range")
     
     const headers: HeadersInit = {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       "Referer": "https://tvvoo.live/",
       "Accept": "*/*",
       "Accept-Encoding": "identity",
       "Origin": "https://tvvoo.live",
+      "Connection": "keep-alive",
     }
 
-    // Ajouter le header Range si présent
     if (rangeHeader) {
       headers["Range"] = rangeHeader
     }
@@ -33,6 +35,8 @@ export async function GET(request: NextRequest) {
     const response = await fetch(url, {
       headers,
       signal: controller.signal,
+      // @ts-ignore
+      duplex: 'half',
     })
 
     clearTimeout(timeoutId)
@@ -84,7 +88,6 @@ export async function GET(request: NextRequest) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Range",
-          // Augmenter le cache du manifeste à 5 secondes
           "Cache-Control": "public, max-age=5",
         },
       })
@@ -98,12 +101,10 @@ export async function GET(request: NextRequest) {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Range",
-        // Cache plus long pour les segments (1 heure)
         "Cache-Control": "public, max-age=3600, immutable",
         "Accept-Ranges": "bytes",
       }
 
-      // Transférer les headers importants de la réponse
       const contentLength = response.headers.get("content-length")
       if (contentLength) {
         responseHeaders["Content-Length"] = contentLength
@@ -114,17 +115,32 @@ export async function GET(request: NextRequest) {
         responseHeaders["Content-Range"] = contentRange
       }
 
-      // Utiliser le bon status code pour les range requests
       const status = response.status === 206 ? 206 : 200
 
-      // Stream la réponse directement
       return new NextResponse(response.body, {
         status,
         headers: responseHeaders,
       })
     }
 
-    // Fallback pour autres types de contenu
+    const contentLength = response.headers.get("content-length")
+    const isLargeFile = contentLength && parseInt(contentLength) > 5 * 1024 * 1024
+
+    if (isLargeFile && response.body) {
+      return new NextResponse(response.body, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType || "application/octet-stream",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Range",
+          "Cache-Control": "public, max-age=3600",
+          "Accept-Ranges": "bytes",
+          "Content-Length": contentLength,
+        },
+      })
+    }
+
     const data = await response.arrayBuffer()
 
     return new NextResponse(data, {
