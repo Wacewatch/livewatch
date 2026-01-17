@@ -9,11 +9,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const controller = new AbortController()
-    const isSegment = url.includes(".ts") || url.includes(".aac") || url.includes(".m4s")
-    const timeoutMs = isSegment ? 15000 : 20000
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
     const response = await fetch(url, {
       headers: {
         "User-Agent":
@@ -22,13 +17,9 @@ export async function GET(request: NextRequest) {
         Origin: new URL(url).origin,
         Accept: "*/*",
         "Accept-Encoding": "identity",
-        Connection: "keep-alive",
       },
-      signal: controller.signal,
-      cache: isSegment ? "default" : "no-store",
+      cache: "no-store",
     })
-
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       return NextResponse.json({ error: `Failed to fetch: ${response.statusText}` }, { status: response.status })
@@ -71,7 +62,6 @@ export async function GET(request: NextRequest) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
-          "Cache-Control": "public, max-age=2",
         },
       })
     }
@@ -87,13 +77,10 @@ export async function GET(request: NextRequest) {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Cache-Control": isSegment ? "public, max-age=300" : "no-cache",
       },
     })
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      return NextResponse.json({ error: "Request timeout" }, { status: 504 })
-    }
+    console.error("Proxy error:", error)
     return NextResponse.json({ error: "Failed to fetch stream" }, { status: 500 })
   }
 }
