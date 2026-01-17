@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-export const runtime = "edge" // Utilise Edge Runtime pour de meilleures performances
-export const preferredRegion = "auto"
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       Referer: "https://tvvoo.live/",
       Accept: "*/*",
-      "Accept-Encoding": "gzip, deflate, br", // Accepter la compression
+      "Accept-Encoding": "identity", // Retour à identity pour éviter les problèmes de décompression
       Origin: "https://tvvoo.live",
       Connection: "keep-alive",
     }
@@ -28,14 +28,12 @@ export async function GET(request: NextRequest) {
     }
 
     const controller = new AbortController()
-    const isSegment = url.includes(".ts") || url.includes(".aac") || url.includes(".mp4")
-    const timeoutMs = isSegment ? 15000 : 30000
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     const response = await fetch(url, {
       headers,
       signal: controller.signal,
-      cache: isSegment ? "default" : "no-store",
+      cache: "no-store",
     })
 
     clearTimeout(timeoutId)
@@ -86,23 +84,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Utilise le body stream directement au lieu d'attendre tout le contenu
+    const data = await response.arrayBuffer()
+
     const responseHeaders: HeadersInit = {
       "Content-Type": contentType || "video/mp2t",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Range",
       "Accept-Ranges": "bytes",
-    }
-
-    if (isSegment) {
-      responseHeaders["Cache-Control"] = "public, max-age=300" // Cache 5 minutes
-    }
-
-    // Copier les headers de content-length et range si présents
-    const contentLength = response.headers.get("content-length")
-    if (contentLength) {
-      responseHeaders["Content-Length"] = contentLength
+      "Content-Length": String(data.byteLength),
     }
 
     const contentRange = response.headers.get("content-range")
@@ -110,7 +100,7 @@ export async function GET(request: NextRequest) {
       responseHeaders["Content-Range"] = contentRange
     }
 
-    return new NextResponse(response.body, {
+    return new NextResponse(data, {
       status: response.status,
       headers: responseHeaders,
     })
