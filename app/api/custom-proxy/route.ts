@@ -13,18 +13,22 @@ export async function GET(request: Request) {
 
   try {
     const cookieStore = await cookies()
-    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
-    })
+      }
+    )
 
     // Get the custom source configuration
     let proxyUrl: string | null = null
@@ -60,10 +64,11 @@ export async function GET(request: Request) {
     }
 
     // Build the full proxy URL
-    // The proxy_url should end with ?url= or similar parameter
     const fullProxyUrl = proxyUrl.includes("?")
       ? `${proxyUrl}${encodeURIComponent(url)}`
       : `${proxyUrl}?url=${encodeURIComponent(url)}`
+
+    console.log("[custom-proxy] Fetching from:", fullProxyUrl.substring(0, 150))
 
     // Fetch through the custom proxy
     const response = await fetch(fullProxyUrl, {
@@ -75,6 +80,7 @@ export async function GET(request: Request) {
     })
 
     if (!response.ok) {
+      console.error("[custom-proxy] Proxy returned:", response.status)
       throw new Error(`Proxy returned ${response.status}`)
     }
 
@@ -84,30 +90,60 @@ export async function GET(request: Request) {
     if (isM3U8) {
       let content = await response.text()
 
-      // Rewrite URLs in the M3U8 to go through this same endpoint
+      console.log("[custom-proxy] M3U8 detected, rewriting URLs")
+
+      // Parse base URL for relative path resolution
       const baseUrl = url.substring(0, url.lastIndexOf("/") + 1)
 
-      content = content.replace(/^(?!#)(.+\.ts.*)$/gm, (match) => {
-        const tsUrl = match.startsWith("http") ? match : baseUrl + match
-        return `/api/custom-proxy?url=${encodeURIComponent(tsUrl)}${sourceId ? `&source=${sourceId}` : ""}`
+      // Split into lines and rewrite
+      const lines = content.split("\n")
+      const rewrittenLines = lines.map((line) => {
+        const trimmed = line.trim()
+
+        // Keep comments and empty lines
+        if (trimmed.startsWith("#") || trimmed === "") {
+          return line
+        }
+
+        // Check if this is a TS segment or M3U8 playlist
+        const isSegment = 
+          trimmed.endsWith(".ts") || 
+          trimmed.includes(".ts?") ||
+          trimmed.endsWith(".m3u8") || 
+          trimmed.includes(".m3u8?")
+
+        if (isSegment) {
+          // Make URL absolute if it's relative
+          const absoluteUrl = trimmed.startsWith("http") ? trimmed : baseUrl + trimmed
+
+          // Return proxied URL
+          return `/api/custom-proxy?url=${encodeURIComponent(absoluteUrl)}${
+            sourceId ? `&source=${sourceId}` : ""
+          }`
+        }
+
+        // Return line as-is if not a media file
+        return line
       })
 
-      content = content.replace(/^(?!#)(.+\.m3u8.*)$/gm, (match) => {
-        const m3u8Url = match.startsWith("http") ? match : baseUrl + match
-        return `/api/custom-proxy?url=${encodeURIComponent(m3u8Url)}${sourceId ? `&source=${sourceId}` : ""}`
-      })
+      const rewrittenContent = rewrittenLines.join("\n")
 
-      return new NextResponse(content, {
+      console.log("[custom-proxy] M3U8 rewritten successfully")
+
+      return new NextResponse(rewrittenContent, {
         headers: {
           "Content-Type": "application/vnd.apple.mpegurl",
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-cache",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
         },
       })
     }
 
     // For TS segments and other content, return as-is
     const data = await response.arrayBuffer()
+
+    console.log("[custom-proxy] Binary content returned, size:", data.byteLength)
+
     return new NextResponse(data, {
       headers: {
         "Content-Type": contentType,
@@ -116,10 +152,10 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error("Custom proxy error:", error)
+    console.error("[custom-proxy] Error:", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Proxy request failed" },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
