@@ -10,16 +10,22 @@ export async function GET(request: NextRequest) {
 
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    const isSegment = url.includes(".ts") || url.includes(".aac") || url.includes(".m4s")
+    const timeoutMs = isSegment ? 15000 : 20000
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Referer: new URL(url).origin,
+        Origin: new URL(url).origin,
         Accept: "*/*",
         "Accept-Encoding": "identity",
+        Connection: "keep-alive",
       },
       signal: controller.signal,
+      cache: isSegment ? "default" : "no-store",
     })
 
     clearTimeout(timeoutId)
@@ -65,7 +71,7 @@ export async function GET(request: NextRequest) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
-          "Cache-Control": "no-cache",
+          "Cache-Control": "public, max-age=2",
         },
       })
     }
@@ -76,14 +82,18 @@ export async function GET(request: NextRequest) {
     return new NextResponse(data, {
       status: 200,
       headers: {
-        "Content-Type": contentType || "application/octet-stream",
+        "Content-Type": contentType || "video/mp2t",
+        "Content-Length": String(data.byteLength),
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Cache-Control": "no-cache",
+        "Cache-Control": isSegment ? "public, max-age=300" : "no-cache",
       },
     })
   } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return NextResponse.json({ error: "Request timeout" }, { status: 504 })
+    }
     return NextResponse.json({ error: "Failed to fetch stream" }, { status: 500 })
   }
 }
