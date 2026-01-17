@@ -513,7 +513,12 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
         </div>
       )}
 
-      {selectedChannel && <PlayerModal channel={selectedChannel} onClose={() => setSelectedChannel(null)} />}
+      <PlayerModal
+        channel={selectedChannel}
+        isOpen={!!selectedChannel}
+        onClose={() => setSelectedChannel(null)}
+        country={country as any}
+      />
 
       <Footer />
     </div>
