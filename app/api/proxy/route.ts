@@ -5,15 +5,12 @@ export async function GET(request: NextRequest) {
   const url = searchParams.get("url")
 
   if (!url) {
-    console.error("[v0] Proxy error: URL parameter missing")
     return NextResponse.json({ error: "URL parameter is required" }, { status: 400 })
   }
 
   try {
-    console.log("[v0] Proxying request to:", url.substring(0, 100))
-
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     const response = await fetch(url, {
       headers: {
@@ -25,17 +22,11 @@ export async function GET(request: NextRequest) {
         Origin: "https://tvvoo.live",
       },
       signal: controller.signal,
-      cache: "no-store",
     })
 
     clearTimeout(timeoutId)
 
     if (!response.ok) {
-      console.error("[v0] Proxy fetch failed:", {
-        url: url.substring(0, 100),
-        status: response.status,
-        statusText: response.statusText,
-      })
       return NextResponse.json(
         {
           error: `Failed to fetch: ${response.statusText}`,
@@ -46,10 +37,10 @@ export async function GET(request: NextRequest) {
     }
 
     const contentType = response.headers.get("content-type") || ""
+    const isM3U8 = contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")
 
-    if (contentType.includes("mpegurl") || url.includes(".m3u8") || contentType.includes("x-mpegURL")) {
+    if (isM3U8) {
       const text = await response.text()
-      console.log("[v0] Rewriting M3U8 manifest URLs")
 
       const baseUrl = new URL(url)
       const baseUrlStr = baseUrl.origin + baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf("/") + 1)
@@ -75,8 +66,6 @@ export async function GET(request: NextRequest) {
         })
         .join("\n")
 
-      console.log("[v0] M3U8 manifest rewritten successfully")
-
       return new NextResponse(rewrittenManifest, {
         status: 200,
         headers: {
@@ -84,19 +73,30 @@ export async function GET(request: NextRequest) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Range",
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
+          "Cache-Control": "public, max-age=2",
         },
       })
     }
 
-    const data = await response.arrayBuffer()
+    const isSegment = url.includes(".ts") || contentType.includes("video/mp2t")
 
-    console.log("[v0] Proxy successful:", {
-      contentType: contentType,
-      size: data.byteLength,
-    })
+    if (isSegment && response.body) {
+      // Stream the response body directly without buffering
+      return new NextResponse(response.body, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType || "video/mp2t",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Range",
+          "Cache-Control": "public, max-age=300",
+          "Accept-Ranges": "bytes",
+        },
+      })
+    }
+
+    // Fallback for other content types
+    const data = await response.arrayBuffer()
 
     return new NextResponse(data, {
       status: 200,
@@ -112,12 +112,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const isTimeout = errorMessage.includes("aborted") || errorMessage.includes("timeout")
-
-    console.error("[v0] Proxy error:", {
-      url: url.substring(0, 100),
-      error: errorMessage,
-      isTimeout,
-    })
 
     return NextResponse.json(
       {
