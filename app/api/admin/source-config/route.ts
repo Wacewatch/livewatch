@@ -13,6 +13,7 @@ export async function GET() {
         source1_enabled: true,
         source2_enabled: true,
         source3_enabled: true,
+        external_proxy_url: "", // Added external proxy URL support
       })
     }
 
@@ -23,6 +24,7 @@ export async function GET() {
       source1_enabled: true,
       source2_enabled: true,
       source3_enabled: true,
+      external_proxy_url: "",
     })
   }
 }
@@ -32,9 +34,16 @@ export async function PUT(request: Request) {
     const supabase = await createClient()
     const config = await request.json()
 
+    const fullConfig = {
+      source1_enabled: config.source1_enabled ?? true,
+      source2_enabled: config.source2_enabled ?? true,
+      source3_enabled: config.source3_enabled ?? true,
+      external_proxy_url: config.external_proxy_url ?? "",
+    }
+
     const { error } = await supabase.from("app_config").upsert({
       key: "source_config",
-      value: config,
+      value: fullConfig,
       updated_at: new Date().toISOString(),
     })
 

@@ -1,11 +1,12 @@
 "use client"
 
-import { Globe, AlertTriangle, X } from "lucide-react"
+import { Globe, Info, X } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { UserMenu } from "@/components/user-menu"
 import { useUserRole } from "@/lib/hooks/use-user-role"
+import { Footer } from "@/components/footer"
 
 const ALL_COUNTRIES = [
   { name: "France", code: "fr" },
@@ -54,7 +55,6 @@ export function CountrySelector() {
 
     const fetchData = async () => {
       try {
-        // Fetch country statuses
         const countryRes = await fetch("/api/countries/enabled")
         if (countryRes.ok) {
           const data = await countryRes.json()
@@ -67,7 +67,6 @@ export function CountrySelector() {
           setCountryStatuses(ALL_COUNTRIES.map((c) => ({ name: c.name, enabled: true })))
         }
 
-        // Fetch global banner
         const bannerRes = await fetch("/api/admin/banners")
         if (bannerRes.ok) {
           const bannerData = await bannerRes.json()
@@ -96,7 +95,7 @@ export function CountrySelector() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
@@ -114,26 +113,37 @@ export function CountrySelector() {
       </header>
 
       {globalBanner?.enabled && globalBanner?.message && !bannerDismissed && (
-        <div
-          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2 relative"
-          style={{
-            backgroundColor: globalBanner.bg_color || "#3b82f6",
-            color: globalBanner.text_color || "#ffffff",
-          }}
-        >
-          <AlertTriangle className="w-5 h-5" />
-          <span>{globalBanner.message}</span>
-          <button
-            onClick={dismissBanner}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-black/20 transition-colors"
-            title="Fermer"
+        <div className="relative overflow-hidden">
+          <div
+            className="w-full py-3 px-6 backdrop-blur-sm border-b border-white/10"
+            style={{
+              background: `linear-gradient(135deg, ${globalBanner.bg_color || "#3b82f6"}dd, ${globalBanner.bg_color || "#3b82f6"}99)`,
+            }}
           >
-            <X className="w-5 h-5" />
-          </button>
+            <div className="max-w-screen-2xl mx-auto flex items-center justify-center gap-3 relative">
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">
+                <Info className="w-4 h-4" style={{ color: globalBanner.text_color || "#ffffff" }} />
+              </div>
+              <span
+                className="font-medium text-sm md:text-base"
+                style={{ color: globalBanner.text_color || "#ffffff" }}
+              >
+                {globalBanner.message}
+              </span>
+              <button
+                onClick={dismissBanner}
+                className="absolute right-0 p-2 rounded-full hover:bg-white/20 transition-colors"
+                title="Fermer"
+              >
+                <X className="w-4 h-4" style={{ color: globalBanner.text_color || "#ffffff" }} />
+              </button>
+            </div>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-transparent to-white/5 pointer-events-none" />
         </div>
       )}
 
-      <main className="max-w-screen-2xl mx-auto p-6 md:p-10 lg:p-16">
+      <main className="max-w-screen-2xl mx-auto p-6 md:p-10 lg:p-16 flex-1">
         <div className="text-center mb-12 md:mb-16">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Globe className="w-12 h-12 text-primary" />
@@ -209,6 +219,8 @@ export function CountrySelector() {
           </div>
         )}
       </main>
+
+      <Footer />
     </div>
   )
 }

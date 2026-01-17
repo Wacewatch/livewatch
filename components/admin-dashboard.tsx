@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import {
   Users,
   LaptopMinimal as TvMinimal,
@@ -21,6 +21,7 @@ import {
   Radio,
   Plus,
   MessageSquare,
+  LinkIcon,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -30,6 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+
+// ... existing code (interfaces) ...
 
 interface Stats {
   totalUsers: number
@@ -98,10 +101,10 @@ interface ServerStats {
     activeConnections: number
     requestsPerMinute: number
     bandwidthEstimate: string
-    source1?: number // Added for the update
-    source2?: number // Added for the update
-    source3?: number // Added for the update
-    total?: number // Added for the update
+    source1?: number
+    source2?: number
+    source3?: number
+    total?: number
   }
   system: {
     uptime: string
@@ -114,7 +117,7 @@ interface Country {
   id: string
   name: string
   enabled: boolean
-  channel_count?: number // Added for the update
+  channel_count?: number
 }
 
 interface ProxyConfig {
@@ -137,7 +140,7 @@ interface Proxy {
   is_active: boolean
   last_used: string
   last_checked: string
-  country?: string // Added for the update
+  country?: string
 }
 
 interface ProxySource {
@@ -176,8 +179,13 @@ interface CollapsibleState {
   users: boolean
   vipKeys: boolean
   sources: boolean
-  globalBanner: boolean // Added
-  countryBanners: boolean // Added
+  globalBanner: boolean
+  countryBanners: boolean
+}
+
+interface ExternalProxyConfig {
+  url: string
+  enabled: boolean
 }
 
 export function AdminDashboard() {
@@ -187,9 +195,9 @@ export function AdminDashboard() {
   const [countries, setCountries] = useState<Country[]>([])
   const [proxies, setProxies] = useState<Proxy[]>([])
   const [proxyConfig, setProxyConfig] = useState<ProxyConfig | null>(null)
-  const [proxySources, setProxySources] = useState<ProxySource[]>([]) // Added for the update
-  const [showAddProxySourceDialog, setShowAddProxySourceDialog] = useState(false) // Added for the update
-  const [newProxySource, setNewProxySource] = useState({ name: "", git_url: "", sync_interval_minutes: 30 }) // Added for the update
+  const [proxySources, setProxySources] = useState<ProxySource[]>([])
+  const [showAddProxySourceDialog, setShowAddProxySourceDialog] = useState(false)
+  const [newProxySource, setNewProxySource] = useState({ name: "", git_url: "", sync_interval_minutes: 30 })
   const [proxyStats, setProxyStats] = useState({ totalProxies: 0, activeProxies: 0 })
   const [loading, setLoading] = useState(true)
   const [userSearch, setUserSearch] = useState("")
@@ -228,9 +236,11 @@ export function AdminDashboard() {
     max_response_time_ms: 5000,
   })
 
-  // Added state for adding single proxy dialog and input values
   const [showAddProxyDialog, setShowAddProxyDialog] = useState(false)
   const [newProxy, setNewProxy] = useState({ host: "", port: "" })
+
+  const [externalProxyUrl, setExternalProxyUrl] = useState("")
+  const [showExternalProxyDialog, setShowExternalProxyDialog] = useState(false)
 
   const [globalBanner, setGlobalBanner] = useState<GlobalBanner>({
     message: "",
@@ -248,16 +258,15 @@ export function AdminDashboard() {
     users: false,
     vipKeys: false,
     sources: false,
-    globalBanner: false, // Added
-    countryBanners: true, // Added
+    globalBanner: false,
+    countryBanners: true,
   })
   const [proxyListLimit, setProxyListLimit] = useState(10)
   const [proxySort, setProxySort] = useState<"speed" | "success" | "country">("speed")
 
   const [pageLoading, setPageLoading] = useState(true)
-  const [loadingProgress, setLoadingProgress] = useState(0) // Added for the update
+  const [loadingProgress, setLoadingProgress] = useState(0)
   const [loadingModules, setLoadingModules] = useState({
-    // Added for the update
     stats: false,
     users: false,
     countries: false,
@@ -274,6 +283,27 @@ export function AdminDashboard() {
     source3_enabled: true,
   })
 
+  const fetchRealtimeStats = useCallback(async () => {
+    try {
+      const [statsRes, serverStatsRes] = await Promise.all([
+        fetch("/api/admin/stats"),
+        fetch("/api/admin/server-stats"),
+      ])
+
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        setStats(statsData)
+      }
+
+      if (serverStatsRes.ok) {
+        const serverData = await serverStatsRes.json()
+        setServerStats(serverData)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to fetch realtime stats:", error)
+    }
+  }, [])
+
   useEffect(() => {
     setPageLoading(false)
 
@@ -282,12 +312,12 @@ export function AdminDashboard() {
       fetchInitialData()
     }
 
-    const interval = setInterval(() => {
-      fetchServerStats()
-    }, 10000)
+    const realtimeInterval = setInterval(() => {
+      fetchRealtimeStats()
+    }, 5000)
 
-    return () => clearInterval(interval)
-  }, [])
+    return () => clearInterval(realtimeInterval)
+  }, [fetchRealtimeStats])
 
   const fetchInitialData = async () => {
     try {
@@ -313,7 +343,6 @@ export function AdminDashboard() {
 
       setLoadingModules((prev) => ({ ...prev, sources: true }))
       const [keysRes, sourceConfigRes, bannersRes] = await Promise.all([
-        // Fetch banners
         fetch("/api/admin/vip-keys"),
         fetch("/api/admin/source-config"),
         fetch("/api/admin/banners"),
@@ -325,6 +354,9 @@ export function AdminDashboard() {
       if (sourceConfigRes.ok) {
         const configData = await sourceConfigRes.json()
         setSourceConfig(configData)
+        if (configData.external_proxy_url) {
+          setExternalProxyUrl(configData.external_proxy_url)
+        }
       }
       if (bannersRes.ok) {
         const bannersData = await bannersRes.json()
@@ -361,12 +393,17 @@ export function AdminDashboard() {
       setLoadingModules((prev) => ({ ...prev, proxies: false }))
       setLoadingProgress(100)
 
+      // Fetch server stats
+      await fetchRealtimeStats()
+
       setStatsLoaded(true)
     } catch (error) {
       console.error("[v0] Failed to fetch initial data:", error)
-      setLoadingProgress(100) // Ensure progress reaches 100% even on error
+      setLoadingProgress(100)
     }
   }
+
+  // ... existing code for all other functions ...
 
   const fetchDashboardData = async () => {
     try {
@@ -393,32 +430,6 @@ export function AdminDashboard() {
       console.error("[v0] Failed to fetch dashboard data:", error)
     }
   }
-
-  const fetchServerStats = async () => {
-    try {
-      const res = await fetch("/api/admin/server-stats")
-      if (res.ok) {
-        const data = await res.json()
-        setServerStats(data)
-      }
-    } catch (error) {
-      console.error("[v0] Failed to fetch server stats:", error)
-    }
-  }
-
-  const fetchSyncStatus = async () => {
-    try {
-      const res = await fetch("/api/admin/sync-catalog")
-      if (res.ok) {
-        const data = await res.json()
-        setSyncStatus(data)
-      }
-    } catch (error) {
-      console.error("[v0] Failed to fetch sync status:", error)
-    }
-  }
-
-  // REMOVED syncCatalogNow function since we're removing the Synchronisation du Catalogue module
 
   const toggleChannel = async (channelId: string, enabled: boolean) => {
     try {
@@ -485,7 +496,6 @@ export function AdminDashboard() {
       })
     } catch (error) {
       console.error("[v0] Failed to toggle source:", error)
-      // Revert on error
       setSourceConfig(sourceConfig)
     }
   }
@@ -528,24 +538,6 @@ export function AdminDashboard() {
     }
   }
 
-  const updateProxyConfig = async () => {
-    try {
-      await fetch("/api/admin/proxy-pool", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_config",
-          ...editProxyConfig,
-        }),
-      })
-      setShowProxyConfigDialog(false)
-      fetchDashboardData()
-    } catch (error) {
-      console.error("[v0] Failed to update proxy config:", error)
-    }
-  }
-
-  // Added for the update
   const addProxySource = async () => {
     if (!newProxySource.name || !newProxySource.git_url) {
       alert("Le nom et l'URL Git sont requis")
@@ -569,7 +561,6 @@ export function AdminDashboard() {
     }
   }
 
-  // Added for the update
   const toggleProxySource = async (id: number, enabled: boolean) => {
     try {
       await fetch("/api/admin/proxy-pool", {
@@ -587,7 +578,6 @@ export function AdminDashboard() {
     }
   }
 
-  // Added for the update
   const deleteProxySource = async (id: number) => {
     if (!confirm("Supprimer cette source de proxies ?")) return
 
@@ -606,7 +596,6 @@ export function AdminDashboard() {
     }
   }
 
-  // Added function to delete a single proxy
   const deleteSingleProxy = async (id: number) => {
     if (!confirm("Supprimer ce proxy ?")) return
     try {
@@ -653,40 +642,22 @@ export function AdminDashboard() {
     }
   }
 
-  const openEditDialog = (channel: Channel) => {
-    setEditingChannel(channel)
-    setEditForm({
-      name: channel.name || "",
-      category: channel.category || "",
-      language: channel.language || "",
-      logo: channel.logo || "",
-      background: channel.background || "",
-    })
-  }
-
-  const saveChannelEdit = async () => {
-    if (!editingChannel) return
-
+  const saveExternalProxyUrl = async () => {
     try {
-      await fetch("/api/admin/channels", {
-        method: "PATCH",
+      await fetch("/api/admin/source-config", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: editingChannel.id,
-          ...editForm,
+          ...sourceConfig,
+          external_proxy_url: externalProxyUrl,
         }),
       })
-      setEditingChannel(null)
-      fetchDashboardData()
+      setShowExternalProxyDialog(false)
+      alert("URL du proxy externe enregistrée !")
     } catch (error) {
-      console.error("[v0] Failed to update channel:", error)
+      console.error("[v0] Failed to save external proxy URL:", error)
+      alert("Échec de l'enregistrement")
     }
-  }
-
-  const toggleChannelSelection = (channelId: string) => {
-    setSelectedChannels((prev) =>
-      prev.includes(channelId) ? prev.filter((id) => id !== channelId) : [...prev, channelId],
-    )
   }
 
   const generateVipKey = async () => {
@@ -698,503 +669,428 @@ export function AdminDashboard() {
       if (data.key) {
         setNewGeneratedKey(data.key)
         setShowVipKeyDialog(true)
-        fetchDashboardData()
+        const keysRes = await fetch("/api/admin/vip-keys")
+        if (keysRes.ok) {
+          const keysData = await keysRes.json()
+          setVipKeys(keysData.keys || [])
+        }
       }
     } catch (error) {
       console.error("[v0] Failed to generate VIP key:", error)
     }
   }
 
-  const copyKeyToClipboard = () => {
-    navigator.clipboard.writeText(newGeneratedKey)
-    alert("Clé copiée dans le presse-papiers !")
-  }
-
-  const saveNewChannel = async () => {
-    if (!createForm.name) {
-      alert("Le nom de la chaîne est requis")
-      return
-    }
+  const deleteVipKey = async (keyId: string) => {
+    if (!confirm("Supprimer cette clé VIP ?")) return
 
     try {
-      const response = await fetch("/api/admin/channels/create", {
+      await fetch("/api/admin/vip-keys", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyId }),
+      })
+      const keysRes = await fetch("/api/admin/vip-keys")
+      if (keysRes.ok) {
+        const keysData = await keysRes.json()
+        setVipKeys(keysData.keys || [])
+      }
+    } catch (error) {
+      console.error("[v0] Failed to delete VIP key:", error)
+    }
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    alert("Copié !")
+  }
+
+  const saveGlobalBanner = async () => {
+    try {
+      await fetch("/api/admin/banners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "global", ...globalBanner }),
+      })
+      alert("Message global enregistré !")
+    } catch (error) {
+      console.error("[v0] Failed to save global banner:", error)
+    }
+  }
+
+  const saveCountryBanner = async (countryName: string, message: string) => {
+    try {
+      await fetch("/api/admin/banners", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...createForm,
-          mergeIds: createMode === "merge" ? selectedChannels : [],
+          type: "country",
+          country_name: countryName,
+          message,
+          enabled: true,
+          bg_color: "#f59e0b",
+          text_color: "#000000",
         }),
       })
+      setEditingCountryBanner(null)
+      setNewCountryBannerMessage("")
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        alert(`Échec de la création de la chaîne: ${data.error || JSON.stringify(data)}`)
-        return
-      }
-
-      setShowCreateDialog(false)
-      setSelectedChannels([])
-      setIsMergeMode(false)
-      setCreateForm({
-        name: "",
-        category: "",
-        language: "FR",
-        logo: "",
-        background: "",
-        sources: [],
-      })
-
-      await fetchDashboardData()
-      alert("Chaîne créée avec succès !")
-    } catch (error) {
-      console.error("[v0] Failed to create channel:", error)
-      alert(`Échec de la création de la chaîne: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
-    }
-  }
-
-  const openCreateDialog = (mode: "create" | "merge") => {
-    setCreateMode(mode)
-    if (mode === "merge" && selectedChannels.length > 0) {
-      const primaryChannel = channels.find((ch) => ch.id === selectedChannels[0])
-      if (primaryChannel) {
-        setCreateForm({
-          name: primaryChannel.name,
-          category: primaryChannel.category || "",
-          language: primaryChannel.language || "FR",
-          logo: primaryChannel.logo || "",
-          background: primaryChannel.background || "",
-          sources: [],
-        })
-      }
-    } else {
-      setCreateForm({
-        name: "",
-        category: "",
-        language: "FR",
-        logo: "",
-        background: "",
-        sources: [],
-      })
-    }
-    setShowCreateDialog(true)
-  }
-
-  const filteredUsers = users.filter((user) => user.email.toLowerCase().includes(userSearch.toLowerCase()))
-  const filteredChannels = channels.filter((channel) =>
-    channel.name.toLowerCase().includes(channelSearch.toLowerCase()),
-  )
-
-  // Added function for synchronisation du catalogue
-  const syncCatalogNow = async () => {
-    try {
-      const res = await fetch("/api/admin/sync-catalog", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sync_now" }),
-      })
-
-      const data = await res.json()
-      if (data.success) {
-        alert("Synchronisation du catalogue lancée avec succès !")
-        fetchSyncStatus() // Update sync status immediately
-      } else {
-        alert(`Échec du lancement de la synchronisation: ${data.error || "Erreur inconnue"}`)
+      const bannersRes = await fetch("/api/admin/banners")
+      if (bannersRes.ok) {
+        const bannersData = await bannersRes.json()
+        if (bannersData.countryBanners) {
+          setCountryBanners(bannersData.countryBanners)
+        }
       }
     } catch (error) {
-      console.error("[v0] Failed to sync catalog:", error)
-      alert("Échec de la synchronisation")
+      console.error("[v0] Failed to save country banner:", error)
     }
   }
 
   const sortedProxies = [...proxies].sort((a, b) => {
-    if (proxySort === "speed") return (a.speed_ms || 9999) - (b.speed_ms || 9999)
-    if (proxySort === "success") return (b.success_rate || 0) - (a.success_rate || 0)
-    if (proxySort === "country") return (a.country || "ZZ").localeCompare(b.country || "ZZ")
+    if (proxySort === "speed") return a.speed_ms - b.speed_ms
+    if (proxySort === "success") return b.success_rate - a.success_rate
+    if (proxySort === "country") return (a.country || "").localeCompare(b.country || "")
     return 0
   })
 
-  // Improved loading indicator - centered and more visible
-  if (pageLoading || loadingProgress < 100) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm">
-        <div className="text-center">
-          <div className="relative w-32 h-32 mx-auto mb-6">
-            <svg className="w-32 h-32 transform -rotate-90">
-              <circle
-                cx="64"
-                cy="64"
-                r="56"
-                stroke="currentColor"
-                strokeWidth="8"
-                fill="none"
-                className="text-slate-700"
-              />
-              <circle
-                cx="64"
-                cy="64"
-                r="56"
-                stroke="url(#gradient)"
-                strokeWidth="8"
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 56}`}
-                strokeDashoffset={`${2 * Math.PI * 56 * (1 - loadingProgress / 100)}`}
-                className="transition-all duration-300"
-              />
-              <defs>
-                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#06b6d4" />
-                  <stop offset="50%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#8b5cf6" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-3xl font-bold text-white">{Math.round(loadingProgress)}%</span>
-            </div>
-          </div>
-          <p className="text-lg text-muted-foreground">Chargement du tableau de bord...</p>
-          <div className="mt-4 text-sm text-muted-foreground/60">
-            {loadingModules.stats && "Chargement des statistiques..."}
-            {loadingModules.users && "Chargement des utilisateurs..."}
-            {loadingModules.countries && "Chargement des pays..."}
-            {loadingModules.proxies && "Chargement des proxies..."}
-            {loadingModules.sources && "Chargement des sources..."}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const updateGlobalBanner = async () => {
-    try {
-      await fetch("/api/admin/banners", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_global",
-          ...globalBanner,
-        }),
-      })
-      alert("Bandeau global mis à jour !")
-    } catch (error) {
-      console.error("[v0] Failed to update global banner:", error)
-    }
-  }
-
-  const updateCountryBanner = async (countryName: string, message: string, enabled: boolean) => {
-    try {
-      await fetch("/api/admin/banners", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_country",
-          country: countryName,
-          message,
-          enabled,
-        }),
-      })
-
-      // Update local state
-      setCountryBanners((prev) => {
-        const existing = prev.find((b) => b.country_name === countryName)
-        if (existing) {
-          return prev.map((b) => (b.country_name === countryName ? { ...b, message, enabled } : b))
-        }
-        return [...prev, { country_name: countryName, message, enabled, bg_color: "#f59e0b", text_color: "#000000" }]
-      })
-
-      setEditingCountryBanner(null)
-      setNewCountryBannerMessage("")
-    } catch (error) {
-      console.error("[v0] Failed to update country banner:", error)
-    }
-  }
+  const enabledSourcesCount = [
+    sourceConfig.source1_enabled,
+    sourceConfig.source2_enabled,
+    sourceConfig.source3_enabled,
+  ].filter(Boolean).length
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Removed old loading bar, replaced by the centered overlay above */}
-
-      <div className="p-4 md:p-8">
-        {/* Header */}
-        <div className="mb-6 md:mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold">Administration</h1>
-              <p className="text-sm md:text-base text-muted-foreground">Tableau de bord Admin</p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-background/95">
+      {loadingProgress < 100 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="relative w-32 h-32 mx-auto mb-6">
+              <svg className="w-32 h-32 transform -rotate-90">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="none"
+                  className="text-border/30"
+                />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  stroke="url(#gradient)"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeDasharray={`${2 * Math.PI * 56}`}
+                  strokeDashoffset={`${2 * Math.PI * 56 * (1 - loadingProgress / 100)}`}
+                  strokeLinecap="round"
+                  className="transition-all duration-500"
+                />
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+                  {loadingProgress}%
+                </span>
+              </div>
             </div>
-            <Button onClick={() => (window.location.href = "/")} variant="outline" className="flex items-center gap-2">
-              <Home className="h-4 w-4" />
-              Retour au site
-            </Button>
+            <p className="text-xl font-semibold text-foreground">Chargement du tableau de bord...</p>
+            <p className="text-sm text-muted-foreground mt-2">Récupération des données</p>
           </div>
         </div>
+      )}
 
-        {/* Server Monitoring - show loading indicator if data not ready */}
-        <div className="mb-6 grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-          {/* CPU Card */}
-          <Card className="border-l-4 border-l-blue-500 p-4">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-blue-500" />
-              CPU App
-            </h3>
-            {serverStats ? (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Usage:</span>
-                  <span className="font-bold">{serverStats.cpu.usage}%</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${serverStats.cpu.usage}%` }} />
-                </div>
-                <div className="text-xs text-muted-foreground">{serverStats.cpu.model}</div>
+      <div className="p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+              Administration
+            </h1>
+            <p className="text-muted-foreground mt-1">Tableau de bord Admin</p>
+          </div>
+          <a
+            href="/"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl glass-card border border-border/50 hover:border-primary/50 transition-all"
+          >
+            <Home className="w-5 h-5" />
+            <span className="hidden md:inline">Retour au site</span>
+          </a>
+        </div>
+
+        {/* Stats Cards Row 1 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Card className="p-4 glass-card border border-border/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-yellow-400 flex items-center gap-1">
+                  <Activity className="w-4 h-4" />
+                  CPU App
+                </p>
+                {serverStats ? (
+                  <>
+                    <p className="text-2xl font-bold text-foreground mt-2">{serverStats.cpu.usage.toFixed(2)}%</p>
+                    <div className="w-full bg-border/50 rounded-full h-1.5 mt-2">
+                      <div
+                        className="bg-gradient-to-r from-cyan-400 to-blue-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${Math.min(serverStats.cpu.usage, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Next.js App Process</p>
+                  </>
+                ) : (
+                  <div className="h-16 flex items-center">
+                    <div className="animate-pulse bg-border/50 rounded h-8 w-20" />
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="animate-pulse space-y-2">
-                <div className="h-4 bg-muted rounded w-1/2"></div>
-                <div className="h-2 bg-muted rounded"></div>
-              </div>
-            )}
+            </div>
           </Card>
 
-          {/* RAM Card */}
-          <Card className="border-l-4 border-l-fuchsia-500 p-4">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-fuchsia-500" />
-              RAM App
-            </h3>
-            {serverStats ? (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Usage:</span>
-                  <span className="font-bold">{serverStats.memory.usagePercent}%</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-fuchsia-500 transition-all"
-                    style={{ width: `${serverStats.memory.usagePercent}%` }}
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {serverStats.memory.used} / {serverStats.memory.total}
-                </div>
+          <Card className="p-4 glass-card border border-border/50">
+            <div className="flex items-center justify-between">
+              <div className="w-full">
+                <p className="text-sm text-yellow-400 flex items-center gap-1">
+                  <Activity className="w-4 h-4" />
+                  RAM App
+                </p>
+                {serverStats ? (
+                  <>
+                    <p className="text-2xl font-bold text-foreground mt-2">
+                      {serverStats.memory.usagePercent.toFixed(2)}%
+                    </p>
+                    <div className="w-full bg-border/50 rounded-full h-1.5 mt-2">
+                      <div
+                        className="bg-gradient-to-r from-pink-400 to-rose-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${Math.min(serverStats.memory.usagePercent, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {serverStats.memory.used} / {serverStats.memory.total}
+                    </p>
+                  </>
+                ) : (
+                  <div className="h-16 flex items-center">
+                    <div className="animate-pulse bg-border/50 rounded h-8 w-20" />
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="animate-pulse space-y-2">
-                <div className="h-4 bg-muted rounded w-1/2"></div>
-                <div className="h-2 bg-muted rounded"></div>
-              </div>
-            )}
+            </div>
           </Card>
 
-          {/* Network Card - Show stats by source */}
-          <Card className="border-l-4 border-l-emerald-500 p-4">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-500" />
-              Réseau
-            </h3>
-            {serverStats?.network ? (
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground mb-2">Par Source:</div>
-                <div className="grid grid-cols-3 gap-1 text-center">
-                  <div className="bg-cyan-500/20 rounded p-1">
-                    <div className="text-xs text-cyan-400">S1</div>
-                    <div className="font-bold text-sm">{serverStats.network.source1 || 0}</div>
+          <Card className="p-4 glass-card border border-border/50">
+            <div>
+              <p className="text-sm text-green-400 flex items-center gap-1">
+                <Network className="w-4 h-4" />
+                Réseau
+              </p>
+              {serverStats?.network ? (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground mb-2">Par Source:</p>
+                  <div className="grid grid-cols-3 gap-1 mb-3">
+                    <div className="text-center p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                      <p className="text-[10px] text-cyan-400">S1</p>
+                      <p className="text-sm font-bold text-foreground">{serverStats.network.source1 || 0}</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                      <p className="text-[10px] text-orange-400">S2</p>
+                      <p className="text-sm font-bold text-foreground">{serverStats.network.source2 || 0}</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-purple-500/10 border border-purple-500/30">
+                      <p className="text-[10px] text-purple-400">S3</p>
+                      <p className="text-sm font-bold text-foreground">{serverStats.network.source3 || 0}</p>
+                    </div>
                   </div>
-                  <div className="bg-orange-500/20 rounded p-1">
-                    <div className="text-xs text-orange-400">S2</div>
-                    <div className="font-bold text-sm">{serverStats.network.source2 || 0}</div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total:</span>
+                      <span className="text-foreground font-medium">{serverStats.network.total || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Req/min:</span>
+                      <span className="text-foreground font-medium">{serverStats.network.requestsPerMinute}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Bande:</span>
+                      <span className="text-foreground font-medium">{serverStats.network.bandwidthEstimate}</span>
+                    </div>
                   </div>
-                  <div className="bg-purple-500/20 rounded p-1">
-                    <div className="text-xs text-purple-400">S3</div>
-                    <div className="font-bold text-sm">{serverStats.network.source3 || 0}</div>
-                  </div>
                 </div>
-                <div className="flex justify-between text-xs pt-1 border-t border-border/50">
-                  <span className="text-muted-foreground">Total:</span>
-                  <span>{serverStats.network.total || serverStats.network.activeConnections}</span>
+              ) : (
+                <div className="h-24 flex items-center justify-center">
+                  <div className="animate-pulse bg-border/50 rounded h-16 w-full" />
                 </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Req/min:</span>
-                  <span>{serverStats.network.requestsPerMinute}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Bande:</span>
-                  <span>{serverStats.network.bandwidthEstimate}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="animate-pulse space-y-2">
-                <div className="h-4 bg-muted rounded w-1/2"></div>
-                <div className="h-4 bg-muted rounded w-3/4"></div>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
 
-          {/* System Card */}
-          <Card className="border-l-4 border-l-amber-500 p-4">
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-amber-500" />
-              Système
-            </h3>
-            {serverStats ? (
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Uptime:</span>
-                  <span className="font-bold">{serverStats.system.uptime}</span>
+          <Card className="p-4 glass-card border border-border/50">
+            <div>
+              <p className="text-sm text-blue-400 flex items-center gap-1">
+                <TvMinimal className="w-4 h-4" />
+                Système
+              </p>
+              {serverStats ? (
+                <div className="mt-2 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Uptime:</span>
+                    <span className="text-sm font-bold text-foreground">{serverStats.system.uptime}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Platform:</span>
+                    <span className="text-sm text-foreground">{serverStats.system.platform}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Node:</span>
+                    <span className="text-sm text-foreground">{serverStats.system.nodeVersion}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Platform:</span>
-                  <span>{serverStats.system.platform}</span>
+              ) : (
+                <div className="h-16 flex items-center">
+                  <div className="animate-pulse bg-border/50 rounded h-12 w-full" />
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Node:</span>
-                  <span>{serverStats.system.nodeVersion}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="animate-pulse space-y-2">
-                <div className="h-4 bg-muted rounded w-1/2"></div>
-                <div className="h-4 bg-muted rounded w-3/4"></div>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
         </div>
 
-        {/* REMOVED "Synchronisation du Catalogue" section */}
-
-        {/* Stats Cards - Show values immediately, no loading spinner loop */}
-        <div className="mb-6 grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-4">
-          <Card className="border-l-4 border-l-cyan-500 p-4">
+        {/* Stats Cards Row 2 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Card className="p-4 glass-card border border-border/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Utilisateurs</p>
-                <p className="text-2xl md:text-3xl font-bold">{stats?.totalUsers ?? "-"}</p>
+                <p className="text-3xl font-bold text-foreground">{stats?.totalUsers || users.length}</p>
               </div>
-              <Users className="h-8 w-8 text-cyan-500 opacity-50" />
+              <Users className="w-8 h-8 text-cyan-400" />
             </div>
           </Card>
 
-          <Card className="border-l-4 border-l-blue-500 p-4">
+          <Card className="p-4 glass-card border border-border/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Chaînes</p>
-                <p className="text-2xl md:text-3xl font-bold">{stats?.totalChannels ?? "-"}</p>
+                <p className="text-3xl font-bold text-foreground">{stats?.totalChannels || 0}</p>
                 <p className="text-xs text-muted-foreground">Tous pays confondus</p>
               </div>
-              <TvMinimal className="h-8 w-8 text-blue-500 opacity-50" />
+              <TvMinimal className="w-8 h-8 text-blue-400" />
             </div>
           </Card>
 
-          <Card className="border-l-4 border-l-orange-500 p-4">
+          <Card className="p-4 glass-card border border-border/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">VIP</p>
-                <p className="text-2xl md:text-3xl font-bold">{stats?.vipUsers ?? "-"}</p>
+                <p className="text-3xl font-bold text-foreground">{stats?.vipUsers || 0}</p>
               </div>
-              <Crown className="h-8 w-8 text-orange-500 opacity-50" />
+              <Crown className="w-8 h-8 text-orange-400" />
             </div>
           </Card>
 
-          <Card className="border-l-4 border-l-red-500 p-4">
+          <Card className="p-4 glass-card border border-border/50">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Admins</p>
-                <p className="text-2xl md:text-3xl font-bold">{stats?.adminUsers ?? "-"}</p>
+                <p className="text-3xl font-bold text-foreground">{stats?.adminUsers || 0}</p>
               </div>
-              <Shield className="h-8 w-8 text-red-500 opacity-50" />
+              <Shield className="w-8 h-8 text-red-400" />
             </div>
           </Card>
         </div>
 
-        {/* Online Stats and Live Viewers */}
-        {/* Reorganized to use grid-cols-3 and added Top Channels */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
-          {/* En ligne */}
-          <Card className="border-l-4 border-l-cyan-500 p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="h-5 w-5 text-cyan-400" />
-              <h3 className="font-bold">En ligne</h3>
+        {/* Live Stats Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Card className="p-6 glass-card border border-border/50">
+            <div className="flex items-center gap-3 mb-4">
+              <TrendingUp className="w-5 h-5 text-green-400" />
+              <h3 className="font-semibold text-foreground">En ligne</h3>
+              <div className="ml-auto flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-xs text-muted-foreground">Live</span>
+              </div>
             </div>
-            <div className="text-4xl font-bold text-cyan-400">{stats?.onlineUsers ?? 0}</div>
-            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+            <p className="text-5xl font-bold text-green-400">{stats?.onlineUsers || 0}</p>
+            <div className="mt-4 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Membres:</span>
-                <span>{stats?.membersOnline ?? 0}</span>
+                <span className="text-muted-foreground">Membres:</span>
+                <span className="text-foreground">{stats?.membersOnline || 0}</span>
               </div>
               <div className="flex justify-between">
-                <span>Invités:</span>
-                <span>{stats?.guestsOnline ?? 0}</span>
+                <span className="text-muted-foreground">Invités:</span>
+                <span className="text-foreground">{stats?.guestsOnline || 0}</span>
               </div>
             </div>
           </Card>
 
-          {/* En visionnage */}
-          <Card className="border-l-4 border-l-pink-500 p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <TvMinimal className="h-5 w-5 text-pink-400" />
-              <h3 className="font-bold">En visionnage</h3>
+          <Card className="p-6 glass-card border border-border/50">
+            <div className="flex items-center gap-3 mb-4">
+              <TvMinimal className="w-5 h-5 text-purple-400" />
+              <h3 className="font-semibold text-foreground">En visionnage</h3>
+              <div className="ml-auto flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                <span className="text-xs text-muted-foreground">Live</span>
+              </div>
             </div>
-            <div className="text-4xl font-bold text-pink-400">{stats?.liveViewers ?? 0}</div>
-            <p className="text-sm text-muted-foreground">regardent maintenant</p>
+            <p className="text-5xl font-bold text-purple-400">{stats?.liveViewers || 0}</p>
+            <p className="text-sm text-muted-foreground mt-4">regardent maintenant</p>
           </Card>
 
-          {/* Top Chaînes */}
-          <Card className="p-4 max-h-64 overflow-y-auto">
-            <h3 className="font-bold mb-3">Top Chaînes en Direct</h3>
-            <div className="space-y-2">
-              {stats?.topChannels?.slice(0, 5).map((channel, index) => (
-                <div key={channel.channel_id} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2">
-                    <span className="text-muted-foreground">#{index + 1}</span>
-                    <span className="truncate max-w-32">{channel.channel_name}</span>
-                  </span>
-                  <span className="text-cyan-400 flex items-center gap-1">
-                    {channel.view_count}
-                    <TrendingUp className="h-3 w-3" />
-                  </span>
-                </div>
-              ))}
-              {(!stats?.topChannels || stats.topChannels.length === 0) && (
-                <p className="text-sm text-muted-foreground">Aucune donnée</p>
-              )}
+          <Card className="p-6 glass-card border border-border/50">
+            <div className="flex items-center gap-3 mb-4">
+              <Activity className="w-5 h-5 text-orange-400" />
+              <h3 className="font-semibold text-foreground">Top Chaînes en Direct</h3>
+              <div className="ml-auto flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                <span className="text-xs text-muted-foreground">Live</span>
+              </div>
             </div>
+            {stats?.topChannels && stats.topChannels.length > 0 ? (
+              <div className="space-y-2">
+                {stats.topChannels.slice(0, 5).map((channel, index) => (
+                  <div key={channel.channel_id} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">#{index + 1}</span>
+                      <span className="text-foreground truncate max-w-[150px]">{channel.channel_name}</span>
+                    </div>
+                    <span className="text-orange-400 font-medium">
+                      {channel.view_count} <TrendingUp className="w-3 h-3 inline" />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">Aucune donnée</p>
+            )}
           </Card>
         </div>
 
-        <Card className="mb-6 overflow-hidden">
+        {/* Gestion des Sources */}
+        <Card className="mb-6 glass-card border border-border/50 overflow-hidden">
           <div
-            className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50"
-            onClick={() => toggleCollapse("sources" as any)}
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => toggleCollapse("sources")}
           >
-            <div className="flex items-center gap-2">
-              <Radio className="h-5 w-5 text-purple-500" />
-              <h2 className="text-lg font-bold">Gestion des Sources</h2>
+            <div className="flex items-center gap-3">
+              <Radio className="w-5 h-5 text-primary" />
+              <h2 className="text-xl font-bold text-foreground">Gestion des Sources</h2>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">
-                {
-                  [sourceConfig.source1_enabled, sourceConfig.source2_enabled, sourceConfig.source3_enabled].filter(
-                    Boolean,
-                  ).length
-                }{" "}
-                activées sur 3
-              </span>
-              {collapsed["sources" as keyof CollapsibleState] ? (
-                <ChevronDown className="h-5 w-5" />
-              ) : (
-                <ChevronUp className="h-5 w-5" />
-              )}
+              <span className="text-sm text-muted-foreground">{enabledSourcesCount} activées sur 3</span>
+              {collapsed.sources ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
             </div>
           </div>
 
-          {!collapsed["sources" as keyof CollapsibleState] && (
+          {!collapsed.sources && (
             <div className="p-4 pt-0">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center justify-between p-4 rounded-xl glass-card border border-border/50">
                   <div>
-                    <h4 className="font-medium">Source 1</h4>
+                    <p className="font-semibold text-foreground">Source 1</p>
                     <p className="text-xs text-muted-foreground">Proxy par défaut</p>
                   </div>
                   <Switch
@@ -1202,9 +1098,10 @@ export function AdminDashboard() {
                     onCheckedChange={(checked) => toggleSource(1, checked)}
                   />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+
+                <div className="flex items-center justify-between p-4 rounded-xl glass-card border border-border/50">
                   <div>
-                    <h4 className="font-medium">Source 2</h4>
+                    <p className="font-semibold text-foreground">Source 2</p>
                     <p className="text-xs text-muted-foreground">Worker externe</p>
                   </div>
                   <Switch
@@ -1212,9 +1109,10 @@ export function AdminDashboard() {
                     onCheckedChange={(checked) => toggleSource(2, checked)}
                   />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+
+                <div className="flex items-center justify-between p-4 rounded-xl glass-card border border-border/50">
                   <div>
-                    <h4 className="font-medium">Source 3</h4>
+                    <p className="font-semibold text-foreground">Source 3</p>
                     <p className="text-xs text-muted-foreground">Proxy rotatif</p>
                   </div>
                   <Switch
@@ -1227,204 +1125,306 @@ export function AdminDashboard() {
           )}
         </Card>
 
-        <Card className="mb-6 p-4 md:p-6 border-l-4 border-l-blue-500">
+        {/* Message Global */}
+        <Card className="mb-6 glass-card border border-border/50 overflow-hidden">
           <div
-            className="flex items-center justify-between mb-4 cursor-pointer"
-            onClick={() => toggleCollapse("countries")}
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => toggleCollapse("globalBanner")}
           >
-            <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
-              <Globe className="h-5 w-5 text-blue-500" />
-              Gestion des Pays
-            </h2>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs md:text-sm">
-                {countries.filter((c) => c.enabled).length} activés sur {countries.length}
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-5 h-5 text-blue-400" />
+              <h2 className="text-xl font-bold text-foreground">Message Global</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={globalBanner.enabled ? "default" : "secondary"}>
+                {globalBanner.enabled ? "Actif" : "Inactif"}
               </Badge>
-              {collapsed.countries ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+              {collapsed.globalBanner ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
             </div>
           </div>
 
-          {!collapsed.countries && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {/* Changed to display all 17 countries */}
-              {countries.map((country) => (
-                <div
-                  key={country.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">{country.name}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {country.channel_count !== undefined ? `${country.channel_count} chaînes` : "Chargement..."}
-                    </div>
-                  </div>
-                  <Switch
-                    checked={country.enabled}
-                    onCheckedChange={(enabled) => {
-                      toggleCountry(country.id, enabled)
-                    }}
+          {!collapsed.globalBanner && (
+            <div className="p-4 pt-0 space-y-4">
+              <p className="text-sm text-muted-foreground">Ce message sera affiché en bandeau sur la page principale</p>
+
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={globalBanner.enabled}
+                  onCheckedChange={(checked) => setGlobalBanner({ ...globalBanner, enabled: checked })}
+                />
+                <span className="text-sm text-foreground">Activer le bandeau</span>
+              </div>
+
+              <Input
+                placeholder="Votre message..."
+                value={globalBanner.message}
+                onChange={(e) => setGlobalBanner({ ...globalBanner, message: e.target.value })}
+                className="glass-card border-border/50"
+              />
+
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <Label className="text-xs text-muted-foreground">Couleur de fond</Label>
+                  <Input
+                    type="color"
+                    value={globalBanner.bg_color}
+                    onChange={(e) => setGlobalBanner({ ...globalBanner, bg_color: e.target.value })}
+                    className="h-10 p-1"
                   />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      setEditingCountryBanner(country.name)
-                      setNewCountryBannerMessage(
-                        countryBanners.find((b) => b.country_name === country.name)?.message || "",
-                      )
-                    }}
-                    className="ml-2"
-                  >
-                    <MessageSquare className="h-4 w-4 text-yellow-500" />
-                  </Button>
-                  {/* End CHANGE */}
                 </div>
-              ))}
+                <div className="flex-1">
+                  <Label className="text-xs text-muted-foreground">Couleur du texte</Label>
+                  <Input
+                    type="color"
+                    value={globalBanner.text_color}
+                    onChange={(e) => setGlobalBanner({ ...globalBanner, text_color: e.target.value })}
+                    className="h-10 p-1"
+                  />
+                </div>
+              </div>
+
+              <Button onClick={saveGlobalBanner} className="bg-gradient-to-r from-primary to-accent text-white">
+                Enregistrer
+              </Button>
             </div>
           )}
         </Card>
 
-        <Card className="mb-6 p-4 md:p-6 border-l-4 border-l-purple-500">
+        {/* Gestion des Pays */}
+        <Card className="mb-6 glass-card border border-border/50 overflow-hidden">
           <div
-            className="flex items-center justify-between mb-4 cursor-pointer"
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => toggleCollapse("countries")}
+          >
+            <div className="flex items-center gap-3">
+              <Globe className="w-5 h-5 text-green-400" />
+              <h2 className="text-xl font-bold text-foreground">Gestion des Pays</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                {countries.filter((c) => c.enabled).length} activés sur {countries.length}
+              </span>
+              {collapsed.countries ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </div>
+          </div>
+
+          {!collapsed.countries && (
+            <div className="p-4 pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {countries.map((country) => {
+                  const banner = countryBanners.find((b) => b.country_name === country.name)
+                  return (
+                    <div key={country.id} className="p-4 rounded-xl glass-card border border-border/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-foreground">{country.name}</p>
+                          <p className="text-xs text-muted-foreground">{country.channel_count || 0} chaînes</p>
+                        </div>
+                        <Switch
+                          checked={country.enabled}
+                          onCheckedChange={(checked) => toggleCountry(country.id, checked)}
+                        />
+                      </div>
+
+                      {editingCountryBanner === country.name ? (
+                        <div className="space-y-2">
+                          <Input
+                            placeholder="Message du bandeau..."
+                            value={newCountryBannerMessage}
+                            onChange={(e) => setNewCountryBannerMessage(e.target.value)}
+                            className="text-xs"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => saveCountryBanner(country.name, newCountryBannerMessage)}
+                              className="flex-1"
+                            >
+                              Sauver
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingCountryBanner(null)}>
+                              Annuler
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {banner?.message ? (
+                            <p className="text-xs text-muted-foreground flex-1 truncate">{banner.message}</p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground flex-1">Aucun message</p>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingCountryBanner(country.name)
+                              setNewCountryBannerMessage(banner?.message || "")
+                            }}
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Système de Proxy Rotatif */}
+        <Card className="mb-6 glass-card border border-border/50 overflow-hidden">
+          <div
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/5 transition-colors"
             onClick={() => toggleCollapse("proxyRotator")}
           >
-            <div>
-              <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
-                <Network className="h-5 w-5 text-purple-500" />
-                Système de Proxy Rotatif
-              </h2>
-              <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                Gestion des sources Git pour le chargement automatique de proxies
-              </p>
+            <div className="flex items-center gap-3">
+              <Network className="w-5 h-5 text-purple-400" />
+              <h2 className="text-xl font-bold text-foreground">Système de Proxy Rotatif</h2>
             </div>
-            <div className="flex items-center gap-2">
-              {collapsed.proxyRotator ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                {proxyStats.activeProxies} actifs / {proxyStats.totalProxies} total
+              </span>
+              {collapsed.proxyRotator ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
             </div>
           </div>
 
           {!collapsed.proxyRotator && (
-            <>
-              <div className="flex gap-2 mb-4 flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => setShowAddProxySourceDialog(true)}>
-                  Ajouter Source
+            <div className="p-4 pt-0 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Gestion des sources Git pour le chargement automatique de proxies
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setShowAddProxySourceDialog(true)} size="sm">
+                  <Plus className="w-4 h-4 mr-1" /> Ajouter Source
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setShowAddProxyDialog(true)}
-                  className="bg-purple-500 hover:bg-purple-600"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ajouter Proxy
+                <Button onClick={() => setShowAddProxyDialog(true)} size="sm" variant="outline">
+                  <Plus className="w-4 h-4 mr-1" /> Ajouter Proxy
                 </Button>
-                <Button size="sm" onClick={syncProxies} className="bg-purple-500 hover:bg-purple-600">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Synchroniser
+                <Button onClick={() => setShowExternalProxyDialog(true)} size="sm" variant="outline">
+                  <LinkIcon className="w-4 h-4 mr-1" /> Proxy Externe (PHP)
+                </Button>
+                <Button onClick={syncProxies} size="sm" variant="outline">
+                  <RefreshCw className="w-4 h-4 mr-1" /> Synchroniser
+                </Button>
+                <Button onClick={deleteInactiveProxies} size="sm" variant="destructive">
+                  <Trash2 className="w-4 h-4 mr-1" /> Supprimer inactifs
                 </Button>
               </div>
 
-              <div className="space-y-3 mb-4">
+              {/* External Proxy URL display */}
+              {externalProxyUrl && (
+                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30">
+                  <p className="text-xs text-purple-400 font-medium mb-1">Proxy Externe (PHP)</p>
+                  <p className="text-sm text-foreground truncate">{externalProxyUrl}</p>
+                </div>
+              )}
+
+              {/* Proxy Sources */}
+              <div className="space-y-2">
                 {proxySources.map((source) => (
-                  <div key={source.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{source.name}</div>
-                      <div className="text-xs text-muted-foreground mt-1 break-all">{source.git_url}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Synchro: {source.sync_interval_minutes}min
-                        {source.last_sync && ` • Dernière: ${new Date(source.last_sync).toLocaleString()}`}
-                      </div>
+                  <div
+                    key={source.id}
+                    className="flex items-center justify-between p-3 rounded-lg glass-card border border-border/50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground">{source.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{source.git_url}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Synchro: {source.sync_interval_minutes}min • Dernière:{" "}
+                        {source.last_sync ? new Date(source.last_sync).toLocaleString() : "Jamais"}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={source.enabled}
-                        onCheckedChange={(enabled) => toggleProxySource(source.id, enabled)}
+                        onCheckedChange={(checked) => toggleProxySource(source.id, checked)}
                       />
                       <Button size="sm" variant="ghost" onClick={() => deleteProxySource(source.id)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="w-4 h-4 text-red-400" />
                       </Button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                  <div className="text-xs text-muted-foreground">Total Proxies</div>
-                  <div className="text-xl font-bold text-purple-400">{proxyStats.totalProxies}</div>
+              {/* Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg glass-card border border-border/50 text-center">
+                  <p className="text-xs text-muted-foreground">Total Proxies</p>
+                  <p className="text-2xl font-bold text-foreground">{proxyStats.totalProxies}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <div className="text-xs text-muted-foreground">Actifs</div>
-                  <div className="text-xl font-bold text-green-400">{proxyStats.activeProxies}</div>
+                <div className="p-3 rounded-lg glass-card border border-green-500/30 bg-green-500/10 text-center">
+                  <p className="text-xs text-green-400">Actifs</p>
+                  <p className="text-2xl font-bold text-green-400">{proxyStats.activeProxies}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <div className="text-xs text-muted-foreground">Sources</div>
-                  <div className="text-xl font-bold text-blue-400">{proxySources.length}</div>
+                <div className="p-3 rounded-lg glass-card border border-border/50 text-center">
+                  <p className="text-xs text-muted-foreground">Sources</p>
+                  <p className="text-2xl font-bold text-foreground">{proxySources.length}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                  <div className="text-xs text-muted-foreground">Sources Actives</div>
-                  <div className="text-xl font-bold text-cyan-400">{proxySources.filter((s) => s.enabled).length}</div>
+                <div className="p-3 rounded-lg glass-card border border-purple-500/30 bg-purple-500/10 text-center">
+                  <p className="text-xs text-purple-400">Sources Actives</p>
+                  <p className="text-2xl font-bold text-purple-400">{proxySources.filter((s) => s.enabled).length}</p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant={proxySort === "speed" ? "default" : "outline"}
-                    onClick={() => setProxySort("speed")}
-                  >
-                    Vitesse
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={proxySort === "success" ? "default" : "outline"}
-                    onClick={() => setProxySort("success")}
-                  >
-                    Succès
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={proxySort === "country" ? "default" : "outline"}
-                    onClick={() => setProxySort("country")}
-                  >
-                    Pays
-                  </Button>
-                </div>
-                <Button size="sm" variant="destructive" onClick={deleteInactiveProxies}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Supprimer inactifs
+              {/* Sort buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={proxySort === "speed" ? "default" : "outline"}
+                  onClick={() => setProxySort("speed")}
+                >
+                  Vitesse
+                </Button>
+                <Button
+                  size="sm"
+                  variant={proxySort === "success" ? "default" : "outline"}
+                  onClick={() => setProxySort("success")}
+                >
+                  Succès
+                </Button>
+                <Button
+                  size="sm"
+                  variant={proxySort === "country" ? "default" : "outline"}
+                  onClick={() => setProxySort("country")}
+                >
+                  Pays
                 </Button>
               </div>
 
+              {/* Proxy List */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Proxy</th>
-                      <th className="text-left p-2">Pays</th>
-                      <th className="text-left p-2">Vitesse</th>
-                      <th className="text-left p-2">Succès</th>
-                      <th className="text-left p-2">Actif</th>
-                      <th className="text-left p-2">Actions</th> {/* Added Actions header */}
+                    <tr className="border-b border-border/50">
+                      <th className="text-left p-2 text-muted-foreground">Proxy</th>
+                      <th className="text-left p-2 text-muted-foreground">Pays</th>
+                      <th className="text-left p-2 text-muted-foreground">Vitesse</th>
+                      <th className="text-left p-2 text-muted-foreground">Succès</th>
+                      <th className="text-left p-2 text-muted-foreground">Actif</th>
+                      <th className="text-left p-2 text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedProxies.slice(0, proxyListLimit).map((proxy) => (
-                      <tr key={proxy.id} className="border-b hover:bg-muted/50">
-                        <td className="p-2 font-mono text-xs">{proxy.proxy_url}</td>
-                        <td className="p-2">{proxy.country || "?"}</td>
-                        <td className="p-2">{proxy.speed_ms ? `${proxy.speed_ms}ms` : "-"}</td>
-                        <td className="p-2">{proxy.success_rate ? `${proxy.success_rate}%` : "-"}</td>
+                      <tr key={proxy.id} className="border-b border-border/30 hover:bg-accent/5">
+                        <td className="p-2 text-foreground font-mono text-xs">{proxy.proxy_url}</td>
+                        <td className="p-2 text-muted-foreground">{proxy.country || "?"}</td>
+                        <td className="p-2 text-cyan-400">{proxy.speed_ms}ms</td>
+                        <td className="p-2 text-green-400">{proxy.success_rate}%</td>
                         <td className="p-2">
                           <Badge variant={proxy.is_active ? "default" : "secondary"}>
                             {proxy.is_active ? "Actif" : "Inactif"}
                           </Badge>
                         </td>
                         <td className="p-2">
-                          {" "}
-                          {/* Added delete button */}
                           <Button size="sm" variant="ghost" onClick={() => deleteSingleProxy(proxy.id)}>
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                            <Trash2 className="w-4 h-4 text-red-400" />
                           </Button>
                         </td>
                       </tr>
@@ -1434,129 +1434,102 @@ export function AdminDashboard() {
               </div>
 
               {sortedProxies.length > proxyListLimit && (
-                <div className="mt-3 text-center">
-                  <Button size="sm" variant="outline" onClick={() => setProxyListLimit((prev) => prev + 10)}>
-                    Afficher plus ({sortedProxies.length - proxyListLimit} restants)
-                  </Button>
-                </div>
+                <Button variant="outline" onClick={() => setProxyListLimit((prev) => prev + 10)} className="w-full">
+                  Afficher plus ({sortedProxies.length - proxyListLimit} restants)
+                </Button>
               )}
-            </>
+            </div>
           )}
         </Card>
 
-        <Card className="glass-card border-border/50 overflow-hidden">
+        {/* VIP Keys */}
+        <Card className="mb-6 glass-card border border-border/50 overflow-hidden">
           <div
-            className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-            onClick={() => toggleCollapse("globalBanner")}
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => toggleCollapse("vipKeys")}
           >
             <div className="flex items-center gap-3">
-              <MessageSquare className="w-5 h-5 text-blue-400" />
-              <h2 className="text-xl font-bold">Bandeau Page Principale</h2>
+              <Key className="w-5 h-5 text-orange-400" />
+              <h2 className="text-xl font-bold text-foreground">Clés VIP</h2>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-blue-400 border-blue-400/30">
-                {globalBanner.enabled ? "Actif" : "Inactif"}
-              </Badge>
-              {collapsed.globalBanner ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">{vipKeys.filter((k) => !k.used).length} disponibles</span>
+              {collapsed.vipKeys ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
             </div>
           </div>
 
-          {!collapsed.globalBanner && (
+          {!collapsed.vipKeys && (
             <div className="p-4 pt-0 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Ce message sera affiché en haut de la page de sélection des pays
-              </p>
+              <Button onClick={generateVipKey}>
+                <Plus className="w-4 h-4 mr-2" /> Générer une clé VIP
+              </Button>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={globalBanner.enabled}
-                    onCheckedChange={(checked) => setGlobalBanner((prev) => ({ ...prev, enabled: checked }))}
-                  />
-                  <Label>Activer le bandeau</Label>
-                </div>
-
-                <Input
-                  placeholder="Message du bandeau..."
-                  value={globalBanner.message}
-                  onChange={(e) => setGlobalBanner((prev) => ({ ...prev, message: e.target.value }))}
-                  className="bg-white/5 border-white/10"
-                />
-
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <Label className="text-xs text-muted-foreground">Couleur de fond</Label>
-                    <Input
-                      type="color"
-                      value={globalBanner.bg_color}
-                      onChange={(e) => setGlobalBanner((prev) => ({ ...prev, bg_color: e.target.value }))}
-                      className="h-10 p-1 bg-white/5 border-white/10"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <Label className="text-xs text-muted-foreground">Couleur du texte</Label>
-                    <Input
-                      type="color"
-                      value={globalBanner.text_color}
-                      onChange={(e) => setGlobalBanner((prev) => ({ ...prev, text_color: e.target.value }))}
-                      className="h-10 p-1 bg-white/5 border-white/10"
-                    />
-                  </div>
-                </div>
-
-                {globalBanner.message && (
+              <div className="space-y-2">
+                {vipKeys.map((key) => (
                   <div
-                    className="p-3 rounded-lg text-center font-semibold"
-                    style={{ backgroundColor: globalBanner.bg_color, color: globalBanner.text_color }}
+                    key={key.id}
+                    className={`flex items-center justify-between p-3 rounded-lg glass-card border ${
+                      key.used ? "border-border/30 opacity-60" : "border-orange-500/30"
+                    }`}
                   >
-                    Aperçu: {globalBanner.message}
+                    <div className="flex items-center gap-3">
+                      <code className="text-sm font-mono text-foreground">{key.key}</code>
+                      {key.used && <Badge variant="secondary">Utilisée</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => copyToClipboard(key.key)}>
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteVipKey(key.id)}>
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </Button>
+                    </div>
                   </div>
-                )}
-
-                <Button onClick={updateGlobalBanner} className="w-full">
-                  Sauvegarder
-                </Button>
+                ))}
               </div>
             </div>
           )}
         </Card>
 
-        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2 mb-6">
-          {/* User Management */}
-          <Card className="p-6">
-            <div
-              className="mb-4 flex items-center justify-between cursor-pointer"
-              onClick={() => toggleCollapse("users")}
-            >
-              <h2 className="text-xl font-bold">Gestion des Utilisateurs</h2>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{filteredUsers.length} utilisateurs</Badge>
-                {collapsed.users ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
-              </div>
+        {/* Users */}
+        <Card className="mb-6 glass-card border border-border/50 overflow-hidden">
+          <div
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/5 transition-colors"
+            onClick={() => toggleCollapse("users")}
+          >
+            <div className="flex items-center gap-3">
+              <UserCircle className="w-5 h-5 text-cyan-400" />
+              <h2 className="text-xl font-bold text-foreground">Utilisateurs</h2>
             </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">{users.length} utilisateurs</span>
+              {collapsed.users ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </div>
+          </div>
 
-            {!collapsed.users && (
-              <>
-                <Input
-                  placeholder="Rechercher un utilisateur..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="mb-4"
-                />
+          {!collapsed.users && (
+            <div className="p-4 pt-0 space-y-4">
+              <Input
+                placeholder="Rechercher un utilisateur..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="glass-card border-border/50"
+              />
 
-                <div className="max-h-[400px] space-y-3 overflow-y-auto">
-                  {filteredUsers.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between rounded-lg border bg-card p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-purple-500">
-                          <UserCircle className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{user.email}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(user.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
+              <div className="space-y-2">
+                {users
+                  .filter((user) => user.email.toLowerCase().includes(userSearch.toLowerCase()))
+                  .slice(0, 20)
+                  .map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between p-3 rounded-lg glass-card border border-border/50"
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">{user.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Inscrit le {new Date(user.created_at).toLocaleDateString()}
+                        </p>
                       </div>
                       <Select value={user.role} onValueChange={(value) => updateUserRole(user.id, value)}>
                         <SelectTrigger className="w-32">
@@ -1570,438 +1543,129 @@ export function AdminDashboard() {
                       </Select>
                     </div>
                   ))}
-                </div>
-              </>
-            )}
-          </Card>
-
-          {/* VIP Keys Management */}
-          <Card className="p-6">
-            <div
-              className="mb-4 flex items-center justify-between cursor-pointer"
-              onClick={() => toggleCollapse("vipKeys")}
-            >
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Key className="h-5 w-5 text-amber-500" />
-                Gestion des Clés VIP
-              </h2>
-              <div className="flex items-center gap-2">
-                {collapsed.vipKeys ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
               </div>
             </div>
-
-            {!collapsed.vipKeys && (
-              <>
-                <Button onClick={generateVipKey} className="bg-amber-500 hover:bg-amber-600 mb-4">
-                  <Key className="mr-2 h-4 w-4" />
-                  Générer une Clé
-                </Button>
-
-                <div className="max-h-[400px] space-y-3 overflow-y-auto">
-                  {vipKeys.map((key) => (
-                    <div
-                      key={key.id}
-                      className={`flex items-center justify-between rounded-lg border p-3 ${
-                        key.used ? "bg-muted/50" : "bg-card"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Key className={`h-5 w-5 ${key.used ? "text-muted-foreground" : "text-amber-500"}`} />
-                        <div>
-                          <p className="font-mono text-sm font-medium">{key.key}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {key.used
-                              ? `Utilisée le ${new Date(key.used_at!).toLocaleDateString()}`
-                              : `Créée le ${new Date(key.created_at).toLocaleDateString()}`}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant={key.used ? "secondary" : "default"}>{key.used ? "Utilisée" : "Disponible"}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
-
-        {/* Dialog: Create/Merge Channel */}
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {createMode === "merge" ? "Fusionner des chaînes" : "Créer une nouvelle chaîne"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {createMode === "merge" && (
-                <div className="p-3 bg-purple-500/10 rounded-lg border border-purple-500">
-                  <p className="text-sm font-medium mb-2">Chaînes à fusionner ({selectedChannels.length}):</p>
-                  <div className="text-xs text-muted-foreground">
-                    {selectedChannels.map((id) => channels.find((ch) => ch.id === id)?.name).join(", ")}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid gap-4">
-                <div>
-                  <Label>Nom de la chaîne *</Label>
-                  <Input
-                    value={createForm.name}
-                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                    placeholder="Ex: EUROSPORT 1"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Catégorie</Label>
-                    <Input
-                      value={createForm.category}
-                      onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
-                      placeholder="Ex: Sport"
-                    />
-                  </div>
-                  <div>
-                    <Label>Langue</Label>
-                    <Input
-                      value={createForm.language}
-                      onChange={(e) => setCreateForm({ ...createForm, language: e.target.value })}
-                      placeholder="Ex: FR"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label>URL du logo</Label>
-                  <Input
-                    value={createForm.logo}
-                    onChange={(e) => setCreateForm({ ...createForm, logo: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
-
-                <div>
-                  <Label>URL du fond</Label>
-                  <Input
-                    value={createForm.background}
-                    onChange={(e) => setCreateForm({ ...createForm, background: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                Annuler
-              </Button>
-              <Button onClick={saveNewChannel} className="bg-green-500 hover:bg-green-600">
-                {createMode === "merge" ? "Fusionner" : "Créer"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog: Edit Channel */}
-        <Dialog open={!!editingChannel} onOpenChange={() => setEditingChannel(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Modifier la chaîne</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Nom de la chaîne</Label>
-                <Input
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="Nom de la chaîne"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Catégorie</Label>
-                  <Input
-                    value={editForm.category}
-                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    placeholder="Sport, News, Entertainment..."
-                  />
-                </div>
-                <div>
-                  <Label>Langue</Label>
-                  <Input
-                    value={editForm.language}
-                    onChange={(e) => setEditForm({ ...editForm, language: e.target.value })}
-                    placeholder="FR, EN, ES..."
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>URL du logo</Label>
-                <Input
-                  value={editForm.logo}
-                  onChange={(e) => setEditForm({ ...editForm, logo: e.target.value })}
-                  placeholder="https://example.com/logo.png"
-                />
-              </div>
-              <div>
-                <Label>URL du fond</Label>
-                <Input
-                  value={editForm.background}
-                  onChange={(e) => setEditForm({ ...editForm, background: e.target.value })}
-                  placeholder="https://example.com/background.jpg"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingChannel(null)}>
-                Annuler
-              </Button>
-              <Button onClick={saveChannelEdit} className="bg-cyan-500 hover:bg-cyan-600">
-                Enregistrer
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog: VIP Key Generated */}
-        <Dialog open={showVipKeyDialog} onOpenChange={setShowVipKeyDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5 text-amber-500" />
-                Nouvelle Clé VIP Générée
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Cette clé peut être utilisée une seule fois pour activer le statut VIP (5€ à vie).
-              </p>
-              <div className="flex items-center gap-2">
-                <Input value={newGeneratedKey} readOnly className="font-mono" />
-                <Button onClick={copyKeyToClipboard} size="icon">
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setShowVipKeyDialog(false)}>Fermer</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog: Proxy Config */}
-        <Dialog open={showProxyConfigDialog} onOpenChange={setShowProxyConfigDialog}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Configuration Proxy Rotatif</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>URL Git (liste de proxies publics)</Label>
-                <Input
-                  value={editProxyConfig.git_url}
-                  onChange={(e) => setEditProxyConfig({ ...editProxyConfig, git_url: e.target.value })}
-                  placeholder="https://raw.githubusercontent.com/.../proxies.txt"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Intervalle MAJ (minutes)</Label>
-                  <Input
-                    type="number"
-                    value={editProxyConfig.update_interval_minutes}
-                    onChange={(e) =>
-                      setEditProxyConfig({
-                        ...editProxyConfig,
-                        update_interval_minutes: Number.parseInt(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Taux de succès min (%)</Label>
-                  <Input
-                    type="number"
-                    value={editProxyConfig.min_success_rate}
-                    onChange={(e) =>
-                      setEditProxyConfig({ ...editProxyConfig, min_success_rate: Number.parseFloat(e.target.value) })
-                    }
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Temps de réponse max (ms)</Label>
-                <Input
-                  type="number"
-                  value={editProxyConfig.max_response_time_ms}
-                  onChange={(e) =>
-                    setEditProxyConfig({ ...editProxyConfig, max_response_time_ms: Number.parseInt(e.target.value) })
-                  }
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={editProxyConfig.auto_update_enabled}
-                  onCheckedChange={(checked) =>
-                    setEditProxyConfig({ ...editProxyConfig, auto_update_enabled: checked })
-                  }
-                />
-                <Label>Mise à jour automatique</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowProxyConfigDialog(false)}>
-                Annuler
-              </Button>
-              <Button onClick={updateProxyConfig} className="bg-cyan-500 hover:bg-cyan-600">
-                Enregistrer
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Add Proxy Source Dialog */}
-        <Dialog open={showAddProxySourceDialog} onOpenChange={setShowAddProxySourceDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Ajouter une source de proxies</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="source-name">Nom</Label>
-                <Input
-                  id="source-name"
-                  value={newProxySource.name}
-                  onChange={(e) => setNewProxySource({ ...newProxySource, name: e.target.value })}
-                  placeholder="Free Proxy List"
-                />
-              </div>
-              <div>
-                <Label htmlFor="source-url">URL Git</Label>
-                <Input
-                  id="source-url"
-                  value={newProxySource.git_url}
-                  onChange={(e) => setNewProxySource({ ...newProxySource, git_url: e.target.value })}
-                  placeholder="https://raw.githubusercontent.com/.../proxy-list.txt"
-                />
-              </div>
-              <div>
-                <Label htmlFor="source-interval">Intervalle de synchro (minutes)</Label>
-                <Input
-                  id="source-interval"
-                  type="number"
-                  value={newProxySource.sync_interval_minutes}
-                  onChange={(e) =>
-                    setNewProxySource({ ...newProxySource, sync_interval_minutes: Number.parseInt(e.target.value) })
-                  }
-                  min="10"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddProxySourceDialog(false)}>
-                Annuler
-              </Button>
-              <Button onClick={addProxySource}>Ajouter</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={showAddProxyDialog} onOpenChange={setShowAddProxyDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Ajouter un Proxy</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Hôte (IP ou domaine)</Label>
-                <Input
-                  value={newProxy.host}
-                  onChange={(e) => setNewProxy({ ...newProxy, host: e.target.value })}
-                  placeholder="192.168.1.1 ou proxy.example.com"
-                />
-              </div>
-              <div>
-                <Label>Port</Label>
-                <Input
-                  type="number"
-                  value={newProxy.port}
-                  onChange={(e) => setNewProxy({ ...newProxy, port: e.target.value })}
-                  placeholder="8080"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddProxyDialog(false)}>
-                Annuler
-              </Button>
-              <Button onClick={addSingleProxy}>Ajouter</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog: Country Banner */}
-        <Dialog open={!!editingCountryBanner} onOpenChange={() => setEditingCountryBanner(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Modifier le bandeau pour {editingCountryBanner}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Laissez le message vide pour désactiver le bandeau pour ce pays.
-              </p>
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={!!countryBanners.find((b) => b.country_name === editingCountryBanner)?.enabled}
-                  onCheckedChange={(checked) => {
-                    if (editingCountryBanner) {
-                      updateCountryBanner(editingCountryBanner, newCountryBannerMessage, checked)
-                    }
-                  }}
-                />
-                <Label>Activer le bandeau</Label>
-              </div>
-              <Input
-                placeholder="Message du bandeau..."
-                value={newCountryBannerMessage}
-                onChange={(e) => setNewCountryBannerMessage(e.target.value)}
-                className="bg-white/5 border-white/10"
-              />
-              {newCountryBannerMessage && (
-                <div
-                  className="p-3 rounded-lg text-center font-semibold"
-                  style={{
-                    backgroundColor:
-                      countryBanners.find((b) => b.country_name === editingCountryBanner)?.bg_color || "#f59e0b",
-                    color: countryBanners.find((b) => b.country_name === editingCountryBanner)?.text_color || "#ffffff",
-                  }}
-                >
-                  Aperçu: {newCountryBannerMessage}
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingCountryBanner(null)}>
-                Annuler
-              </Button>
-              <Button
-                onClick={() => {
-                  if (editingCountryBanner) {
-                    updateCountryBanner(
-                      editingCountryBanner,
-                      newCountryBannerMessage,
-                      !!countryBanners.find((b) => b.country_name === editingCountryBanner)?.enabled,
-                    )
-                  }
-                }}
-              >
-                Sauvegarder
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          )}
+        </Card>
       </div>
+
+      {/* Dialogs */}
+      <Dialog open={showVipKeyDialog} onOpenChange={setShowVipKeyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nouvelle clé VIP générée</DialogTitle>
+          </DialogHeader>
+          <div className="p-4 rounded-lg glass-card border border-orange-500/30 bg-orange-500/10">
+            <code className="text-lg font-mono text-foreground">{newGeneratedKey}</code>
+          </div>
+          <Button onClick={() => copyToClipboard(newGeneratedKey)}>
+            <Copy className="w-4 h-4 mr-2" /> Copier
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddProxySourceDialog} onOpenChange={setShowAddProxySourceDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter une source de proxies</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nom</Label>
+              <Input
+                value={newProxySource.name}
+                onChange={(e) => setNewProxySource({ ...newProxySource, name: e.target.value })}
+                placeholder="Ma source"
+              />
+            </div>
+            <div>
+              <Label>URL Git (fichier texte)</Label>
+              <Input
+                value={newProxySource.git_url}
+                onChange={(e) => setNewProxySource({ ...newProxySource, git_url: e.target.value })}
+                placeholder="https://raw.githubusercontent.com/..."
+              />
+            </div>
+            <div>
+              <Label>Intervalle de synchronisation (minutes)</Label>
+              <Input
+                type="number"
+                value={newProxySource.sync_interval_minutes}
+                onChange={(e) =>
+                  setNewProxySource({ ...newProxySource, sync_interval_minutes: Number(e.target.value) })
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddProxySourceDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={addProxySource}>Ajouter</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddProxyDialog} onOpenChange={setShowAddProxyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un proxy manuellement</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Hôte</Label>
+              <Input
+                value={newProxy.host}
+                onChange={(e) => setNewProxy({ ...newProxy, host: e.target.value })}
+                placeholder="192.168.1.1"
+              />
+            </div>
+            <div>
+              <Label>Port</Label>
+              <Input
+                value={newProxy.port}
+                onChange={(e) => setNewProxy({ ...newProxy, port: e.target.value })}
+                placeholder="8080"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddProxyDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={addSingleProxy}>Ajouter</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showExternalProxyDialog} onOpenChange={setShowExternalProxyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configurer le proxy externe (PHP)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Entrez l'URL de votre script proxy PHP. Ce proxy sera utilisé pour la Source 3.
+              <br />
+              Exemple: https://votreserveur.com/proxy.php
+            </p>
+            <div>
+              <Label>URL du proxy</Label>
+              <Input
+                value={externalProxyUrl}
+                onChange={(e) => setExternalProxyUrl(e.target.value)}
+                placeholder="https://example.com/proxy.php"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExternalProxyDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={saveExternalProxyUrl}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

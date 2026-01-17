@@ -3,18 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useMemo } from "react"
-import {
-  Search,
-  Star,
-  ArrowLeft,
-  LaptopMinimal as TvMinimal,
-  Wifi,
-  Globe,
-  Ban,
-  AlertTriangle,
-  X,
-  Pencil,
-} from "lucide-react"
+import { Search, Star, ArrowLeft, LaptopMinimal as TvMinimal, Wifi, Globe, Ban, Info, X, Pencil } from "lucide-react"
 import { PlayerModal } from "@/components/player-modal"
 import { useFavorites } from "@/lib/hooks/use-favorites"
 import { useUserRole } from "@/lib/hooks/use-user-role"
@@ -22,6 +11,7 @@ import type { GroupedChannel } from "@/lib/types"
 import Image from "next/image"
 import Link from "next/link"
 import { UserMenu } from "@/components/user-menu"
+import { Footer } from "@/components/footer"
 
 interface ChannelsClientProps {
   country: string
@@ -241,7 +231,7 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
@@ -292,26 +282,37 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
       </header>
 
       {countryBanner?.enabled && countryBanner?.message && !bannerDismissed && (
-        <div
-          className="w-full py-3 px-4 text-center font-semibold flex items-center justify-center gap-2 relative"
-          style={{
-            backgroundColor: countryBanner.bg_color || "#f59e0b",
-            color: countryBanner.text_color || "#000000",
-          }}
-        >
-          <AlertTriangle className="w-5 h-5" />
-          <span>{countryBanner.message}</span>
-          <button
-            onClick={dismissBanner}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-black/20 transition-colors"
-            title="Fermer"
+        <div className="relative overflow-hidden">
+          <div
+            className="w-full py-3 px-6 backdrop-blur-sm border-b border-white/10"
+            style={{
+              background: `linear-gradient(135deg, ${countryBanner.bg_color || "#f59e0b"}dd, ${countryBanner.bg_color || "#f59e0b"}99)`,
+            }}
           >
-            <X className="w-5 h-5" />
-          </button>
+            <div className="max-w-screen-2xl mx-auto flex items-center justify-center gap-3 relative">
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">
+                <Info className="w-4 h-4" style={{ color: countryBanner.text_color || "#000000" }} />
+              </div>
+              <span
+                className="font-medium text-sm md:text-base"
+                style={{ color: countryBanner.text_color || "#000000" }}
+              >
+                {countryBanner.message}
+              </span>
+              <button
+                onClick={dismissBanner}
+                className="absolute right-0 p-2 rounded-full hover:bg-white/20 transition-colors"
+                title="Fermer"
+              >
+                <X className="w-4 h-4" style={{ color: countryBanner.text_color || "#000000" }} />
+              </button>
+            </div>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-transparent to-white/5 pointer-events-none" />
         </div>
       )}
 
-      <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10">
+      <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10 flex-1">
         <div className="mb-6 glass-card border border-border/50 rounded-2xl p-4 md:p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -473,8 +474,7 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary focus:outline-none"
-                  placeholder="Nom personnalisé"
+                  className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none"
                 />
               </div>
 
@@ -484,119 +484,101 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                   type="text"
                   value={editLogo}
                   onChange={(e) => setEditLogo(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary focus:outline-none"
-                  placeholder="https://example.com/logo.png"
+                  placeholder="https://..."
+                  className="w-full px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground focus:border-primary outline-none"
                 />
               </div>
 
               {editLogo && (
-                <div className="flex items-center justify-center p-4 glass-card border border-border/50 rounded-xl">
+                <div className="flex justify-center p-4 glass-card rounded-xl">
                   <Image
                     src={editLogo || "/placeholder.svg"}
-                    alt="Aperçu du logo"
+                    alt="Preview"
                     width={120}
                     height={60}
-                    className="object-contain max-h-16"
+                    className="object-contain"
                     unoptimized
                   />
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setEditingChannel(null)}
-                  className="flex-1 px-4 py-3 rounded-xl glass-card border border-border/50 text-foreground hover:border-red-500/50 transition-all"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={saveChannelEdit}
-                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-primary to-accent text-white font-semibold hover:opacity-90 transition-all"
-                >
-                  Enregistrer
-                </button>
-              </div>
+              <button
+                onClick={saveChannelEdit}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-primary to-accent text-white font-bold hover:opacity-90 transition-opacity"
+              >
+                Enregistrer
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      <PlayerModal
-        channel={selectedChannel}
-        isOpen={!!selectedChannel}
-        onClose={() => setSelectedChannel(null)}
-        country={country}
-      />
+      {selectedChannel && <PlayerModal channel={selectedChannel} onClose={() => setSelectedChannel(null)} />}
+
+      <Footer />
     </div>
   )
 }
 
-function getQualityBadge(quality: string) {
-  switch (quality?.toUpperCase()) {
-    case "4K":
-      return "bg-purple-500/20 text-purple-400 border-purple-500/30"
-    case "FHD":
-      return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-    case "HD":
-      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-    case "SD":
-      return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    default:
-      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-  }
-}
-
-function getCategoryBadge(category: string) {
-  switch (category?.toLowerCase()) {
-    case "sport":
-      return "bg-green-500/20 text-green-400 border-green-500/30"
-    case "actualités":
-    case "news":
-      return "bg-red-500/20 text-red-400 border-red-500/30"
-    case "enfants":
-    case "kids":
-      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-    case "cinéma":
-    case "cinema":
-      return "bg-orange-500/20 text-orange-400 border-orange-500/30"
-    case "musique":
-    case "music":
-      return "bg-pink-500/20 text-pink-400 border-pink-500/30"
-    case "documentaire":
-      return "bg-teal-500/20 text-teal-400 border-teal-500/30"
-    case "généraliste":
-      return "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
-    default:
-      return "bg-primary/20 text-primary border-primary/30"
-  }
-}
-
-function getCategoryButtonStyle(category: string, isSelected: boolean) {
-  if (isSelected) {
-    switch (category?.toLowerCase()) {
+function getCategoryButtonStyle(category: string, isActive: boolean): string {
+  if (isActive) {
+    switch (category.toLowerCase()) {
+      case "all":
+        return "bg-gradient-to-r from-primary to-accent text-white shadow-lg shadow-primary/30"
       case "sport":
-        return "bg-green-500 text-white shadow-lg shadow-green-500/30"
-      case "actualités":
-      case "news":
-        return "bg-red-500 text-white shadow-lg shadow-red-500/30"
-      case "enfants":
-      case "kids":
-        return "bg-yellow-500 text-black shadow-lg shadow-yellow-500/30"
+        return "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30"
       case "cinéma":
-      case "cinema":
-        return "bg-orange-500 text-white shadow-lg shadow-orange-500/30"
+        return "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30"
+      case "actualités":
+        return "bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/30"
+      case "enfants":
+        return "bg-gradient-to-r from-yellow-400 to-orange-400 text-black shadow-lg shadow-yellow-400/30"
       case "musique":
-      case "music":
-        return "bg-pink-500 text-white shadow-lg shadow-pink-500/30"
+        return "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/30"
       case "documentaire":
-        return "bg-teal-500 text-white shadow-lg shadow-teal-500/30"
+        return "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30"
       case "généraliste":
-        return "bg-cyan-500 text-white shadow-lg shadow-cyan-500/30"
-      case "divers":
-        return "bg-purple-500 text-white shadow-lg shadow-purple-500/30"
+        return "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-500/30"
       default:
-        return "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+        return "bg-gradient-to-r from-slate-500 to-slate-600 text-white shadow-lg shadow-slate-500/30"
     }
   }
-  return "glass-card border border-border/50 text-foreground hover:border-primary/50 hover:bg-primary/10"
+  return "bg-background/50 text-muted-foreground border border-border/50 hover:border-primary/50 hover:text-foreground"
+}
+
+function getCategoryBadge(category: string): string {
+  switch (category.toLowerCase()) {
+    case "sport":
+      return "bg-green-500/20 text-green-400 border-green-500/30"
+    case "cinéma":
+      return "bg-purple-500/20 text-purple-400 border-purple-500/30"
+    case "actualités":
+      return "bg-red-500/20 text-red-400 border-red-500/30"
+    case "enfants":
+      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+    case "musique":
+      return "bg-pink-500/20 text-pink-400 border-pink-500/30"
+    case "documentaire":
+      return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+    case "généraliste":
+      return "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+    default:
+      return "bg-slate-500/20 text-slate-400 border-slate-500/30"
+  }
+}
+
+function getQualityBadge(quality: string): string {
+  switch (quality.toUpperCase()) {
+    case "4K":
+    case "UHD":
+      return "bg-amber-500/20 text-amber-400 border-amber-500/30"
+    case "FHD":
+    case "1080P":
+      return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+    case "HD":
+    case "720P":
+      return "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+    default:
+      return "bg-slate-500/20 text-slate-400 border-slate-500/30"
+  }
 }
