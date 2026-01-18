@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const data = await response.json()
     console.log("[v0] Worker response data:", { success: data.success, hasStreamer: !!data.data?.streamer })
 
-    const streamUrl = data.data?.streamer || data.streamer || data.data?.streamUrl || data.streamUrl
+    let streamUrl = data.data?.streamer || data.streamer || data.data?.streamUrl || data.streamUrl
 
     if (!streamUrl) {
       console.error("[v0] No stream URL in response:", data)
@@ -42,6 +42,12 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("[v0] Alternative stream URL found:", streamUrl.substring(0, 100))
+
+    // Si l'URL contient proxiesembed.movix.blog, la passer à travers le worker pour contourner le 403
+    if (streamUrl.includes("proxiesembed.movix.blog") || streamUrl.includes("movix.blog")) {
+      console.log("[v0] Detected movix.blog URL, proxying through worker")
+      streamUrl = `https://hidden-thunder-be5f.wavewatchcontact.workers.dev/${streamUrl}`
+    }
 
     return NextResponse.json({
       success: true,
