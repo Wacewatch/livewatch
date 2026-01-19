@@ -95,17 +95,75 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const bufferHealthCheckRef = useRef<NodeJS.Timeout | null>(null)
 
+  const initialProxy: ProxyType = "default"
+
   useEffect(() => {
     if (isOpen && channel) {
       console.log("[v0] Opening player for channel:", channel.baseName, "country:", country)
       document.body.style.overflow = "hidden"
 
+      // Charger la configuration des sources
       fetch("/api/admin/source-config")
         .then((res) => res.json())
         .then((config) => {
           setSourceConfig(config)
+          
+          // Déterminer la source demandée par l'URL
+          const urlParams = new URLSearchParams(window.location.search)
+          const sourceParam = urlParams.get("source")
+          let requestedProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : "default"
+          
+          // Mapper proxy type vers source enabled
+          const isRequestedSourceEnabled = 
+            requestedProxy === "default" ? config.source1_enabled :
+            requestedProxy === "external" ? config.source2_enabled :
+            requestedProxy === "rotator" ? config.source3_enabled : true
+          
+          // Si la source demandée est désactivée, trouver la première source active
+          let finalProxy = requestedProxy
+          if (!isRequestedSourceEnabled) {
+            console.log(`[v0] Source ${sourceParam || "1"} désactivée, recherche de la première source active...`)
+            
+            if (config.source1_enabled) {
+              finalProxy = "default"
+              console.log("[v0] Basculement vers Source 1 (default)")
+            } else if (config.source2_enabled) {
+              finalProxy = "external"
+              console.log("[v0] Basculement vers Source 2 (external)")
+            } else if (config.source3_enabled) {
+              finalProxy = "rotator"
+              console.log("[v0] Basculement vers Source 3 (rotator)")
+            } else {
+              console.log("[v0] Aucune source activée !")
+            }
+          } else {
+            console.log(`[v0] URL source parameter: ${sourceParam || "1"} => using proxy: ${finalProxy}`)
+          }
+          
+          setCurrentProxy(finalProxy)
+          
+          if (isVip || isAdmin || forceNoAds) {
+            console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
+            setAdUnlocked(true)
+            setTimeout(() => loadStreamSource(0, finalProxy), 100)
+          } else {
+            setAdUnlocked(false)
+          }
         })
-        .catch(() => {})
+        .catch(() => {
+          // En cas d'erreur, utiliser la source par défaut
+          const urlParams = new URLSearchParams(window.location.search)
+          const sourceParam = urlParams.get("source")
+          const initialProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : "default"
+          setCurrentProxy(initialProxy)
+          
+          if (isVip || isAdmin || forceNoAds) {
+            setAdUnlocked(true)
+            setTimeout(() => loadStreamSource(0, initialProxy), 100)
+          } else {
+            setAdUnlocked(false)
+          }
+        })
 
       fetch("/api/admin/custom-sources")
         .then((res) => res.json())
@@ -115,25 +173,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         })
         .catch(() => {})
 
-      const urlParams = new URLSearchParams(window.location.search)
-      const sourceParam = urlParams.get("source")
-      const initialProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : "default"
-      console.log("[v0] URL source parameter:", sourceParam, "=> using proxy:", initialProxy)
-
-      if (isVip || isAdmin || forceNoAds) {
-        console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
-        setAdUnlocked(true)
-        setTimeout(() => loadStreamSource(0, initialProxy), 100)
-      } else {
-        setAdUnlocked(false)
-      }
-
       setStreamUrl(null)
       setOriginalStreamUrl(null)
       setError(null)
       setVideoLoaded(false)
       setSelectedSourceIndex(0)
-      setCurrentProxy(initialProxy)
       setCurrentCustomSourceId(null)
       setLoadingProgress(0)
       setLoadingStatus("")
