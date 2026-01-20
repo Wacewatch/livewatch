@@ -1113,56 +1113,32 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
 
               <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 1</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien d'intégration</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={playerLinkSource1}
+                      value={`${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}`}
                       readOnly
                       className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
                     />
                     <button
-                      onClick={() => copyToClipboard(playerLinkSource1, "player1")}
+                      onClick={() => copyToClipboard(`${baseUrl}/player?url=${encodeURIComponent(channel.baseId)}`, "player")}
                       className="rounded-lg bg-cyan-600 hover:bg-cyan-700 px-3 py-2 text-white transition-colors shrink-0"
                     >
-                      {copiedLink === "player1" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      {copiedLink === "player" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </button>
                   </div>
-                </div>
-
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 2</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={playerLinkSource2}
-                      readOnly
-                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
-                    />
-                    <button
-                      onClick={() => copyToClipboard(playerLinkSource2, "player2")}
-                      className="rounded-lg bg-green-600 hover:bg-green-700 px-3 py-2 text-white transition-colors shrink-0"
-                    >
-                      {copiedLink === "player2" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Lien lecteur - Source 3</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={playerLinkSource3}
-                      readOnly
-                      className="flex-1 rounded-lg bg-gray-800/50 border border-gray-700 px-2 sm:px-3 py-2 text-xs sm:text-sm text-white"
-                    />
-                    <button
-                      onClick={() => copyToClipboard(playerLinkSource3, "player3")}
-                      className="rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-2 text-white transition-colors shrink-0"
-                    >
-                      {copiedLink === "player3" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </button>
+                  
+                  <div className="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-xs text-blue-300 font-medium mb-1.5">Choisir une source spécifique</p>
+                    <p className="text-[10px] sm:text-xs text-gray-400 leading-relaxed">
+                      Ajoutez <code className="px-1.5 py-0.5 rounded bg-gray-800 text-cyan-400 font-mono text-[10px]">&source=1</code>, 
+                      <code className="px-1.5 py-0.5 rounded bg-gray-800 text-green-400 font-mono text-[10px] mx-1">&source=2</code> ou 
+                      <code className="px-1.5 py-0.5 rounded bg-gray-800 text-purple-400 font-mono text-[10px] ml-1">&source=3</code> à la fin de l'URL pour utiliser une source spécifique.
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-1.5">
+                      Par défaut, la première source activée sera utilisée automatiquement.
+                    </p>
                   </div>
                 </div>
               </div>
