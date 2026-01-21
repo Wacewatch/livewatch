@@ -134,78 +134,75 @@ export function TVAppClient() {
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
-        <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-3 md:gap-5 flex-wrap p-3 md:p-5 relative">
-          <div className="flex items-center gap-2 md:gap-4">
-            <Link href="/" className="relative w-48 h-12 md:w-64 md:h-16 hover:opacity-80 transition-opacity">
+        <div className="max-w-screen-2xl mx-auto p-3 md:p-5 relative">
+          <div className="flex items-center justify-between gap-2 mb-3 md:mb-0">
+            <Link href="/" className="relative w-32 h-10 md:w-48 md:h-12 lg:w-64 lg:h-16 hover:opacity-80 transition-opacity">
               <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" priority />
             </Link>
+
+            <div className="flex items-center gap-2">
+              <UserMenu />
+              <button
+                onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+                className={`relative w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
+                  showOnlyFavorites
+                    ? "border-yellow-400/50 text-yellow-400 scale-110 bg-yellow-400/10"
+                    : "border-border/50 text-foreground hover:border-yellow-400/50 hover:text-yellow-400 hover:scale-105"
+                }`}
+                title={showOnlyFavorites ? "Afficher toutes les chaînes" : "Afficher uniquement les favoris"}
+              >
+                <Star className="w-4 h-4 md:w-5 md:h-5" fill={showOnlyFavorites ? "currentColor" : "none"} />
+                {favoritesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-[10px] md:text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
+                    {favoritesCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="relative flex-1 max-w-2xl order-last md:order-none w-full md:w-auto">
-            <Search className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-primary" />
+          <div className="relative w-full">
+            <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-primary" />
             <input
               type="text"
               placeholder="Rechercher une chaîne..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 md:pl-14 pr-3 md:pr-5 py-3 md:py-4 rounded-2xl glass-card border border-border/50 text-sm md:text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:shadow-lg focus:shadow-primary/20 transition-all outline-none"
+              className="w-full pl-9 md:pl-12 pr-3 md:pr-4 py-2.5 md:py-3 rounded-xl md:rounded-2xl glass-card border border-border/50 text-sm md:text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:shadow-lg focus:shadow-primary/20 transition-all outline-none"
             />
-          </div>
-
-          <div className="flex items-center gap-2 md:gap-3">
-            <UserMenu /> {/* Insert the UserMenu component here */}
-            <button
-              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
-                showOnlyFavorites
-                  ? "border-yellow-400/50 text-yellow-400 glow-accent scale-110"
-                  : "border-border/50 text-foreground hover:border-primary/50 hover:scale-105"
-              }`}
-            >
-              <Star
-                className="w-5 h-5 md:w-6 md:h-6"
-                fill={showOnlyFavorites ? "currentColor" : "none"}
-                strokeWidth={2}
-              />
-              {favoritesCount > 0 && (
-                <span className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-5 h-5 md:w-6 md:h-6 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                  {favoritesCount}
-                </span>
-              )}
-            </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10">
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
+        <div className="mb-4 md:mb-6">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2 md:gap-4">
             <div className="flex items-center gap-2">
-              <TvMinimal className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+              <TvMinimal className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+              <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
                 Toutes les chaînes
               </h2>
             </div>
           </div>
-          <div className="flex items-center gap-6 text-muted-foreground text-sm">
-            <span className="flex items-center gap-2">
-              <TvMinimal className="w-4 h-4" />
+          <div className="flex items-center gap-3 md:gap-6 text-muted-foreground text-xs md:text-sm">
+            <span className="flex items-center gap-1.5 md:gap-2">
+              <TvMinimal className="w-3 h-3 md:w-4 md:h-4 text-primary" />
               {filteredChannels.length} chaînes
             </span>
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="flex items-center gap-1.5 md:gap-2">
+              <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-red-500 animate-pulse" />
               En direct
             </span>
           </div>
         </div>
 
-        <div className="mb-8 glass-card border border-border/50 rounded-2xl p-4 md:p-5 max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-bold text-foreground">Filtres</h3>
+        <div className="mb-6 md:mb-8 glass-card border border-border/50 rounded-xl md:rounded-2xl p-3 md:p-5 max-w-4xl mx-auto">
+          <div className="flex items-center gap-2 mb-3 md:mb-4">
+            <Filter className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+            <h3 className="text-base md:text-lg font-bold text-foreground">Filtres</h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">Catégorie</label>
               <select
@@ -239,32 +236,29 @@ export function TVAppClient() {
         </div>
 
         {filteredChannels.length === 0 ? (
-          <div className="text-center py-16 md:py-32 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 rounded-3xl" />
+          <div className="text-center py-12 md:py-16 lg:py-32">
             <Image
               src="/livewatch-logo.png"
               alt="LiveWatch"
               width={96}
               height={24}
-              className="object-contain mx-auto mb-6 animate-float"
+              className="object-contain mx-auto mb-4 md:mb-6 animate-float"
             />
-            <h3 className="text-3xl font-bold text-foreground mb-3">Aucune chaîne trouvée</h3>
-            <p className="text-muted-foreground text-lg">Essayez une autre recherche</p>
+            <h3 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground mb-2 md:mb-3">Aucune chaîne trouvée</h3>
+            <p className="text-muted-foreground text-sm md:text-base lg:text-lg">Essayez une autre recherche</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6 animate-fade-in">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 lg:gap-6 animate-fade-in">
             {filteredChannels.map((channel) => (
               <div
                 key={channel.baseId}
                 onClick={() => setSelectedChannel(channel)}
-                className="group glass-card border border-border/50 rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
+                className="group glass-card border border-border/50 rounded-xl md:rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20 transition-all duration-300"
               >
-                <div className="relative h-40 overflow-hidden">
-                  {channel.background &&
-                  !channel.background.includes("tvvoo") &&
-                  !channel.background.includes("qwertyuiop8899") ? (
+                <div className="relative h-32 md:h-40 overflow-hidden">
+                  {channel.baseBanner ? (
                     <Image
-                      src={channel.background || "/placeholder.svg"}
+                      src={channel.baseBanner || "/placeholder.svg"}
                       alt=""
                       fill
                       className="object-cover opacity-40 group-hover:scale-110 transition-transform duration-500"
@@ -276,25 +270,25 @@ export function TVAppClient() {
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
-                  <div className="absolute inset-0 flex items-center justify-center p-4">
+                  <div className="absolute inset-0 flex items-center justify-center p-3 md:p-4">
                     {channel.logo && !channel.logo.includes("tvvoo") && !channel.logo.includes("qwertyuiop8899") ? (
                       <Image
                         src={channel.logo || "/placeholder.svg"}
                         alt={channel.baseName}
-                        width={120}
-                        height={60}
-                        className="object-contain max-h-16 drop-shadow-2xl group-hover:scale-110 transition-transform duration-300"
+                        width={100}
+                        height={50}
+                        className="object-contain max-h-12 md:max-h-16 drop-shadow-2xl group-hover:scale-110 transition-transform duration-300"
                         unoptimized
                       />
                     ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30 flex items-center justify-center backdrop-blur-sm border border-cyan-500/20">
-                        <div className="text-4xl font-black text-cyan-400">TV</div>
+                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30 flex items-center justify-center backdrop-blur-sm border border-cyan-500/20">
+                        <div className="text-2xl md:text-4xl font-black text-cyan-400">TV</div>
                       </div>
                     )}
                   </div>
 
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  <div className="absolute top-2 left-2 md:top-3 md:left-3 flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold bg-red-500 text-white shadow-lg">
+                    <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-white animate-pulse" />
                     LIVE
                   </div>
 
@@ -303,40 +297,40 @@ export function TVAppClient() {
                       e.stopPropagation()
                       toggleFavorite(channel.baseId)
                     }}
-                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                    className={`absolute top-2 right-2 md:top-3 md:right-3 w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
                       channel.isFavorite
                         ? "bg-yellow-400 text-black scale-110"
                         : "bg-black/60 backdrop-blur-sm text-white hover:bg-black/80"
                     }`}
                   >
-                    <Star className="w-5 h-5" fill={channel.isFavorite ? "currentColor" : "none"} strokeWidth={2} />
+                    <Star className="w-4 h-4 md:w-5 md:h-5" fill={channel.isFavorite ? "currentColor" : "none"} strokeWidth={2} />
                   </button>
 
-                  <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                  <div className="absolute bottom-2 left-2 md:bottom-3 md:left-3 flex items-center gap-1 md:gap-2">
                     {channel.sources.length > 1 && (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/90 text-white shadow-lg">
+                      <span className="px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold bg-cyan-500/90 text-white shadow-lg">
                         {channel.sources.length} sources
                       </span>
                     )}
                     {channel.sources[0]?.quality && (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-500/90 text-white shadow-lg">
+                      <span className="px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold bg-purple-500/90 text-white shadow-lg">
                         {channel.sources[0].quality}
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="p-4 bg-gradient-to-b from-card/50 to-card">
-                  <h3 className="font-bold text-lg md:text-xl text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors leading-tight">
+                <div className="p-3 md:p-4 bg-gradient-to-b from-card/50 to-card">
+                  <h3 className="font-bold text-sm md:text-lg text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors leading-tight">
                     {channel.baseName || channel.name || "Chaîne TV"}
                   </h3>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
+                  <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-0.5 md:py-1 rounded text-[9px] md:text-xs font-semibold bg-primary/20 text-primary border border-primary/30">
                       {channel.category || "Divers"}
                     </span>
                     {channel.language && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                        <Globe className="w-3 h-3" />
+                      <span className="inline-flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded text-[9px] md:text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                        <Globe className="w-2.5 h-2.5 md:w-3 md:h-3" />
                         {channel.language}
                       </span>
                     )}
@@ -348,7 +342,7 @@ export function TVAppClient() {
         )}
       </main>
 
-      <PlayerModal channel={selectedChannel} isOpen={!!selectedChannel} onClose={() => setSelectedChannel(null)} />
+      <PlayerModal channel={selectedChannel} isOpen={selectedChannel !== null} onClose={() => setSelectedChannel(null)} />
     </div>
   )
 }

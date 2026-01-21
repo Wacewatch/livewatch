@@ -231,183 +231,186 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-accent/10 pointer-events-none" />
 
-        <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-3 md:gap-5 flex-wrap p-3 md:p-5 relative">
-          <div className="flex items-center gap-2 md:gap-4">
-            <Link
-              href="/"
-              className="w-12 h-12 rounded-2xl glass-card border border-border/50 flex items-center justify-center hover:border-primary/50 hover:scale-105 transition-all"
-            >
-              <ArrowLeft className="w-6 h-6 text-foreground" />
-            </Link>
-            <Link href="/" className="relative w-48 h-12 md:w-64 md:h-16 hover:opacity-80 transition-opacity">
-              <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" priority />
-            </Link>
+        <div className="w-full max-w-screen-2xl mx-auto px-3 py-3 md:px-5 md:py-5">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Link
+                href="/"
+                className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl glass-card border border-border/50 flex items-center justify-center hover:border-primary/50 hover:scale-105 transition-all flex-shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 text-foreground" />
+              </Link>
+              <Link href="/" className="relative w-24 h-8 md:w-48 md:h-12 lg:w-64 lg:h-16 hover:opacity-80 transition-opacity flex-shrink-0">
+                <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" priority />
+              </Link>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <UserMenu />
+              <button
+                onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+                className={`relative w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
+                  showOnlyFavorites
+                    ? "border-yellow-400/50 text-yellow-400 scale-110 bg-yellow-400/10"
+                    : "border-border/50 text-foreground hover:border-yellow-400/50 hover:text-yellow-400 hover:scale-105"
+                }`}
+                title={showOnlyFavorites ? "Afficher toutes les chaînes" : "Afficher uniquement les favoris"}
+              >
+                <Star className="w-4 h-4 md:w-5 md:h-5" fill={showOnlyFavorites ? "currentColor" : "none"} />
+                {favoritesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-[10px] md:text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
+                    {favoritesCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="relative flex-1 max-w-2xl order-last md:order-none w-full md:w-auto">
-            <Search className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-primary" />
+          <div className="relative w-full">
+            <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-primary" />
             <input
               type="text"
               placeholder="Rechercher une chaîne..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 md:pl-14 pr-3 md:pr-5 py-3 md:py-4 rounded-2xl glass-card border border-border/50 text-sm md:text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:shadow-lg focus:shadow-primary/20 transition-all outline-none"
+              className="w-full pl-9 md:pl-12 pr-3 md:pr-4 py-2.5 md:py-3 rounded-xl md:rounded-2xl glass-card border border-border/50 text-sm md:text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:shadow-lg focus:shadow-primary/20 transition-all outline-none"
             />
-          </div>
-
-          <div className="flex items-center gap-2 md:gap-3">
-            <UserMenu />
-            <button
-              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-              className={`relative w-12 h-12 md:w-14 md:h-14 rounded-2xl glass-card border transition-all duration-300 flex items-center justify-center ${
-                showOnlyFavorites
-                  ? "border-yellow-400/50 text-yellow-400 scale-110 bg-yellow-400/10"
-                  : "border-border/50 text-foreground hover:border-yellow-400/50 hover:text-yellow-400 hover:scale-105"
-              }`}
-              title={showOnlyFavorites ? "Afficher toutes les chaînes" : "Afficher uniquement les favoris"}
-            >
-              <Star className="w-5 h-5 md:w-6 md:h-6" fill={showOnlyFavorites ? "currentColor" : "none"} />
-              {favoritesCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
-                  {favoritesCount}
-                </span>
-              )}
-            </button>
           </div>
         </div>
       </header>
 
       {countryBanner?.enabled && countryBanner?.message && !bannerDismissed && (
-        <div className="relative overflow-hidden">
+        <div className="w-full overflow-hidden">
           <div
-            className="w-full py-3 px-6 backdrop-blur-sm border-b border-white/10"
+            className="w-full py-3 px-3 md:px-6 backdrop-blur-sm border-b border-white/10"
             style={{
               background: `linear-gradient(135deg, ${countryBanner.bg_color || "#f59e0b"}dd, ${countryBanner.bg_color || "#f59e0b"}99)`,
             }}
           >
-            <div className="max-w-screen-2xl mx-auto flex items-center justify-center gap-3 relative">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm">
-                <Info className="w-4 h-4" style={{ color: countryBanner.text_color || "#000000" }} />
+            <div className="max-w-screen-2xl mx-auto flex items-center gap-2">
+              <div className="flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full bg-white/20 backdrop-blur-sm flex-shrink-0">
+                <Info className="w-3 h-3 md:w-4 md:h-4" style={{ color: countryBanner.text_color || "#000000" }} />
               </div>
               <span
-                className="font-medium text-sm md:text-base"
+                className="font-medium text-xs md:text-sm flex-1 leading-snug break-words"
                 style={{ color: countryBanner.text_color || "#000000" }}
               >
                 {countryBanner.message}
               </span>
               <button
                 onClick={dismissBanner}
-                className="absolute right-0 p-2 rounded-full hover:bg-white/20 transition-colors"
+                className="p-1.5 rounded-full hover:bg-white/20 transition-colors flex-shrink-0"
                 title="Fermer"
               >
                 <X className="w-4 h-4" style={{ color: countryBanner.text_color || "#000000" }} />
               </button>
             </div>
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-transparent to-white/5 pointer-events-none" />
         </div>
       )}
 
-      <main className="max-w-screen-2xl mx-auto p-3 md:p-6 lg:p-10 flex-1">
-        <div className="mb-6 glass-card border border-border/50 rounded-2xl p-4 md:p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                <TvMinimal className="w-6 h-6 text-primary" />
+      <main className="w-full max-w-screen-2xl mx-auto px-3 py-3 md:px-6 md:py-6 lg:px-10 lg:py-10 flex-1">
+        <div className="mb-4 md:mb-6 glass-card border border-border/50 rounded-xl md:rounded-2xl p-3 md:p-6">
+          <div className="flex flex-col gap-3 md:gap-4">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
+                <TvMinimal className="w-5 h-5 md:w-6 md:h-6 text-primary" />
               </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg md:text-2xl lg:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent truncate">
                   {country}
                 </h1>
-                <p className="text-muted-foreground text-sm">{filteredChannels.length} chaînes disponibles</p>
+                <p className="text-muted-foreground text-xs md:text-sm">{filteredChannels.length} chaînes disponibles</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`flex-shrink-0 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-semibold transition-all duration-200 ${getCategoryButtonStyle(cat, selectedCategory === cat)}`}
-                >
-                  {cat === "all" ? "Toutes" : cat}
-                </button>
-              ))}
+            <div className="w-full overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2 pb-2">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`flex-shrink-0 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${getCategoryButtonStyle(cat, selectedCategory === cat)}`}
+                  >
+                    {cat === "all" ? "Toutes" : cat}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
         {filteredChannels.length === 0 ? (
-          <div className="text-center py-16 md:py-32">
-            <h3 className="text-3xl font-bold text-foreground mb-3">Aucune chaîne trouvée</h3>
-            <p className="text-muted-foreground text-lg">Essayez une autre recherche</p>
+          <div className="text-center py-12 md:py-16 lg:py-32 px-4">
+            <h3 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground mb-2 md:mb-3">Aucune chaîne trouvée</h3>
+            <p className="text-muted-foreground text-sm md:text-base lg:text-lg">Essayez une autre recherche</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4 lg:gap-6">
             {filteredChannels.map((channel) => (
               <div
                 key={channel.baseId}
                 onClick={() => !channel.isDisabled && setSelectedChannel(channel)}
-                className={`group glass-card border rounded-2xl overflow-hidden transition-all duration-300 ${
+                className={`group glass-card border rounded-xl md:rounded-2xl overflow-hidden transition-all duration-300 ${
                   channel.isDisabled
                     ? "border-red-500/50 opacity-60 cursor-not-allowed"
                     : "border-border/50 cursor-pointer hover:border-primary/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/20"
                 }`}
               >
-                <div className="relative h-40 overflow-hidden">
+                <div className="relative h-28 md:h-40 overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
-                  <div className="absolute inset-0 flex items-center justify-center p-4">
+                  <div className="absolute inset-0 flex items-center justify-center p-2 md:p-4">
                     <Image
                       src={channel.logo || DEFAULT_CHANNEL_LOGO}
                       alt={channel.baseName}
-                      width={120}
-                      height={60}
-                      className="object-contain max-h-16 drop-shadow-2xl"
+                      width={100}
+                      height={50}
+                      className="object-contain max-h-10 md:max-h-16 w-auto drop-shadow-2xl"
                       unoptimized
                     />
                   </div>
 
                   {channel.isDisabled && (
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
-                      <Ban className="w-3 h-3" />
-                      Désactivée
+                    <div className="absolute top-1.5 left-1.5 md:top-2 md:left-2 flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs font-bold bg-red-500 text-white shadow-lg">
+                      <Ban className="w-2 h-2 md:w-3 md:h-3" />
+                      <span className="hidden md:inline">Désactivée</span>
                     </div>
                   )}
 
                   {!channel.isDisabled && (
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    <div className="absolute top-1.5 left-1.5 md:top-2 md:left-2 flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs font-bold bg-red-500 text-white shadow-lg">
+                      <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-white animate-pulse" />
                       LIVE
                     </div>
                   )}
 
                   {isAdmin && (
-                    <>
+                    <div className="absolute top-1.5 md:top-2 right-9 md:right-12 flex gap-0.5 md:gap-1">
                       <button
                         onClick={(e) => openEditModal(channel, e)}
-                        className="absolute top-3 right-20 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg bg-blue-500/80 text-white hover:bg-blue-600"
-                        title="Modifier la chaîne"
+                        className="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-all shadow-lg bg-blue-500/90 text-white hover:bg-blue-600"
+                        title="Modifier"
                       >
-                        <Pencil className="w-4 h-4" />
+                        <Pencil className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
                       </button>
                       <button
                         onClick={(e) => toggleChannelDisabled(channel, e)}
-                        className={`absolute top-3 right-12 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                        className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-all shadow-lg ${
                           channel.isDisabled
                             ? "bg-green-500 text-white hover:bg-green-600"
-                            : "bg-red-500/80 text-white hover:bg-red-600"
+                            : "bg-red-500/90 text-white hover:bg-red-600"
                         }`}
-                        title={channel.isDisabled ? "Réactiver la chaîne" : "Désactiver la chaîne"}
+                        title={channel.isDisabled ? "Réactiver" : "Désactiver"}
                       >
-                        <Ban className="w-4 h-4" />
+                        <Ban className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
                       </button>
-                    </>
+                    </div>
                   )}
 
                   <button
@@ -415,35 +418,35 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
                       e.stopPropagation()
                       toggleFavorite(channel.baseId)
                     }}
-                    className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                    className={`absolute top-1.5 right-1.5 md:top-2 md:right-2 w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
                       channel.isFavorite ? "bg-yellow-400 text-black scale-110" : "bg-black/60 text-white"
                     }`}
                   >
-                    <Star className="w-5 h-5" fill={channel.isFavorite ? "currentColor" : "none"} />
+                    <Star className="w-3.5 h-3.5 md:w-4.5 md:h-4.5" fill={channel.isFavorite ? "currentColor" : "none"} />
                   </button>
                 </div>
 
-                <div className="p-4 bg-gradient-to-b from-card/50 to-card">
-                  <h3 className="font-bold text-lg md:text-xl text-foreground mb-3 line-clamp-2 group-hover:text-primary transition-colors leading-tight">
+                <div className="p-2 md:p-4 bg-gradient-to-b from-card/50 to-card">
+                  <h3 className="font-bold text-xs md:text-base lg:text-lg text-foreground mb-1.5 md:mb-2 line-clamp-2 group-hover:text-primary transition-colors leading-tight min-h-[2rem] md:min-h-[3rem]">
                     {channel.baseName}
                   </h3>
 
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap">
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${getCategoryBadge(channel.category || "")}`}
+                      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] md:text-[10px] font-bold border ${getCategoryBadge(channel.category || "")}`}
                     >
                       {channel.category || "Divers"}
                     </span>
 
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${getQualityBadge(channel.quality || "HD")}`}
+                      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] md:text-[10px] font-bold border ${getQualityBadge(channel.quality || "HD")}`}
                     >
-                      <Wifi className="w-2.5 h-2.5" />
+                      <Wifi className="w-2 h-2" />
                       {channel.quality || "HD"}
                     </span>
 
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-slate-500/20 text-slate-400 border-slate-500/30">
-                      <Globe className="w-2.5 h-2.5" />
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] md:text-[10px] font-bold border bg-slate-500/20 text-slate-400 border-slate-500/30">
+                      <Globe className="w-2 h-2" />
                       {channel.language || "FR"}
                     </span>
                   </div>
@@ -456,7 +459,7 @@ export function ChannelsClient({ country }: ChannelsClientProps) {
 
       {editingChannel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="glass-card border border-border/50 rounded-2xl p-6 w-full max-w-md">
+          <div className="glass-card border border-border/50 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-foreground">Modifier la chaîne</h2>
               <button
