@@ -230,9 +230,9 @@ export default function UserDashboard() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 {[
-                  'Aucune limite de chaînes',
+                  
                   'Aucune publicité',
-                  'Support prioritaire',
+                 
                 ].map((benefit) => (
                   <div key={benefit} className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
                     <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
@@ -242,7 +242,7 @@ export default function UserDashboard() {
               </div>
 
               <a
-                href="ko-fi.com/wavewatch"
+                href="https://ko-fi.com/wavewatch"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm md:text-base transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30"
