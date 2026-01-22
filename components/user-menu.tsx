@@ -88,16 +88,6 @@ export function UserMenu() {
                 <p className="text-xs leading-none text-muted-foreground truncate">{user.email}</p>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {role === "member" && (
-              <>
-                <DropdownMenuItem onClick={() => setShowVipModal(true)} className="cursor-pointer text-amber-500">
-                  <Crown className="w-4 h-4 mr-2" />
-                  Activer VIP
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
             <DropdownMenuItem onClick={() => router.push("/dashboard")} className="cursor-pointer">
               <UserCircle className="w-4 h-4 mr-2" />
               Mon Tableau de Bord
