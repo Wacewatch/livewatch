@@ -1,31 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import {
-  Users,
-  LaptopMinimal as TvMinimal,
-  Shield,
-  Crown,
-  UserCircle,
-  Activity,
-  TrendingUp,
-  Key,
-  Copy,
-  Home,
-  Globe,
-  RefreshCw,
-  Trash2,
-  Network,
-  ChevronDown,
-  ChevronUp,
-  Radio,
-  Plus,
-  MessageSquare,
-  LinkIcon,
-  Zap,
-  Edit,
-  Server,
-} from "lucide-react"
+import { Users, LaptopMinimal as TvMinimal, Shield, Crown, UserCircle, Activity, TrendingUp, Key, Copy, Home, Globe, RefreshCw, Trash2, Network, ChevronDown, ChevronUp, Radio, Plus, MessageSquare, LinkIcon, Zap, Edit, Server, CreditCard } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { KofiTransactions } from "@/components/kofi-transactions"
 
 // ... existing code (interfaces) ...
 
@@ -187,6 +164,7 @@ interface CollapsibleState {
   countryBanners: boolean
   // @ts-ignore - Add customSources to collapsed state
   customSources: boolean // Added
+  kofiTransactions: boolean
 }
 
 interface ExternalProxyConfig {
@@ -285,6 +263,7 @@ export function AdminDashboard() {
     countryBanners: true,
     // @ts-ignore - Add customSources to collapsed state
     customSources: false, // Added
+    kofiTransactions: false,
   })
   const [proxyListLimit, setProxyListLimit] = useState(10)
   const [proxySort, setProxySort] = useState<"speed" | "success" | "country">("speed")
@@ -1996,6 +1975,26 @@ export function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Ko-fi Transactions */}
+      <Card className="mb-6 glass-card border border-border/50 overflow-hidden">
+        <div
+          className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/5 transition-colors border-b border-border/50"
+          onClick={() => toggleCollapse("kofiTransactions")}
+        >
+          <div className="flex items-center gap-3">
+            <CreditCard className="w-5 h-5 text-amber-400" />
+            <h2 className="text-xl font-bold text-foreground">Transactions Ko-fi</h2>
+          </div>
+          {collapsed.kofiTransactions ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+        </div>
+
+        {!collapsed.kofiTransactions && (
+          <div className="p-4">
+            <KofiTransactions />
+          </div>
+        )}
+      </Card>
 
       {/* ... existing code (rest of dialogs) ... */}
     </div>

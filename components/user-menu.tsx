@@ -98,15 +98,20 @@ export function UserMenu() {
                 <DropdownMenuSeparator />
               </>
             )}
+            <DropdownMenuItem onClick={() => router.push("/dashboard")} className="cursor-pointer">
+              <UserCircle className="w-4 h-4 mr-2" />
+              Mon Tableau de Bord
+            </DropdownMenuItem>
             {isAdmin && (
               <>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => router.push("/admin")} className="cursor-pointer">
                   <Shield className="w-4 h-4 mr-2" />
                   Panneau Admin
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
               </>
             )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-red-500 hover:text-red-600 cursor-pointer">
               <LogOut className="w-4 h-4 mr-2" />
               Se déconnecter
@@ -126,11 +131,11 @@ export function UserMenu() {
       <DropdownMenuContent align="end" className="w-56 glass-card border-border/50">
         <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push("/auth/login")} className="cursor-pointer">
+        <DropdownMenuItem onClick={() => router.push("/login")} className="cursor-pointer">
           <LogIn className="w-4 h-4 mr-2" />
           Se connecter
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/auth/signup")} className="cursor-pointer">
+        <DropdownMenuItem onClick={() => router.push("/login")} className="cursor-pointer">
           <UserPlus className="w-4 h-4 mr-2" />
           Créer un compte
         </DropdownMenuItem>
