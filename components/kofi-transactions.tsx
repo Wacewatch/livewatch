@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CreditCard, CheckCircle, Clock, AlertCircle, Download, RefreshCw, Search, Filter } from "lucide-react"
+import { CreditCard, CheckCircle, Clock, AlertCircle, Download, RefreshCw, Search } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ interface KofiTransaction {
   transaction_id: string
   user_id: string
   user_email: string
-  amount: number
+  amount: number | string
   currency: string
   status: "completed" | "pending" | "failed"
   payment_method: string
@@ -69,7 +69,8 @@ export function KofiTransactions() {
           failed: failedTxns.length,
         })
 
-        const total = completedTxns.reduce((sum: number, t: KofiTransaction) => sum + t.amount, 0)
+        // Convert amount to number before summing
+        const total = completedTxns.reduce((sum: number, t: KofiTransaction) => sum + (Number(t.amount) || 0), 0)
         setTotalRevenue(total)
       } catch (err) {
         console.error('[v0] Error fetching transactions:', err)
@@ -109,7 +110,7 @@ export function KofiTransactions() {
         t.transaction_id,
         t.user_email,
         t.donor_name,
-        t.amount,
+        Number(t.amount).toFixed(2),
         t.currency,
         t.status,
         t.payment_method,
@@ -176,7 +177,7 @@ export function KofiTransactions() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Chiffre d'affaires</p>
-              <p className="text-2xl font-bold text-foreground">${totalRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">${Number(totalRevenue).toFixed(2)}</p>
             </div>
             <CreditCard className="w-8 h-8 text-primary/50" />
           </div>
@@ -287,7 +288,7 @@ export function KofiTransactions() {
                     <td className="px-4 py-3 text-foreground">{transaction.user_email}</td>
                     <td className="px-4 py-3 text-foreground">{transaction.donor_name}</td>
                     <td className="px-4 py-3 text-right font-semibold text-green-400">
-                      {transaction.currency} {transaction.amount.toFixed(2)}
+                      {transaction.currency} {Number(transaction.amount).toFixed(2)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
