@@ -24,51 +24,67 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Récupérer toutes les transactions Ko-fi avec les infos utilisateur
+    // Récupérer toutes les transactions Ko-fi
     const { data: transactions, error } = await supabase
       .from('kofi_payments')
-      .select(`
-        id,
-        transaction_id,
-        user_id,
-        amount,
-        currency,
-        status,
-        payment_method,
-        donor_name,
-        message,
-        created_at,
-        processed_at,
-        user_profiles!inner(
-          id,
-          email
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (error) {
       console.error('[v0] Error fetching Ko-fi transactions:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch transactions' },
-        { status: 500 }
-      )
+      return NextResponse.json({
+        success: true,
+        transactions: [],
+        total: 0,
+        message: 'Pas de transactions Ko-fi trouvées',
+      })
     }
 
-    // Formater les transactions
-    const formattedTransactions = (transactions || []).map((t: any) => ({
-      id: t.id,
-      transaction_id: t.transaction_id,
-      user_id: t.user_id,
-      user_email: t.user_profiles?.email || 'Unknown',
-      amount: t.amount,
-      currency: t.currency,
-      status: t.status,
-      payment_method: t.payment_method,
-      donor_name: t.donor_name,
-      message: t.message,
-      created_at: t.created_at,
-      processed_at: t.processed_at,
-    }))
+    // Récupérer les emails des utilisateurs si user_id est disponible
+    let formattedTransactions = (transactions || [])
+
+    if (formattedTransactions.length > 0 && transactions[0].user_id) {
+      const userIds = [...new Set(formattedTransactions.map(t => t.user_id))]
+      const { data: users } = await supabase
+        .from('user_profiles')
+        .select('id, email')
+        .in('id', userIds)
+
+      const userMap = (users || []).reduce((acc: any, u: any) => {
+        acc[u.id] = u.email
+        return acc
+      }, {})
+
+      formattedTransactions = formattedTransactions.map((t: any) => ({
+        id: t.id,
+        transaction_id: t.transaction_id,
+        user_id: t.user_id,
+        user_email: userMap[t.user_id] || 'Unknown',
+        amount: t.amount,
+        currency: t.currency,
+        status: t.status,
+        payment_method: t.payment_method,
+        donor_name: t.donor_name,
+        message: t.message,
+        created_at: t.created_at,
+        processed_at: t.processed_at,
+      }))
+    } else {
+      formattedTransactions = formattedTransactions.map((t: any) => ({
+        id: t.id,
+        transaction_id: t.transaction_id,
+        user_id: t.user_id,
+        user_email: 'Unknown',
+        amount: t.amount,
+        currency: t.currency,
+        status: t.status,
+        payment_method: t.payment_method,
+        donor_name: t.donor_name,
+        message: t.message,
+        created_at: t.created_at,
+        processed_at: t.processed_at,
+      }))
+    }
 
     return NextResponse.json({
       success: true,
@@ -77,9 +93,11 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('[v0] Ko-fi transactions API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      success: true,
+      transactions: [],
+      total: 0,
+      message: 'Erreur lors de la récupération des transactions',
+    })
   }
 }

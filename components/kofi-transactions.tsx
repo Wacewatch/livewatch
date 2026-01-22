@@ -41,10 +41,21 @@ export function KofiTransactions() {
     const fetchTransactions = async () => {
       try {
         setLoading(true)
+        setError(null)
         const response = await fetch("/api/admin/kofi-transactions")
-        if (!response.ok) throw new Error("Failed to fetch transactions")
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
 
         const data = await response.json()
+        
+        if (!data.success) {
+          setTransactions([])
+          setError(data.message || "Aucune transaction Ko-fi trouvée")
+          return
+        }
+        
         setTransactions(data.transactions || [])
 
         // Calculate stats
@@ -61,7 +72,9 @@ export function KofiTransactions() {
         const total = completedTxns.reduce((sum: number, t: KofiTransaction) => sum + t.amount, 0)
         setTotalRevenue(total)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred")
+        console.error('[v0] Error fetching transactions:', err)
+        setError(err instanceof Error ? err.message : "Erreur lors de la récupération des transactions")
+        setTransactions([])
       } finally {
         setLoading(false)
       }
