@@ -6,23 +6,27 @@ const VIP_MIN_AMOUNT = 5
 
 export async function POST(request: NextRequest) {
   try {
-    // 🔥 Parsing Ko-fi
     const rawBody = await request.text()
-    const params = new URLSearchParams(rawBody)
-    const body = JSON.parse(params.get("data") || "{}")
+    let body: any
 
-    console.log("[Ko-fi] Webhook received:", body)
+    // 🔹 Parsing robuste pour tests Ko-fi ou vrais paiements
+    try {
+      body = JSON.parse(rawBody)
+    } catch {
+      const params = new URLSearchParams(rawBody)
+      body = JSON.parse(params.get("data") || "{}")
+    }
+
+    console.log("[Ko-fi] Parsed body:", body)
 
     // 🔐 Vérification token
-    if (
-      process.env.KOFI_VERIFICATION_TOKEN &&
-      body.verification_token !== process.env.KOFI_VERIFICATION_TOKEN
-    ) {
-      console.error("[Ko-fi] Invalid token")
+    const kofiToken = process.env.KOFI_VERIFICATION_TOKEN
+    if (kofiToken && body.verification_token !== kofiToken) {
+      console.error("[Ko-fi] Invalid verification token")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // 🧾 Vérifier le type
+    // 🧾 Types acceptés
     if (!["Donation", "Shop Order"].includes(body.type)) {
       console.log("[Ko-fi] Ignored type:", body.type)
       return NextResponse.json({ success: true })
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
     const email = body.email || body.from_email || null
 
     if (!transactionId || !email || isNaN(amount)) {
-      console.error("[Ko-fi] Invalid payload")
+      console.error("[Ko-fi] Invalid payment data")
       return NextResponse.json({ error: "Invalid payment" }, { status: 400 })
     }
 
@@ -55,16 +59,27 @@ export async function POST(request: NextRequest) {
     )
 
     // 💾 ENREGISTRER TOUS LES PAIEMENTS
-    await supabase.from("kofi_payments").insert({
-      kofi_transaction_id: transactionId,
-      email,
-      amount,
-      raw_data: body,
-      status: "received",
-      processed_at: new Date().toISOString(),
-    })
+    const { data: paymentRecord, error: paymentError } = await supabase
+      .from("kofi_payments")
+      .insert({
+        kofi_transaction_id: transactionId,
+        email,
+        amount,
+        currency: body.currency,
+        raw_data: body,
+        status: "received",
+        processed_at: new Date().toISOString(),
+      })
+      .select()
 
-    // ❌ Montant < VIP_MIN_AMOUNT → juste enregistrer
+    if (paymentError) {
+      console.error("[Ko-fi] Error saving payment:", paymentError)
+      return NextResponse.json({ error: "Failed to save payment" }, { status: 500 })
+    }
+
+    console.log("[Ko-fi] Payment recorded:", paymentRecord)
+
+    // ❌ Si montant < VIP_MIN_AMOUNT → juste enregistrer
     if (amount < VIP_MIN_AMOUNT) {
       console.log("[Ko-fi] Payment below VIP threshold:", amount)
       return NextResponse.json({
@@ -88,8 +103,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // ⭐ Passer VIP
-    await supabase
+    // ⭐ Mettre à jour VIP
+    const { error: updateError } = await supabase
       .from("user_profiles")
       .update({
         role: "vip",
@@ -99,9 +114,14 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", user.id)
 
+    if (updateError) {
+      console.error("[Ko-fi] Error updating VIP:", updateError)
+      return NextResponse.json({ error: "Failed to update VIP" }, { status: 500 })
+    }
+
     console.log("[Ko-fi] User upgraded to VIP:", user.id)
 
-    // ✅ Finaliser paiement
+    // ✅ Mettre à jour le paiement avec user_id et status completed
     await supabase
       .from("kofi_payments")
       .update({ user_id: user.id, status: "completed" })
@@ -109,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Payment recorded, VIP granted",
+      message: "Payment recorded and VIP granted if applicable",
       userId: user.id,
     })
   } catch (err) {
