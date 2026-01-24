@@ -54,7 +54,7 @@ const AD_URLS = [
   "https://foreignabnormality.com/fg5c1f95w?key=5966fa8bf3f39db1aae7bc8b8d6bb8d8",
 ]
 
-type ProxyType = "default" | "external" | "rotator"
+type ProxyType = "default" | "external" | "rotator" | "vavoo"
 
 export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
@@ -83,6 +83,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     source1_enabled: true,
     source2_enabled: true,
     source3_enabled: true,
+    source4_enabled: true,
   })
   const [customSources, setCustomSources] = useState<CustomProxySource[]>([])
   const [currentCustomSourceId, setCurrentCustomSourceId] = useState<string | null>(null)
@@ -111,34 +112,18 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           // Déterminer la source demandée par l'URL
           const urlParams = new URLSearchParams(window.location.search)
           const sourceParam = urlParams.get("source")
-          let requestedProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : "default"
-          
+          let requestedProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : sourceParam === "4" ? "vavoo" : "default"
+
           // Mapper proxy type vers source enabled
-          const isRequestedSourceEnabled = 
-            requestedProxy === "default" ? config.source1_enabled :
-            requestedProxy === "external" ? config.source2_enabled :
-            requestedProxy === "rotator" ? config.source3_enabled : true
-          
-          // Si la source demandée est désactivée, trouver la première source active
-          let finalProxy = requestedProxy
-          if (!isRequestedSourceEnabled) {
-            console.log(`[v0] Source ${sourceParam || "1"} désactivée, recherche de la première source active...`)
-            
-            if (config.source1_enabled) {
-              finalProxy = "default"
-              console.log("[v0] Basculement vers Source 1 (default)")
-            } else if (config.source2_enabled) {
-              finalProxy = "external"
-              console.log("[v0] Basculement vers Source 2 (external)")
-            } else if (config.source3_enabled) {
-              finalProxy = "rotator"
-              console.log("[v0] Basculement vers Source 3 (rotator)")
-            } else {
-              console.log("[v0] Aucune source activée !")
-            }
-          } else {
-            console.log(`[v0] URL source parameter: ${sourceParam || "1"} => using proxy: ${finalProxy}`)
+          const sourceEnabledMap = {
+            default: sourceConfig.source1_enabled,
+            external: sourceConfig.source2_enabled,
+            rotator: sourceConfig.source3_enabled,
+            vavoo: sourceConfig.source4_enabled,
           }
+          
+          const finalProxy = sourceEnabledMap[requestedProxy] ? requestedProxy : "default"
+          console.log(`[v0] URL source parameter: ${sourceParam || "1"} => using proxy: ${finalProxy}`)
           
           setCurrentProxy(finalProxy)
           
@@ -154,7 +139,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           // En cas d'erreur, utiliser la source par défaut
           const urlParams = new URLSearchParams(window.location.search)
           const sourceParam = urlParams.get("source")
-          const initialProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : "default"
+          const initialProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : sourceParam === "4" ? "vavoo" : "default"
           setCurrentProxy(initialProxy)
           
           if (isVip || isAdmin || forceNoAds) {
@@ -440,7 +425,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       console.log(`[v0] Lancement de la Source personnalisée: ${customSourceId}`)
       setCurrentCustomSourceId(customSourceId)
     } else {
-      console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
+      console.log(`[v0] Lancement de la Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : proxyType === "rotator" ? "3" : "4 (Vavoo)"}`)
       setCurrentCustomSourceId(null)
     }
 
@@ -492,6 +477,27 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           playSource(rotatorUrl, proxyType)
         } else {
           throw new Error("Aucune source disponible")
+        }
+      } else if (proxyType === "vavoo") {
+        console.log("[v0] Fetching Vavoo stream for channel:", channel.baseName)
+
+        const response = await fetch(`/api/vavoo/stream?id=${encodeURIComponent(channel.baseName)}`)
+
+        if (!response.ok) {
+          throw new Error(`Erreur source Vavoo: HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+        console.log("[v0] Vavoo stream response:", data)
+
+        if (data.success && data.streamUrl) {
+          const streamUrl = data.streamUrl
+          console.log("[v0] Vavoo stream URL:", streamUrl)
+          setOriginalStreamUrl(streamUrl)
+          setStreamUrl(streamUrl)
+          playSource(streamUrl, proxyType)
+        } else {
+          throw new Error(data.message || "Aucune source Vavoo disponible")
         }
       } else if (proxyType === "external") {
         console.log("[v0] Fetching alternative stream via worker for channel:", channel.baseId)
@@ -572,7 +578,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const switchProxySource = (proxyType: ProxyType) => {
     if (proxyType === currentProxy && !currentCustomSourceId) return
 
-    console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : "3"}`)
+    console.log(`[v0] Changement vers Source ${proxyType === "default" ? "1" : proxyType === "external" ? "2" : proxyType === "rotator" ? "3" : "4 (Vavoo)"}`)
     setCurrentProxy(proxyType)
     setCurrentCustomSourceId(null)
     setRetryCount(0)
@@ -729,20 +735,22 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               setError("Impossible de charger le flux. Essayez l'autre source.")
               setLoading(false)
               
-              const availableSources = [
-                { type: "default" as ProxyType, enabled: sourceConfig.source1_enabled },
-                { type: "external" as ProxyType, enabled: sourceConfig.source2_enabled },
-                { type: "rotator" as ProxyType, enabled: sourceConfig.source3_enabled },
-              ].filter((s) => s.enabled)
-              
-              if (availableSources.length > 1) {
-                setTimeout(() => {
-                  const nextProxy = currentProxy === "default" ? "external" : 
-                                  currentProxy === "external" ? "rotator" : "default"
-                  console.log("[v0] Auto-switching to:", nextProxy)
-                  switchProxySource(nextProxy)
-                }, 2000)
-              }
+  const availableSources = [
+    { type: "default" as ProxyType, enabled: sourceConfig.source1_enabled },
+    { type: "external" as ProxyType, enabled: sourceConfig.source2_enabled },
+    { type: "rotator" as ProxyType, enabled: sourceConfig.source3_enabled },
+    { type: "vavoo" as ProxyType, enabled: sourceConfig.source4_enabled },
+  ].filter((s) => s.enabled)
+  
+  if (availableSources.length > 1) {
+  setTimeout(() => {
+  const currentIndex = availableSources.findIndex(s => s.type === currentProxy)
+  const nextIndex = (currentIndex + 1) % availableSources.length
+  const nextProxy = availableSources[nextIndex].type
+  console.log("[v0] Auto-switching to:", nextProxy)
+  switchProxySource(nextProxy)
+  }, 2000)
+  }
               break
           }
         } else {
@@ -896,6 +904,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     { type: "default" as ProxyType, enabled: sourceConfig.source1_enabled, name: "Source 1", desc: "Proxy par défaut" },
     { type: "external" as ProxyType, enabled: sourceConfig.source2_enabled, name: "Source 2", desc: "Proxy externe" },
     { type: "rotator" as ProxyType, enabled: sourceConfig.source3_enabled, name: "Source 3", desc: "Proxy rotatif" },
+    { type: "vavoo" as ProxyType, enabled: sourceConfig.source4_enabled, name: "Source 4", desc: "Vavoo Stream" },
   ].filter((s) => s.enabled)
 
   return (

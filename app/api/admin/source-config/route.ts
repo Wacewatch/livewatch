@@ -13,6 +13,7 @@ export async function GET() {
         source1_enabled: true,
         source2_enabled: true,
         source3_enabled: true,
+        source4_enabled: true,
         external_proxy_url: "", // Added external proxy URL support
       })
     }
@@ -24,6 +25,7 @@ export async function GET() {
       source1_enabled: true,
       source2_enabled: true,
       source3_enabled: true,
+      source4_enabled: true,
       external_proxy_url: "",
     })
   }
@@ -38,6 +40,7 @@ export async function PUT(request: Request) {
       source1_enabled: config.source1_enabled ?? true,
       source2_enabled: config.source2_enabled ?? true,
       source3_enabled: config.source3_enabled ?? true,
+      source4_enabled: config.source4_enabled ?? true,
       external_proxy_url: config.external_proxy_url ?? "",
     }
 
