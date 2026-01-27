@@ -20,7 +20,7 @@ Ce système permet de streamer les chaînes de **vavoo.to** via des proxies Next
 
 ### 1. Récupération des chaînes
 
-```typescript
+\`\`\`typescript
 const response = await fetch('/api/vavoo/channels')
 const data = await response.json()
 
@@ -38,11 +38,11 @@ const data = await response.json()
   ],
   total: 500
 }
-```
+\`\`\`
 
 ### 2. Obtenir l'URL de stream
 
-```typescript
+\`\`\`typescript
 const channelId = "tf1-hd-123"
 const response = await fetch(`/api/vavoo/stream?id=${channelId}`)
 const data = await response.json()
@@ -54,19 +54,19 @@ const data = await response.json()
   channelId: "tf1-hd-123",
   provider: "vavoo"
 }
-```
+\`\`\`
 
 ### 3. Utiliser le stream dans un player
 
-```tsx
+\`\`\`tsx
 <video controls>
   <source src="/api/vavoo/proxy?id=tf1-hd-123&path=index.m3u8" type="application/x-mpegURL" />
 </video>
-```
+\`\`\`
 
 Ou avec HLS.js :
 
-```typescript
+\`\`\`typescript
 import Hls from 'hls.js'
 
 const streamUrl = '/api/vavoo/proxy?id=tf1-hd-123&path=index.m3u8'
@@ -76,7 +76,7 @@ if (Hls.isSupported()) {
   hls.loadSource(streamUrl)
   hls.attachMedia(video)
 }
-```
+\`\`\`
 
 ---
 
@@ -86,7 +86,7 @@ if (Hls.isSupported()) {
 
 Le proxy `/api/vavoo/proxy` utilise les mêmes headers que votre PHP :
 
-```typescript
+\`\`\`typescript
 {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36...",
   "Referer": "https://vavoo.to/",
@@ -99,25 +99,25 @@ Le proxy `/api/vavoo/proxy` utilise les mêmes headers que votre PHP :
   "Sec-Fetch-Mode": "cors",
   "Sec-Fetch-Site": "same-origin"
 }
-```
+\`\`\`
 
 ### Réécriture des URLs M3U8
 
 Le proxy réécrit automatiquement les URLs relatives dans les playlists M3U8 :
 
 **Avant (M3U8 original) :**
-```
+\`\`\`
 #EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=2000000
 playlist_720p.m3u8
-```
+\`\`\`
 
 **Après (M3U8 réécrit) :**
-```
+\`\`\`
 #EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=2000000
 /api/vavoo/proxy?id=tf1-hd-123&path=playlist_720p.m3u8
-```
+\`\`\`
 
 ### Support des segments .ts
 
@@ -132,7 +132,7 @@ Les segments vidéo (.ts) sont streamés directement avec :
 
 ### Composant React
 
-```tsx
+\`\`\`tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -200,7 +200,7 @@ export function VavooPlayer({ channelId }: { channelId: string }) {
     />
   )
 }
-```
+\`\`\`
 
 ---
 
@@ -228,7 +228,7 @@ export function VavooPlayer({ channelId }: { channelId: string }) {
 
 Modifiez votre backend pour inclure Vavoo comme provider :
 
-```typescript
+\`\`\`typescript
 // Dans votre fonction de résolution de stream
 async function getStreamUrl(channel: Channel) {
   // Si la chaîne a un ID Vavoo
@@ -241,7 +241,7 @@ async function getStreamUrl(channel: Channel) {
   // Fallback sur vos autres providers
   return getOtherProviderStream(channel)
 }
-```
+\`\`\`
 
 ---
 
@@ -249,19 +249,19 @@ async function getStreamUrl(channel: Channel) {
 
 Le système log automatiquement dans la console :
 
-```
+\`\`\`
 [v0] Proxying Vavoo stream: https://vavoo.to/play/tf1-hd-123/index.m3u8
 [v0] Rewriting Vavoo M3U8 playlist for channel: tf1-hd-123
 [v0] Successfully fetched 500 channels from Vavoo
-```
+\`\`\`
 
 Pour activer plus de logs, ajoutez dans votre player :
 
-```typescript
+\`\`\`typescript
 hls.on(Hls.Events.MANIFEST_PARSED, () => {
   console.log('[v0] Manifest loaded successfully')
 })
-```
+\`\`\`
 
 ---
 
@@ -275,13 +275,13 @@ Le système gère automatiquement :
 
 Toutes les erreurs retournent un JSON avec détails :
 
-```json
+\`\`\`json
 {
   "error": "Failed to fetch stream",
   "details": "Connection timeout",
   "status": 504
 }
-```
+\`\`\`
 
 ---
 
@@ -289,7 +289,7 @@ Toutes les erreurs retournent un JSON avec détails :
 
 Exemple de card pour sélectionner une chaîne Vavoo :
 
-```tsx
+\`\`\`tsx
 function VavooChannelCard({ channel }: { channel: VavooChannel }) {
   return (
     <div 
@@ -302,7 +302,7 @@ function VavooChannelCard({ channel }: { channel: VavooChannel }) {
     </div>
   )
 }
-```
+\`\`\`
 
 ---
 
@@ -319,7 +319,7 @@ function VavooChannelCard({ channel }: { channel: VavooChannel }) {
 
 Le système est maintenant opérationnel ! Utilisez simplement :
 
-```typescript
+\`\`\`typescript
 // 1. Récupérer les chaînes
 const { channels } = await fetch('/api/vavoo/channels').then(r => r.json())
 
@@ -328,7 +328,7 @@ const { streamUrl } = await fetch(`/api/vavoo/stream?id=${channels[0].id}`).then
 
 // 3. Player
 <video src={streamUrl} controls autoPlay />
-```
+\`\`\`
 
 ---
 

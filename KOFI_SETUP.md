@@ -4,9 +4,9 @@
 
 Voici l'URL du webhook à ajouter dans Ko-fi pour recevoir les notifications de paiement :
 
-```
+\`\`\`
 https://votre-domaine.com/api/webhooks/kofi
-```
+\`\`\`
 
 **Remplacez `votre-domaine.com` par votre domaine réel** (exemple: `tvchannelstreamer11-seven.vercel.app`)
 
@@ -26,17 +26,17 @@ https://votre-domaine.com/api/webhooks/kofi
 4. **Verification Token (Optionnel mais recommandé)**
    - Ko-fi génère un token de vérification
    - Copiez-le et ajoutez-le comme variable d'environnement :
-   ```
+   \`\`\`
    KOFI_VERIFICATION_TOKEN=votre_token_ici
-   ```
+   \`\`\`
 
 ## Variables d'Environnement Requises
 
 Ajoutez à votre `.env.local` ou dans le dashboard Vercel :
 
-```
+\`\`\`
 KOFI_VERIFICATION_TOKEN=votre_token_de_verification
-```
+\`\`\`
 
 ## Flux du Paiement VIP
 
@@ -52,7 +52,7 @@ KOFI_VERIFICATION_TOKEN=votre_token_de_verification
 ## Structure de Données
 
 ### Table `kofi_payments`
-```sql
+\`\`\`sql
 - id (UUID) : Identifiant unique
 - kofi_transaction_id (TEXT) : ID de Ko-fi
 - user_id (UUID) : Lien vers l'utilisateur (nullable au départ)
@@ -64,14 +64,14 @@ KOFI_VERIFICATION_TOKEN=votre_token_de_verification
 - raw_data (JSONB) : Données brutes de Ko-fi
 - processed_at (TIMESTAMP) : Moment du traitement
 - created_at (TIMESTAMP) : Moment de la création
-```
+\`\`\`
 
 ### Colonnes ajoutées à `user_profiles`
-```sql
+\`\`\`sql
 - is_vip (BOOLEAN) : L'utilisateur est-il VIP ?
 - vip_purchased_at (TIMESTAMP) : Date d'achat du VIP
 - vip_expires_at (TIMESTAMP) : Date d'expiration (NULL pour illimité)
-```
+\`\`\`
 
 ## Tester le Webhook
 
@@ -81,7 +81,7 @@ KOFI_VERIFICATION_TOKEN=votre_token_de_verification
 - Cliquez pour envoyer un événement de test
 
 ### Option 2 : Test manuel avec cURL
-```bash
+\`\`\`bash
 curl -X POST https://votre-domaine.com/api/webhooks/kofi \
   -H "Content-Type: application/json" \
   -d '{
@@ -93,10 +93,10 @@ curl -X POST https://votre-domaine.com/api/webhooks/kofi \
     "amount": "5.00",
     "is_public": false
   }'
-```
+\`\`\`
 
 ### Option 3 : Test depuis Node.js/TypeScript
-```typescript
+\`\`\`typescript
 const response = await fetch('https://votre-domaine.com/api/webhooks/kofi', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -110,7 +110,7 @@ const response = await fetch('https://votre-domaine.com/api/webhooks/kofi', {
     is_public: false,
   }),
 })
-```
+\`\`\`
 
 ## Fichiers Créés
 
@@ -131,9 +131,9 @@ const response = await fetch('https://votre-domaine.com/api/webhooks/kofi', {
 ## Debugging
 
 Pour voir les logs des paiements Ko-fi, vérifiez la console Vercel :
-```
+\`\`\`
 vercel logs --prod
-```
+\`\`\`
 
 Les messages de debug commencent par `[v0]`.
 
