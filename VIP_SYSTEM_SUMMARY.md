@@ -51,17 +51,17 @@ Vous avez besoin de :
 
 ### 2. Variables d'Environnement
 Ajoutez à Vercel/variables :
-```
+\`\`\`
 KOFI_VERIFICATION_TOKEN=votre_token_verification
-```
+\`\`\`
 
 ### 3. Configuration du Webhook
 1. Allez sur https://ko-fi.com/manage
 2. Accédez à `More → Webhooks`
 3. Ajoutez le webhook :
-   ```
+   \`\`\`
    https://votre-app.vercel.app/api/webhooks/kofi
-   ```
+   \`\`\`
 4. Sélectionnez les événements : `Donation` et `Shop Order`
 
 ## 🚀 Flux Utilisateur
@@ -81,14 +81,14 @@ KOFI_VERIFICATION_TOKEN=votre_token_verification
 ## 📊 Base de Données
 
 ### Nouvelles Colonnes dans `user_profiles`
-```sql
+\`\`\`sql
 is_vip: boolean (default: false)
 vip_purchased_at: timestamp (date d'achat)
 vip_expires_at: timestamp (NULL = illimité)
-```
+\`\`\`
 
 ### Nouvelle Table `kofi_payments`
-```sql
+\`\`\`sql
 id: uuid (PK)
 kofi_transaction_id: text (unique)
 user_id: uuid (FK user_profiles, nullable)
@@ -100,7 +100,7 @@ status: text (pending, completed, failed)
 raw_data: jsonb (données brutes Ko-fi)
 processed_at: timestamp
 created_at: timestamp (auto)
-```
+\`\`\`
 
 ## 🔐 Sécurité
 
@@ -113,7 +113,7 @@ created_at: timestamp (auto)
 ## 🧪 Test
 
 ### Test du Webhook
-```bash
+\`\`\`bash
 curl -X POST https://votre-app.vercel.app/api/webhooks/kofi \
   -H "Content-Type: application/json" \
   -d '{
@@ -125,7 +125,7 @@ curl -X POST https://votre-app.vercel.app/api/webhooks/kofi \
     "amount": "5.00",
     "is_public": false
   }'
-```
+\`\`\`
 
 ## 📱 Routes
 
@@ -143,18 +143,18 @@ Le UserMenu a été mis à jour pour :
 ## ⚙️ Configuration du Lien Ko-fi
 
 Dans `/components/user-dashboard.tsx`, ligne ~220 :
-```tsx
+\`\`\`tsx
 <a href="https://ko-fi.com/YOUR_USERNAME" ...>
-```
+\`\`\`
 
 Remplacez `YOUR_USERNAME` par votre username Ko-fi.
 
 ## 🐛 Debugging
 
 Pour voir les logs des paiements :
-```bash
+\`\`\`bash
 vercel logs --prod
-```
+\`\`\`
 
 Les messages de debug commencent par `[v0]`.
 

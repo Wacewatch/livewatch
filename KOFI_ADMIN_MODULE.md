@@ -59,12 +59,12 @@ Cliquez sur le bouton "Exporter CSV" pour télécharger toutes les transactions 
 
 L'endpoint utilisé pour récupérer les transactions :
 
-```
+\`\`\`
 GET /api/admin/kofi-transactions
-```
+\`\`\`
 
 **Réponse :**
-```json
+\`\`\`json
 {
   "success": true,
   "transactions": [
@@ -85,7 +85,7 @@ GET /api/admin/kofi-transactions
   ],
   "total": 1
 }
-```
+\`\`\`
 
 ### Sécurité
 

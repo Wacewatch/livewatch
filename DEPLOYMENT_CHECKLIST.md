@@ -42,11 +42,11 @@
 ## 🎯 Prochaines Étapes
 
 ### 1. Déployer sur Vercel
-```bash
+\`\`\`bash
 git add .
 git commit -m "Add VIP system with Ko-fi"
 git push
-```
+\`\`\`
 
 ### 2. Configurer Ko-fi
 1. Allez sur https://ko-fi.com/manage
@@ -61,9 +61,9 @@ Dans Vercel Dashboard :
 
 ### 4. Configurer le Lien Ko-fi
 Éditez `/components/user-dashboard.tsx` ligne ~220 :
-```tsx
+\`\`\`tsx
 href="https://ko-fi.com/VOTRE_USERNAME"
-```
+\`\`\`
 
 ### 5. Tester
 - Accédez à `/login`
@@ -75,7 +75,7 @@ href="https://ko-fi.com/VOTRE_USERNAME"
 
 ## 🏗️ Architecture
 
-```
+\`\`\`
 ┌─────────────────────────────────────────┐
 │ Utilisateur clique "Acheter VIP"        │
 ├─────────────────────────────────────────┤
@@ -89,14 +89,14 @@ href="https://ko-fi.com/VOTRE_USERNAME"
 ├─────────────────────────────────────────┤
 │ Utilisateur devient VIP ✓               │
 └─────────────────────────────────────────┘
-```
+\`\`\`
 
 ---
 
 ## 📊 Base de Données
 
 ### Structure `user_profiles`
-```
+\`\`\`
 id: UUID (PK)
 email: TEXT
 full_name: TEXT
@@ -107,10 +107,10 @@ vip_expires_at: TIMESTAMP ← NOUVEAU (NULL = illimité)
 is_admin: BOOLEAN
 created_at: TIMESTAMP
 updated_at: TIMESTAMP
-```
+\`\`\`
 
 ### Structure `kofi_payments` (NOUVELLE)
-```
+\`\`\`
 id: UUID (PK)
 kofi_transaction_id: TEXT (UNIQUE)
 user_id: UUID (FK)
@@ -122,7 +122,7 @@ status: TEXT
 raw_data: JSONB
 processed_at: TIMESTAMP
 created_at: TIMESTAMP
-```
+\`\`\`
 
 ---
 
@@ -179,9 +179,9 @@ created_at: TIMESTAMP
 3. Accès aux paramètres de webhooks
 
 **URL Webhook à ajouter dans Ko-fi :**
-```
+\`\`\`
 https://votre-app.vercel.app/api/webhooks/kofi
-```
+\`\`\`
 
 ---
 
