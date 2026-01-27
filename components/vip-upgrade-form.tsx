@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Crown, Check, Zap, Star, Shield } from "lucide-react"
+import { Crown, Check, Zap, Star, Shield, ExternalLink } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { createBrowserClient } from "@supabase/ssr"
 
@@ -171,10 +171,16 @@ export function VipUpgradeForm() {
           </Button>
         </div>
 
-        <div className="mt-6 rounded-lg bg-muted/50 p-4">
-          <p className="text-sm text-muted-foreground">
-            💡 <strong>Vous n'avez pas de clé ?</strong> allez sur https://ko-fi.com/wavewatch/shop
-          </p>
+        <div className="mt-6">
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full border-amber-500/50 hover:bg-amber-500/10"
+            onClick={() => window.open("https://ko-fi.com/wavewatch/shop", "_blank")}
+          >
+            <ExternalLink className="mr-2 h-5 w-5" />
+            <span>Obtenir une clé VIP sur Ko-fi</span>
+          </Button>
         </div>
       </Card>
     </div>
