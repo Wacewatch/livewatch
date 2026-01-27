@@ -173,7 +173,7 @@ export function VipUpgradeForm() {
 
         <div className="mt-6 rounded-lg bg-muted/50 p-4">
           <p className="text-sm text-muted-foreground">
-            💡 <strong>Vous n'avez pas de clé ?</strong> Contactez un administrateur pour obtenir votre clé VIP à 5€.
+            💡 <strong>Vous n'avez pas de clé ?</strong> allez sur https://ko-fi.com/wavewatch/shop
           </p>
         </div>
       </Card>
