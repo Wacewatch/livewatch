@@ -21,12 +21,19 @@ export function UserMenu() {
   const { role, isAdmin, isVip } = useUserRole()
   const [showVipModal, setShowVipModal] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-
   useEffect(() => {
+    // Create Supabase client inside useEffect to ensure env vars are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    // Only create client if env vars are available
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn("[v0] Supabase env vars not available in UserMenu")
+      return
+    }
+
+    const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+
     async function getUser() {
       const {
         data: { user },
@@ -45,9 +52,18 @@ export function UserMenu() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [])
 
   const handleLogout = async () => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn("[v0] Cannot logout: Supabase not configured")
+      return
+    }
+
+    const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
     await supabase.auth.signOut()
     router.refresh()
   }

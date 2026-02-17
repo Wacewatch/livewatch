@@ -15,6 +15,9 @@ export async function GET() {
         source3_enabled: true,
         source4_enabled: true,
         external_proxy_url: "", // Added external proxy URL support
+        default_tvvoo_source: 1, // Default to beta (second) alternative source
+        alpha_enabled: true, // Alpha source enabled by default
+        beta_enabled: true, // Beta source enabled by default
       })
     }
 
@@ -27,6 +30,9 @@ export async function GET() {
       source3_enabled: true,
       source4_enabled: true,
       external_proxy_url: "",
+      default_tvvoo_source: 1,
+      alpha_enabled: true,
+      beta_enabled: true,
     })
   }
 }
@@ -42,6 +48,9 @@ export async function PUT(request: Request) {
       source3_enabled: config.source3_enabled ?? true,
       source4_enabled: config.source4_enabled ?? true,
       external_proxy_url: config.external_proxy_url ?? "",
+      default_tvvoo_source: config.default_tvvoo_source ?? 1,
+      alpha_enabled: config.alpha_enabled ?? true,
+      beta_enabled: config.beta_enabled ?? true,
     }
 
     const { error } = await supabase.from("app_config").upsert({

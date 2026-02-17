@@ -19,7 +19,7 @@ const COUNTRY_MAP: Record<string, string> = {
   Albania: "al",
   Turkey: "tr",
   Arabia: "ar",
-  Balkans: "rs",
+  Balkans: "bk", // Changed from "rs" to "bk" for new system
   Russia: "ru",
   Romania: "ro",
   Poland: "pl",
@@ -70,12 +70,11 @@ export interface TvVooStreamResponse {
 }
 
 // Build config path from country codes
+// The new TvVoo system uses a fixed multi-country config path
 function buildConfigPath(countries: string[]): string {
-  if (countries.length === 0) return "cfg-fr" // Default to France
-
-  const countryCodes = countries.map((c) => COUNTRY_MAP[c] || c.toLowerCase()).filter(Boolean)
-
-  return `cfg-${countryCodes.join("-")}`
+  // New format: cfg-it-uk-fr-de-pt-es-al-tr-nl-ar-bk-ru-ro-pl-bg-res
+  // This is a fixed path that includes all supported countries
+  return "cfg-it-uk-fr-de-pt-es-al-tr-nl-ar-bk-ru-ro-pl-bg-res"
 }
 
 // Fetch manifest from TvVoo
@@ -116,7 +115,8 @@ export async function fetchTvVooCatalog(
 ): Promise<TvVooCatalogResponse | null> {
   try {
     const configPath = buildConfigPath(countries)
-    const url = `${TVVOO_BASE_URL}/${configPath}/catalog/${catalogType}/${catalogId}.json`
+    // New TvVoo format requires /genre=Tutti to get all channels
+    const url = `${TVVOO_BASE_URL}/${configPath}/catalog/${catalogType}/${catalogId}/genre=Tutti.json`
 
     console.log("[v0] Fetching TvVoo catalog:", url)
 
@@ -173,7 +173,7 @@ export async function fetchTvVooStream(countries: string[], channelId: string): 
   }
 }
 
-// Get first available stream URL
+// Get first available stream URL (legacy function for backward compatibility)
 export async function getTvVooStreamUrl(countries: string[], channelId: string): Promise<string | null> {
   const streamData = await fetchTvVooStream(countries, channelId)
 
@@ -182,4 +182,15 @@ export async function getTvVooStreamUrl(countries: string[], channelId: string):
   }
 
   return streamData.streams[0].url
+}
+
+// Get all available streams with their names
+export async function getTvVooStreams(countries: string[], channelId: string): Promise<TvVooStream[]> {
+  const streamData = await fetchTvVooStream(countries, channelId)
+
+  if (!streamData || !streamData.streams || streamData.streams.length === 0) {
+    return []
+  }
+
+  return streamData.streams
 }

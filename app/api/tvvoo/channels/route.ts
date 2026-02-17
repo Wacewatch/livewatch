@@ -181,11 +181,45 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to load manifest" }, { status: 500 })
     }
 
-    const tvCatalog = manifest.catalogs?.find((c) => c.type === "tv")
+    // Map country to TvVoo catalog ID
+    const countryCodeMap: Record<string, string> = {
+      France: "fr",
+      Italy: "it",
+      Spain: "es",
+      Portugal: "pt",
+      Germany: "de",
+      UK: "uk",
+      "United Kingdom": "uk",
+      Belgium: "be",
+      Netherlands: "nl",
+      Switzerland: "ch",
+      Albania: "al",
+      Turkey: "tr",
+      Arabia: "ar",
+      Balkans: "bk",
+      Russia: "ru",
+      Romania: "ro",
+      Poland: "pl",
+      Bulgaria: "bg",
+    }
+
+    const countryCode = countryCodeMap[countries[0]] || "fr"
+    const catalogId = `vavoo_tv_${countryCode}`
+
+    console.log("[v0] Looking for catalog:", catalogId, "for country:", countries[0])
+
+    let tvCatalog = manifest.catalogs?.find((c) => c.type === "tv" && c.id === catalogId)
 
     if (!tvCatalog) {
-      console.error("[v0] No TV catalog found in manifest")
-      return NextResponse.json({ error: "No TV catalog available" }, { status: 500 })
+      console.error("[v0] No TV catalog found for", catalogId)
+      // Fallback to first available TV catalog
+      tvCatalog = manifest.catalogs?.find((c) => c.type === "tv")
+      if (!tvCatalog) {
+        return NextResponse.json({ error: "No TV catalog available" }, { status: 500 })
+      }
+      console.log("[v0] Using fallback catalog:", tvCatalog.id)
+    } else {
+      console.log("[v0] Found catalog:", tvCatalog.name)
     }
 
     const catalog = await fetchTvVooCatalog(countries, "tv", tvCatalog.id)
