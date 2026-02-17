@@ -59,7 +59,8 @@ type ProxyType = "default" | "external" | "rotator" | "vavoo"
 export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
   const { toast } = useToast()
-  const [adUnlocked, setAdUnlocked] = useState(false)
+  // VIP/Admin users start with ads unlocked immediately - no modal shown
+  const [adUnlocked, setAdUnlocked] = useState(isVip || isAdmin || forceNoAds)
   const [loading, setLoading] = useState(false)
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

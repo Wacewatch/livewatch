@@ -285,7 +285,7 @@ export default function UserDashboard() {
                 </div>
 
                 {/* Member Since */}
-                <div className="w-full p-4 rounded-xl bg-slate-800/50 border border-border/30">
+                <div className="w-full p-4 rounded-xl bg-slate-800/50 border border-border/30 mb-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar className="w-4 h-4 text-primary" />
                     <span className="text-xs text-muted-foreground font-semibold">Membre depuis</span>
@@ -298,11 +298,29 @@ export default function UserDashboard() {
                     })}
                   </span>
                 </div>
+
+                {/* VIP Activation Date - Only show if VIP */}
+                {isVipOrAdmin && user.vip_purchased_at && (
+                  <div className="w-full p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Crown className="w-4 h-4 text-yellow-400" />
+                      <span className="text-xs text-yellow-400 font-semibold">Premium activé le</span>
+                    </div>
+                    <span className="text-sm font-mono text-yellow-300">
+                      {new Date(user.vip_purchased_at).toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* VIP Section - Only show if not VIP or Admin */}
-            {!isVipOrAdmin && (
+            {/* VIP Section */}
+            {!isVipOrAdmin ? (
+              /* Show VIP upgrade options for non-VIP users */
               <div className="glass-card border border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 via-transparent to-yellow-500/5 rounded-2xl p-6">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-yellow-500/20 border border-yellow-500/50 flex items-center justify-center flex-shrink-0">
@@ -396,6 +414,29 @@ export default function UserDashboard() {
                     )}
                   </div>
                 )}
+              </div>
+            ) : (
+              /* Show gift option for VIP/Admin users */
+              <div className="glass-card border border-primary/30 bg-gradient-to-br from-primary/10 via-transparent to-accent/5 rounded-2xl p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center flex-shrink-0">
+                    <Crown className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-foreground mb-1">Offrir le VIP</h3>
+                    <p className="text-xs text-muted-foreground">Partagez l'expérience premium avec vos amis</p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://ko-fi.com/wavewatch"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-primary to-accent hover:from-primary/80 hover:to-accent/80 text-white font-bold text-sm transition-all duration-300 hover:shadow-lg hover:shadow-primary/30"
+                >
+                  Acheter une clé VIP pour un ami
+                  <ExternalLink className="w-4 h-4" />
+                </a>
               </div>
             )}
 
