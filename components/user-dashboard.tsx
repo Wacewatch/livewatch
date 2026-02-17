@@ -94,26 +94,43 @@ export default function UserDashboard() {
       if (!user) return
       
       try {
-        const { data, error } = await supabase
+        // Fetch user favorites first (no foreign key relationship exists)
+        const { data: favData, error: favError } = await supabase
           .from('user_favorites')
-          .select(`
-            id,
-            channel_id,
-            created_at,
-            channels (
-              name,
-              logo,
-              category
-            )
-          `)
+          .select('id, channel_id, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(6)
 
-        if (error) throw error
-        setFavorites(data || [])
+        if (favError) throw favError
+
+        // Fetch channel details separately
+        if (favData && favData.length > 0) {
+          const channelIds = favData.map(f => f.channel_id)
+          const { data: channelsData, error: channelsError } = await supabase
+            .from('channels')
+            .select('id, name, logo, category')
+            .in('id', channelIds)
+
+          if (channelsError) throw channelsError
+
+          // Merge favorites with channel data
+          const mergedData = favData.map(fav => ({
+            ...fav,
+            channels: channelsData?.find(ch => ch.id === fav.channel_id) || {
+              name: 'Chaîne inconnue',
+              logo: '',
+              category: 'N/A'
+            }
+          }))
+
+          setFavorites(mergedData)
+        } else {
+          setFavorites([])
+        }
       } catch (error) {
         console.error('[v0] Error fetching favorites:', error)
+        setFavorites([])
       } finally {
         setLoadingFavorites(false)
       }
