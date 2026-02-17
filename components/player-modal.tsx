@@ -87,6 +87,8 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   })
   const [customSources, setCustomSources] = useState<CustomProxySource[]>([])
   const [currentCustomSourceId, setCurrentCustomSourceId] = useState<string | null>(null)
+  const [tvvooSources, setTvvooSources] = useState<Array<{ id: string; name: string; streamUrl: string; originalUrl: string }>>([])
+  const [currentTvvooSourceIndex, setCurrentTvvooSourceIndex] = useState<number>(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -534,6 +536,13 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         const data = await response.json()
         console.log("[v0] TvVoo stream data received")
 
+        // Store all available TvVoo sources
+        if (data.sources && data.sources.length > 0) {
+          console.log("[v0] Found", data.sources.length, "TvVoo sources:", data.sources.map((s: any) => s.name).join(", "))
+          setTvvooSources(data.sources)
+          setCurrentTvvooSourceIndex(0)
+        }
+
         if (data.originalUrl) {
           setOriginalStreamUrl(data.originalUrl)
           const finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
@@ -573,6 +582,24 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     setRetryCount(0)
     stopTrackingSession()
     loadStreamSource(selectedSourceIndex, "default", sourceId)
+  }
+
+  const switchToTvvooSource = (sourceIndex: number) => {
+    if (!tvvooSources || tvvooSources.length === 0 || sourceIndex >= tvvooSources.length) {
+      console.error("[v0] Invalid TvVoo source index:", sourceIndex)
+      return
+    }
+
+    const selectedSource = tvvooSources[sourceIndex]
+    console.log(`[v0] Switching to TvVoo source: ${selectedSource.name}`)
+    setCurrentTvvooSourceIndex(sourceIndex)
+    setRetryCount(0)
+    stopTrackingSession()
+
+    // Play the selected TvVoo source directly
+    setOriginalStreamUrl(selectedSource.originalUrl)
+    setStreamUrl(selectedSource.streamUrl)
+    playSource(selectedSource.streamUrl, currentProxy)
   }
 
   const switchProxySource = (proxyType: ProxyType) => {
@@ -1035,6 +1062,29 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                           <Server className="h-4 w-4 mr-2 text-green-400" />
                           Source {index + 4} - {source.name}
                           {!source.enabled && <Badge className="ml-2 text-xs bg-orange-500">Désactivée</Badge>}
+                        </DropdownMenuItem>
+                      ))}
+                    </>
+                  )}
+
+                  {tvvooSources.length > 1 && (
+                    <>
+                      <div className="border-t border-slate-700 my-1" />
+                      <div className="px-2 py-1 text-xs text-white/40 font-medium">Sources TvVoo</div>
+                      {tvvooSources.map((source, index) => (
+                        <DropdownMenuItem
+                          key={`tvvoo-${index}`}
+                          onClick={() => {
+                            switchToTvvooSource(index)
+                            setSourceMenuOpen(false)
+                          }}
+                          className={`${currentTvvooSourceIndex === index ? "bg-blue-500/20 text-blue-400" : ""}`}
+                        >
+                          <Sparkles className="h-4 w-4 mr-2 text-blue-400" />
+                          {source.name}
+                          {currentTvvooSourceIndex === index && (
+                            <Badge className="ml-2 text-xs bg-blue-500">Active</Badge>
+                          )}
                         </DropdownMenuItem>
                       ))}
                     </>

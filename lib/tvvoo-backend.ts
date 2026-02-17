@@ -118,7 +118,6 @@ export async function fetchTvVooCatalog(
     // New TvVoo format requires /genre=Tutti to get all channels
     const url = `${TVVOO_BASE_URL}/${configPath}/catalog/${catalogType}/${catalogId}/genre=Tutti.json`
 
-    console.log("[v0] ✅ UPDATED: Using NEW TvVoo format with /genre=Tutti")
     console.log("[v0] Fetching TvVoo catalog:", url)
 
     const response = await fetch(url, {
@@ -174,7 +173,7 @@ export async function fetchTvVooStream(countries: string[], channelId: string): 
   }
 }
 
-// Get first available stream URL
+// Get first available stream URL (legacy function for backward compatibility)
 export async function getTvVooStreamUrl(countries: string[], channelId: string): Promise<string | null> {
   const streamData = await fetchTvVooStream(countries, channelId)
 
@@ -183,4 +182,15 @@ export async function getTvVooStreamUrl(countries: string[], channelId: string):
   }
 
   return streamData.streams[0].url
+}
+
+// Get all available streams with their names
+export async function getTvVooStreams(countries: string[], channelId: string): Promise<TvVooStream[]> {
+  const streamData = await fetchTvVooStream(countries, channelId)
+
+  if (!streamData || !streamData.streams || streamData.streams.length === 0) {
+    return []
+  }
+
+  return streamData.streams
 }
