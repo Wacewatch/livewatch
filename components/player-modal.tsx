@@ -159,6 +159,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           setCurrentProxy(initialProxy)
           
           if (isVip || isAdmin || forceNoAds) {
+            console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock (catch)")
+            setAdUnlocked(true)
+            setTimeout(() => loadStreamSource(0, initialProxy), 100)
+          } else {
+            setAdUnlocked(false)
+          }
+          
+          if (isVip || isAdmin || forceNoAds) {
             setAdUnlocked(true)
             setTimeout(() => loadStreamSource(0, initialProxy), 100)
           } else {
