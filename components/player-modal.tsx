@@ -112,32 +112,36 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         .then((config) => {
           setSourceConfig(config)
           
-              // Déterminer la source demandée par l'URL
-              const urlParams = new URLSearchParams(window.location.search)
-              const sourceParam = urlParams.get("source")
-              
-              // Handle alternative sources (alpha/beta) - map to tvvoo source index
-              if (sourceParam === "alpha" || sourceParam === "beta") {
-                const tvvooIndex = sourceParam === "alpha" ? 0 : 1
-                console.log(`[v0] URL source parameter: ${sourceParam} => using alternative source ${tvvooIndex}`)
-                // We'll load the TvVoo stream and select the specific source after loading
-                setCurrentProxy("default") // Temp proxy until TvVoo sources are loaded
-              } else {
-                let requestedProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : sourceParam === "4" ? "vavoo" : "default"
+          // Déterminer la source demandée par l'URL
+          const urlParams = new URLSearchParams(window.location.search)
+          const sourceParam = urlParams.get("source")
+          
+          // Declare finalProxy in the outer scope
+          let finalProxy: ProxyType = "default"
+          
+          // Handle alternative sources (alpha/beta) - map to tvvoo source index
+          if (sourceParam === "alpha" || sourceParam === "beta") {
+            const tvvooIndex = sourceParam === "alpha" ? 0 : 1
+            console.log(`[v0] URL source parameter: ${sourceParam} => using alternative source ${tvvooIndex}`)
+            // We'll load the TvVoo stream and select the specific source after loading
+            finalProxy = "default"
+            setCurrentProxy(finalProxy)
+          } else {
+            let requestedProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : sourceParam === "4" ? "vavoo" : "default"
 
-                // Mapper proxy type vers source enabled
-                const sourceEnabledMap = {
-                  default: sourceConfig.source1_enabled,
-                  external: sourceConfig.source2_enabled,
-                  rotator: sourceConfig.source3_enabled,
-                  vavoo: sourceConfig.source4_enabled,
-                }
+            // Mapper proxy type vers source enabled
+            const sourceEnabledMap = {
+              default: config.source1_enabled,
+              external: config.source2_enabled,
+              rotator: config.source3_enabled,
+              vavoo: config.source4_enabled,
+            }
 
-                const finalProxy = sourceEnabledMap[requestedProxy] ? requestedProxy : "default"
-                console.log(`[v0] URL source parameter: ${sourceParam || "1"} => using proxy: ${finalProxy}`)
+            finalProxy = sourceEnabledMap[requestedProxy] ? requestedProxy : "default"
+            console.log(`[v0] URL source parameter: ${sourceParam || "1"} => using proxy: ${finalProxy}`)
 
-                setCurrentProxy(finalProxy)
-              }
+            setCurrentProxy(finalProxy)
+          }
           
           if (isVip || isAdmin || forceNoAds) {
             console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
@@ -1128,7 +1132,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     </>
                   )}
 
-                  {tvvooSources.length > 1 && (
+                  {tvvooSources.length >= 1 && (
                     <>
                       <div className="border-t border-slate-700 my-1" />
                       <div className="px-2 py-1 text-xs text-white/40 font-medium">Sources alternatives</div>

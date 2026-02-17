@@ -5,17 +5,34 @@ import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowLeft, Crown, Mail, User, Calendar, Copy, Check, Zap, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Crown, Mail, User, Calendar, Copy, Check, Zap, ExternalLink, Heart, Clock, Key, Loader2, X, Tv } from 'lucide-react'
 
 interface UserProfile {
   id: string
   email: string
-  full_name: string | null
-  avatar_url: string | null
   is_vip: boolean
   vip_purchased_at: string | null
-  is_admin: boolean
+  role: string | null
   created_at: string
+}
+
+interface FavoriteChannel {
+  id: string
+  channel_id: string
+  created_at: string
+  channels: {
+    name: string
+    logo: string
+    category: string
+  }
+}
+
+interface ViewHistory {
+  id: string
+  channel_id: string
+  channel_name: string
+  viewed_at: string
+  duration_seconds: number
 }
 
 export default function UserDashboard() {
@@ -23,6 +40,17 @@ export default function UserDashboard() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [copiedEmail, setCopiedEmail] = useState(false)
+  const [favorites, setFavorites] = useState<FavoriteChannel[]>([])
+  const [history, setHistory] = useState<ViewHistory[]>([])
+  const [loadingFavorites, setLoadingFavorites] = useState(true)
+  const [loadingHistory, setLoadingHistory] = useState(true)
+  
+  // VIP Key state
+  const [showVipKeyInput, setShowVipKeyInput] = useState(false)
+  const [vipKey, setVipKey] = useState('')
+  const [redeemingVip, setRedeemingVip] = useState(false)
+  const [vipError, setVipError] = useState<string | null>(null)
+  const [vipSuccess, setVipSuccess] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -61,6 +89,62 @@ export default function UserDashboard() {
     fetchUser()
   }, [supabase, router])
 
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      if (!user) return
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_favorites')
+          .select(`
+            id,
+            channel_id,
+            created_at,
+            channels (
+              name,
+              logo,
+              category
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(6)
+
+        if (error) throw error
+        setFavorites(data || [])
+      } catch (error) {
+        console.error('[v0] Error fetching favorites:', error)
+      } finally {
+        setLoadingFavorites(false)
+      }
+    }
+
+    const fetchHistory = async () => {
+      if (!user) return
+      
+      try {
+        const { data, error } = await supabase
+          .from('channel_views')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('viewed_at', { ascending: false })
+          .limit(10)
+
+        if (error) throw error
+        setHistory(data || [])
+      } catch (error) {
+        console.error('[v0] Error fetching history:', error)
+      } finally {
+        setLoadingHistory(false)
+      }
+    }
+
+    if (user) {
+      fetchFavorites()
+      fetchHistory()
+    }
+  }, [user, supabase])
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     setCopiedEmail(true)
@@ -71,6 +155,52 @@ export default function UserDashboard() {
     await supabase.auth.signOut()
     router.push('/')
   }
+
+  const handleRedeemVipKey = async () => {
+    if (!vipKey.trim()) {
+      setVipError('Veuillez entrer une clé VIP')
+      return
+    }
+
+    setRedeemingVip(true)
+    setVipError(null)
+
+    try {
+      const response = await fetch('/api/vip/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: vipKey.trim() }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de l\'activation')
+      }
+
+      setVipSuccess(true)
+      setTimeout(() => {
+        router.refresh()
+        window.location.reload()
+      }, 2000)
+    } catch (err) {
+      setVipError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setRedeemingVip(false)
+    }
+  }
+
+  const formatDuration = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`
+    }
+    return `${minutes}m`
+  }
+
+  const isVipOrAdmin = user?.is_vip || user?.role === 'admin'
 
   if (loading) {
     return (
@@ -91,13 +221,15 @@ export default function UserDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
       <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
-        <div className="max-w-screen-lg mx-auto p-3 md:p-5 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto p-3 md:p-5 flex items-center justify-between">
           <Link
             href="/"
             className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl glass-card border border-border/50 flex items-center justify-center hover:border-primary/50 hover:scale-105 transition-all"
           >
             <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 text-foreground" />
           </Link>
+
+          <h1 className="text-lg md:text-xl font-bold text-foreground">Mon Dashboard</h1>
 
           <button
             onClick={handleLogout}
@@ -109,169 +241,288 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-screen-lg mx-auto p-3 md:p-6 lg:p-10">
-        {/* Profile Card */}
-        <div className="mb-6 md:mb-8">
-          <div className="glass-card border border-border/50 rounded-2xl p-4 md:p-8">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-6">
-              {/* Avatar Section */}
-              <div className="flex items-center gap-4">
-                <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-primary/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {user.avatar_url ? (
-                    <Image
-                      src={user.avatar_url || "/placeholder.svg"}
-                      alt={user.full_name || 'Avatar'}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <User className="w-8 h-8 md:w-10 md:h-10 text-primary" />
-                  )}
+      <main className="max-w-7xl mx-auto p-3 md:p-6 lg:p-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Profile & VIP */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Profile Card */}
+            <div className="glass-card border border-border/50 rounded-2xl p-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-primary/50 flex items-center justify-center overflow-hidden mb-4">
+                  <User className="w-10 h-10 md:w-12 md:h-12 text-primary" />
                 </div>
 
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
-                    {user.full_name || 'Utilisateur'}
-                  </h1>
-                  {user.is_vip && (
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/30 w-fit">
-                      <Crown className="w-4 h-4 text-yellow-400" />
-                      <span className="text-xs md:text-sm font-bold text-yellow-400">VIP Premium</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+                <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">Mon Profil</h2>
 
-            {/* User Info Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Email */}
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-border/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <Mail className="w-4 h-4 text-primary" />
-                  <span className="text-xs text-muted-foreground font-semibold">Email</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm md:text-base font-mono text-foreground">{user.email}</span>
-                  <button
-                    onClick={() => copyToClipboard(user.email)}
-                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    {copiedEmail ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Member Since */}
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-border/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <Calendar className="w-4 h-4 text-primary" />
-                  <span className="text-xs text-muted-foreground font-semibold">Membre depuis</span>
-                </div>
-                <span className="text-sm md:text-base font-mono text-foreground">
-                  {new Date(user.created_at).toLocaleDateString('fr-FR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </span>
-              </div>
-
-              {/* VIP Status */}
-              {user.is_vip && user.vip_purchased_at && (
-                <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
-                  <div className="flex items-center gap-2 mb-2">
+                {isVipOrAdmin && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 mb-4">
                     <Crown className="w-4 h-4 text-yellow-400" />
-                    <span className="text-xs text-yellow-400 font-semibold">VIP Depuis</span>
+                    <span className="text-sm font-bold text-yellow-400">
+                      {user.role === 'admin' ? 'Admin' : 'VIP Premium'}
+                    </span>
                   </div>
-                  <span className="text-sm md:text-base font-mono text-yellow-400">
-                    {new Date(user.vip_purchased_at).toLocaleDateString('fr-FR', {
+                )}
+
+                {/* Email */}
+                <div className="w-full p-4 rounded-xl bg-slate-800/50 border border-border/30 mb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Mail className="w-4 h-4 text-primary" />
+                    <span className="text-xs text-muted-foreground font-semibold">Email</span>
+                  </div>
+                  <div className="flex items-center gap-2 justify-between">
+                    <span className="text-sm font-mono text-foreground truncate">{user.email}</span>
+                    <button
+                      onClick={() => copyToClipboard(user.email)}
+                      className="p-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+                    >
+                      {copiedEmail ? (
+                        <Check className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Member Since */}
+                <div className="w-full p-4 rounded-xl bg-slate-800/50 border border-border/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    <span className="text-xs text-muted-foreground font-semibold">Membre depuis</span>
+                  </div>
+                  <span className="text-sm font-mono text-foreground">
+                    {new Date(user.created_at).toLocaleDateString('fr-FR', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
                     })}
                   </span>
                 </div>
-              )}
+              </div>
+            </div>
 
-              {/* Admin Badge */}
-              {user.is_admin && (
-                <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Zap className="w-4 h-4 text-blue-400" />
-                    <span className="text-xs text-blue-400 font-semibold">Rôle</span>
+            {/* VIP Section - Only show if not VIP or Admin */}
+            {!isVipOrAdmin && (
+              <div className="glass-card border border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 via-transparent to-yellow-500/5 rounded-2xl p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-yellow-500/20 border border-yellow-500/50 flex items-center justify-center flex-shrink-0">
+                    <Crown className="w-5 h-5 text-yellow-400" />
                   </div>
-                  <span className="text-sm md:text-base font-mono text-blue-400">Administrateur</span>
+                  <div>
+                    <h3 className="text-lg font-bold text-foreground mb-1">VIP Premium</h3>
+                    <p className="text-xs text-muted-foreground">Aucune publicité</p>
+                  </div>
+                </div>
+
+                {!showVipKeyInput ? (
+                  <div className="space-y-3">
+                    <a
+                      href="https://ko-fi.com/wavewatch"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30"
+                    >
+                      Acheter VIP
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+
+                    <button
+                      onClick={() => setShowVipKeyInput(true)}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-border/50 text-foreground font-semibold text-sm transition-all"
+                    >
+                      <Key className="w-4 h-4" />
+                      J'ai un code VIP
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {vipSuccess ? (
+                      <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 text-center">
+                        <Check className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                        <p className="text-green-400 font-semibold">VIP activé avec succès !</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <input
+                            type="text"
+                            value={vipKey}
+                            onChange={(e) => setVipKey(e.target.value)}
+                            placeholder="Entrez votre clé VIP"
+                            className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+                            disabled={redeemingVip}
+                          />
+                        </div>
+
+                        {vipError && (
+                          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                            <p className="text-red-400 text-xs text-center">{vipError}</p>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setShowVipKeyInput(false)
+                              setVipKey('')
+                              setVipError(null)
+                            }}
+                            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-border/50 text-foreground font-semibold text-sm transition-all"
+                            disabled={redeemingVip}
+                          >
+                            <X className="w-4 h-4" />
+                            Annuler
+                          </button>
+
+                          <button
+                            onClick={handleRedeemVipKey}
+                            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm transition-all"
+                            disabled={redeemingVip || !vipKey.trim()}
+                          >
+                            {redeemingVip ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Activation...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-4 h-4" />
+                                Activer
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VIP Active Badge */}
+            {isVipOrAdmin && (
+              <div className="glass-card border border-green-500/30 bg-gradient-to-br from-green-500/10 via-transparent to-green-500/5 rounded-2xl p-6">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500/20 border border-green-500/50 flex items-center justify-center flex-shrink-0">
+                    <Check className="w-5 h-5 text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-foreground mb-1">
+                      {user.role === 'admin' ? 'Administrateur' : 'VIP Premium Actif'}
+                    </h3>
+                    <p className="text-sm text-green-400">
+                      {user.role === 'admin' ? 'Accès complet à toutes les fonctionnalités' : 'Merci pour votre soutien !'}
+                    </p>
+                    {user.vip_purchased_at && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Depuis le {new Date(user.vip_purchased_at).toLocaleDateString('fr-FR')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column - Favorites & History */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Favorites Section */}
+            <div className="glass-card border border-border/50 rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center">
+                  <Heart className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">Mes Favoris</h3>
+                  <p className="text-xs text-muted-foreground">Vos chaînes préférées</p>
+                </div>
+              </div>
+
+              {loadingFavorites ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Chargement...</p>
+                </div>
+              ) : favorites.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {favorites.map((fav) => (
+                    <Link
+                      key={fav.id}
+                      href={`/?channel=${fav.channel_id}`}
+                      className="group p-4 rounded-xl bg-slate-800/50 border border-border/30 hover:border-primary/50 hover:bg-slate-800 transition-all"
+                    >
+                      <div className="relative w-full aspect-video rounded-lg overflow-hidden mb-3 bg-slate-900">
+                        {fav.channels.logo && (
+                          <Image
+                            src={fav.channels.logo}
+                            alt={fav.channels.name}
+                            fill
+                            className="object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        )}
+                      </div>
+                      <h4 className="text-sm font-semibold text-foreground truncate mb-1">{fav.channels.name}</h4>
+                      <p className="text-xs text-muted-foreground truncate">{fav.channels.category}</p>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Heart className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                  <p className="text-muted-foreground">Aucun favori pour le moment</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Ajoutez vos chaînes préférées en cliquant sur le cœur</p>
+                </div>
+              )}
+            </div>
+
+            {/* History Section */}
+            <div className="glass-card border border-border/50 rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">Historique</h3>
+                  <p className="text-xs text-muted-foreground">Chaînes récemment regardées</p>
+                </div>
+              </div>
+
+              {loadingHistory ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Chargement...</p>
+                </div>
+              ) : history.length > 0 ? (
+                <div className="space-y-3">
+                  {history.map((view) => (
+                    <div
+                      key={view.id}
+                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-800/50 border border-border/30 hover:border-primary/50 hover:bg-slate-800 transition-all"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-slate-900 border border-border/30 flex items-center justify-center flex-shrink-0">
+                        <Tv className="w-6 h-6 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-semibold text-foreground truncate mb-1">{view.channel_name}</h4>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>{new Date(view.viewed_at).toLocaleDateString('fr-FR')}</span>
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                          <span>{formatDuration(view.duration_seconds)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Clock className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                  <p className="text-muted-foreground">Aucun historique</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Commencez à regarder des chaînes</p>
                 </div>
               )}
             </div>
           </div>
         </div>
-
-        {/* VIP Section */}
-        {!user.is_vip && (
-          <div className="mb-6 md:mb-8">
-            <div className="glass-card border border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 via-transparent to-yellow-500/5 rounded-2xl p-4 md:p-8">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-yellow-500/20 border border-yellow-500/50 flex items-center justify-center flex-shrink-0">
-                  <Crown className="w-6 h-6 text-yellow-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Passer à VIP Premium</h2>
-                  <p className="text-sm md:text-base text-muted-foreground">
-                    Débloquez des fonctionnalités premium illimitées et aucune limite de publicité
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {[
-                  
-                  'Aucune publicité',
-                 
-                ].map((benefit) => (
-                  <div key={benefit} className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                    <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                    <span className="text-xs md:text-sm text-foreground font-medium">{benefit}</span>
-                  </div>
-                ))}
-              </div>
-
-              <a
-                href="https://ko-fi.com/wavewatch"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 rounded-xl md:rounded-2xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm md:text-base transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30"
-              >
-                Acheter VIP Premium
-                <ExternalLink className="w-4 h-4 md:w-5 md:h-5" />
-              </a>
-
-              <p className="text-xs text-muted-foreground mt-4">
-                Vous serez redirigé vers Ko-fi pour effectuer le paiement. Une fois le paiement confirmé, votre compte sera automatiquement mis à jour.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* VIP Benefits Info */}
-        {user.is_vip && (
-          <div className="glass-card border border-green-500/30 bg-gradient-to-br from-green-500/10 via-transparent to-green-500/5 rounded-2xl p-4 md:p-8">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-green-500/20 border border-green-500/50 flex items-center justify-center flex-shrink-0">
-                <Check className="w-6 h-6 text-green-400" />
-              </div>
-              <div>
-                <h3 className="text-lg md:text-xl font-bold text-foreground mb-2">VIP Premium Activé ✓</h3>
-                <p className="text-sm text-green-400">Merci pour votre soutien ! Vous bénéficiez maintenant de toutes les fonctionnalités VIP.</p>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   )
