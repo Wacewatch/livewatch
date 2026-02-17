@@ -15,7 +15,9 @@ export async function GET() {
         source3_enabled: true,
         source4_enabled: true,
         external_proxy_url: "", // Added external proxy URL support
-        default_tvvoo_source: 0, // Default to first alternative source
+        default_tvvoo_source: 1, // Default to beta (second) alternative source
+        alpha_enabled: true, // Alpha source enabled by default
+        beta_enabled: true, // Beta source enabled by default
       })
     }
 

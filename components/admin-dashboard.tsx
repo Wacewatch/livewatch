@@ -138,6 +138,8 @@ interface SourceConfig {
   source3_enabled: boolean
   external_proxy_url?: string // Added to SourceConfig
   default_tvvoo_source?: number // Default TvVoo alternative source (0 for first, 1 for second, etc.)
+  alpha_enabled?: boolean // Enable/disable alpha source
+  beta_enabled?: boolean // Enable/disable beta source
 }
 
 interface GlobalBanner {
@@ -1236,7 +1238,51 @@ export function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="px-4 pb-4">
+              <div className="px-4 pb-4 space-y-3">
+                <div className="p-4 rounded-xl glass-card border border-border/50">
+                  <Label className="text-sm font-semibold text-foreground mb-3 block">
+                    Sources alternatives
+                  </Label>
+                  
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Source Alpha</p>
+                      <p className="text-xs text-muted-foreground">Première source alternative</p>
+                    </div>
+                    <Switch
+                      checked={sourceConfig.alpha_enabled !== false}
+                      onCheckedChange={(checked) => {
+                        const newConfig = { ...sourceConfig, alpha_enabled: checked }
+                        setSourceConfig(newConfig)
+                        fetch("/api/admin/source-config", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(newConfig),
+                        })
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between py-2 border-t border-border/30 mt-2 pt-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Source Beta</p>
+                      <p className="text-xs text-muted-foreground">Deuxième source alternative</p>
+                    </div>
+                    <Switch
+                      checked={sourceConfig.beta_enabled !== false}
+                      onCheckedChange={(checked) => {
+                        const newConfig = { ...sourceConfig, beta_enabled: checked }
+                        setSourceConfig(newConfig)
+                        fetch("/api/admin/source-config", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(newConfig),
+                        })
+                      }}
+                    />
+                  </div>
+                </div>
+
                 <div className="p-4 rounded-xl glass-card border border-border/50">
                   <Label htmlFor="default-source" className="text-sm font-semibold text-foreground mb-2 block">
                     Source alternative par défaut
