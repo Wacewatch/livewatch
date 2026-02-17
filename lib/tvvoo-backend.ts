@@ -19,7 +19,7 @@ const COUNTRY_MAP: Record<string, string> = {
   Albania: "al",
   Turkey: "tr",
   Arabia: "ar",
-  Balkans: "rs",
+  Balkans: "bk", // Changed from "rs" to "bk" for new system
   Russia: "ru",
   Romania: "ro",
   Poland: "pl",
@@ -70,12 +70,11 @@ export interface TvVooStreamResponse {
 }
 
 // Build config path from country codes
+// The new TvVoo system uses a fixed multi-country config path
 function buildConfigPath(countries: string[]): string {
-  if (countries.length === 0) return "cfg-fr" // Default to France
-
-  const countryCodes = countries.map((c) => COUNTRY_MAP[c] || c.toLowerCase()).filter(Boolean)
-
-  return `cfg-${countryCodes.join("-")}`
+  // New format: cfg-it-uk-fr-de-pt-es-al-tr-nl-ar-bk-ru-ro-pl-bg-res
+  // This is a fixed path that includes all supported countries
+  return "cfg-it-uk-fr-de-pt-es-al-tr-nl-ar-bk-ru-ro-pl-bg-res"
 }
 
 // Fetch manifest from TvVoo
