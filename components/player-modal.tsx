@@ -84,6 +84,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     source2_enabled: true,
     source3_enabled: true,
     source4_enabled: true,
+    default_tvvoo_source: 0,
   })
   const [customSources, setCustomSources] = useState<CustomProxySource[]>([])
   const [currentCustomSourceId, setCurrentCustomSourceId] = useState<string | null>(null)
@@ -111,23 +112,32 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         .then((config) => {
           setSourceConfig(config)
           
-          // Déterminer la source demandée par l'URL
-          const urlParams = new URLSearchParams(window.location.search)
-          const sourceParam = urlParams.get("source")
-          let requestedProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : sourceParam === "4" ? "vavoo" : "default"
+              // Déterminer la source demandée par l'URL
+              const urlParams = new URLSearchParams(window.location.search)
+              const sourceParam = urlParams.get("source")
+              
+              // Handle alternative sources (alpha/beta) - map to tvvoo source index
+              if (sourceParam === "alpha" || sourceParam === "beta") {
+                const tvvooIndex = sourceParam === "alpha" ? 0 : 1
+                console.log(`[v0] URL source parameter: ${sourceParam} => using alternative source ${tvvooIndex}`)
+                // We'll load the TvVoo stream and select the specific source after loading
+                setCurrentProxy("default") // Temp proxy until TvVoo sources are loaded
+              } else {
+                let requestedProxy: ProxyType = sourceParam === "2" ? "external" : sourceParam === "3" ? "rotator" : sourceParam === "4" ? "vavoo" : "default"
 
-          // Mapper proxy type vers source enabled
-          const sourceEnabledMap = {
-            default: sourceConfig.source1_enabled,
-            external: sourceConfig.source2_enabled,
-            rotator: sourceConfig.source3_enabled,
-            vavoo: sourceConfig.source4_enabled,
-          }
-          
-          const finalProxy = sourceEnabledMap[requestedProxy] ? requestedProxy : "default"
-          console.log(`[v0] URL source parameter: ${sourceParam || "1"} => using proxy: ${finalProxy}`)
-          
-          setCurrentProxy(finalProxy)
+                // Mapper proxy type vers source enabled
+                const sourceEnabledMap = {
+                  default: sourceConfig.source1_enabled,
+                  external: sourceConfig.source2_enabled,
+                  rotator: sourceConfig.source3_enabled,
+                  vavoo: sourceConfig.source4_enabled,
+                }
+
+                const finalProxy = sourceEnabledMap[requestedProxy] ? requestedProxy : "default"
+                console.log(`[v0] URL source parameter: ${sourceParam || "1"} => using proxy: ${finalProxy}`)
+
+                setCurrentProxy(finalProxy)
+              }
           
           if (isVip || isAdmin || forceNoAds) {
             console.log("[v0] VIP/Admin/ForceNoAds detected, bypassing ad lock")
@@ -540,7 +550,58 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         if (data.sources && data.sources.length > 0) {
           console.log("[v0] Found", data.sources.length, "TvVoo sources:", data.sources.map((s: any) => s.name).join(", "))
           setTvvooSources(data.sources)
-          setCurrentTvvooSourceIndex(0)
+          
+          // Check if URL requested a specific alternative source
+          const urlParams = new URLSearchParams(window.location.search)
+          const sourceParam = urlParams.get("source")
+          
+          if (sourceParam === "alpha" && data.sources.length >= 1) {
+            console.log("[v0] Auto-switching to alpha source (first)")
+            setCurrentTvvooSourceIndex(0)
+            // Use the first source immediately
+            const alphaSource = data.sources[0]
+            setOriginalStreamUrl(alphaSource.originalUrl)
+            setStreamUrl(alphaSource.streamUrl)
+            playSource(alphaSource.streamUrl, proxyType)
+            return // Skip the default loading below
+          } else if (sourceParam === "beta" && data.sources.length >= 2) {
+            console.log("[v0] Auto-switching to beta source (second)")
+            setCurrentTvvooSourceIndex(1)
+            // Use the second source immediately
+            const betaSource = data.sources[1]
+            setOriginalStreamUrl(betaSource.originalUrl)
+            setStreamUrl(betaSource.streamUrl)
+            playSource(betaSource.streamUrl, proxyType)
+            return // Skip the default loading below
+          } else {
+            // Use default configured source from admin settings
+            const urlParams = new URLSearchParams(window.location.search)
+            const sourceParam = urlParams.get("source")
+            
+            // Fetch current config to get default source
+            fetch("/api/admin/source-config")
+              .then(res => res.json())
+              .then(cfg => {
+                const defaultIndex = cfg.default_tvvoo_source ?? 0
+                setCurrentTvvooSourceIndex(defaultIndex)
+                console.log(`[v0] Using default alternative source index: ${defaultIndex}`)
+                
+                // If no specific proxy source was requested, use the configured default alternative
+                if (!sourceParam || sourceParam === "1") {
+                  if (defaultIndex < data.sources.length) {
+                    const defaultSource = data.sources[defaultIndex]
+                    console.log(`[v0] Auto-selecting default alternative: ${defaultSource.name}`)
+                    setOriginalStreamUrl(defaultSource.originalUrl)
+                    setStreamUrl(defaultSource.streamUrl)
+                    playSource(defaultSource.streamUrl, proxyType)
+                  }
+                }
+              })
+              .catch(err => {
+                console.error("[v0] Failed to fetch source config:", err)
+                setCurrentTvvooSourceIndex(0)
+              })
+          }
         }
 
         if (data.originalUrl) {
@@ -1190,13 +1251,19 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   
                   <div className="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                     <p className="text-xs text-blue-300 font-medium mb-1.5">Choisir une source spécifique</p>
-                    <p className="text-[10px] sm:text-xs text-gray-400 leading-relaxed">
+                    <p className="text-[10px] sm:text-xs text-gray-400 leading-relaxed mb-2">
+                      <strong className="text-gray-300">Sources proxy:</strong><br/>
                       Ajoutez <code className="px-1.5 py-0.5 rounded bg-gray-800 text-cyan-400 font-mono text-[10px]">&source=1</code>, 
                       <code className="px-1.5 py-0.5 rounded bg-gray-800 text-green-400 font-mono text-[10px] mx-1">&source=2</code> ou 
-                      <code className="px-1.5 py-0.5 rounded bg-gray-800 text-purple-400 font-mono text-[10px] ml-1">&source=3</code> à la fin de l'URL pour utiliser une source spécifique.
+                      <code className="px-1.5 py-0.5 rounded bg-gray-800 text-purple-400 font-mono text-[10px] ml-1">&source=3</code>
+                    </p>
+                    <p className="text-[10px] sm:text-xs text-gray-400 leading-relaxed">
+                      <strong className="text-gray-300">Sources alternatives:</strong><br/>
+                      Ajoutez <code className="px-1.5 py-0.5 rounded bg-gray-800 text-blue-400 font-mono text-[10px]">&source=alpha</code> ou 
+                      <code className="px-1.5 py-0.5 rounded bg-gray-800 text-amber-400 font-mono text-[10px] ml-1">&source=beta</code> pour utiliser les sources alternatives.
                     </p>
                     <p className="text-[10px] text-gray-500 mt-1.5">
-                      Par défaut, la première source activée sera utilisée automatiquement.
+                      Par défaut, la source configurée dans l'admin sera utilisée automatiquement.
                     </p>
                   </div>
                 </div>

@@ -137,6 +137,7 @@ interface SourceConfig {
   source2_enabled: boolean
   source3_enabled: boolean
   external_proxy_url?: string // Added to SourceConfig
+  default_tvvoo_source?: number // Default TvVoo alternative source (0 for first, 1 for second, etc.)
 }
 
 interface GlobalBanner {
@@ -1232,6 +1233,37 @@ export function AdminDashboard() {
                     checked={sourceConfig.source3_enabled}
                     onCheckedChange={(checked) => toggleSource(3, checked)}
                   />
+                </div>
+              </div>
+
+              <div className="px-4 pb-4">
+                <div className="p-4 rounded-xl glass-card border border-border/50">
+                  <Label htmlFor="default-source" className="text-sm font-semibold text-foreground mb-2 block">
+                    Source alternative par défaut
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Choisissez quelle source alternative utiliser par défaut pour toutes les chaînes
+                  </p>
+                  <Select
+                    value={(sourceConfig.default_tvvoo_source ?? 0).toString()}
+                    onValueChange={(value) => {
+                      const newConfig = { ...sourceConfig, default_tvvoo_source: parseInt(value) }
+                      setSourceConfig(newConfig)
+                      fetch("/api/admin/source-config", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(newConfig),
+                      })
+                    }}
+                  >
+                    <SelectTrigger id="default-source" className="bg-background/50">
+                      <SelectValue placeholder="Sélectionner une source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Source Alpha (Première)</SelectItem>
+                      <SelectItem value="1">Source Beta (Seconde)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
