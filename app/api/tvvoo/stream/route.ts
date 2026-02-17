@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
     // Return all streams with their metadata
     const streamSources = streams.map((stream, index) => {
       const streamUrl = stream.url
-      const proxyUrl = streamUrl.includes("sunshine") || streamUrl.includes("http") 
+      const isDirect = stream.title?.toLowerCase().includes("direct") || false
+      
+      // Don't use proxy for "direct" sources, only for sunshine URLs
+      const proxyUrl = !isDirect && streamUrl.includes("sunshine")
         ? `/api/proxy?url=${encodeURIComponent(streamUrl)}`
         : streamUrl
 
@@ -36,6 +39,7 @@ export async function GET(request: NextRequest) {
         name: stream.title || `Source ${index + 1}`,
         streamUrl: proxyUrl,
         originalUrl: streamUrl,
+        isDirect: isDirect,
       }
     })
 

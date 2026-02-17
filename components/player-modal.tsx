@@ -1070,7 +1070,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                   {tvvooSources.length > 1 && (
                     <>
                       <div className="border-t border-slate-700 my-1" />
-                      <div className="px-2 py-1 text-xs text-white/40 font-medium">Sources TvVoo</div>
+                      <div className="px-2 py-1 text-xs text-white/40 font-medium">Sources alternatives</div>
                       {tvvooSources.map((source, index) => (
                         <DropdownMenuItem
                           key={`tvvoo-${index}`}
