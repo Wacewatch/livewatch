@@ -115,7 +115,8 @@ export async function fetchTvVooCatalog(
 ): Promise<TvVooCatalogResponse | null> {
   try {
     const configPath = buildConfigPath(countries)
-    const url = `${TVVOO_BASE_URL}/${configPath}/catalog/${catalogType}/${catalogId}.json`
+    // New TvVoo format requires /genre=Tutti to get all channels
+    const url = `${TVVOO_BASE_URL}/${configPath}/catalog/${catalogType}/${catalogId}/genre=Tutti.json`
 
     console.log("[v0] Fetching TvVoo catalog:", url)
 
