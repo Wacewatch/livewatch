@@ -19,7 +19,6 @@ export function AuthForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -95,9 +94,8 @@ export function AuthForm() {
         .insert({
           id: signUpData.user.id,
           email,
-          full_name: fullName || email.split('@')[0],
+          role: 'user',
           is_vip: false,
-          is_admin: false,
         })
 
       if (profileError) throw profileError
@@ -107,7 +105,6 @@ export function AuthForm() {
         setEmail('')
         setPassword('')
         setConfirmPassword('')
-        setFullName('')
         setMode('login')
       }, 2000)
     } catch (err: any) {
@@ -169,24 +166,6 @@ export function AuthForm() {
           <CheckCircle2 className="h-4 w-4 text-green-500" />
           <AlertDescription className="text-green-400">{success}</AlertDescription>
         </Alert>
-      )}
-
-      {/* Signup Name Field */}
-      {mode === 'signup' && (
-        <div className="space-y-2">
-          <Label htmlFor="fullName" className="text-sm font-medium">
-            Nom complet
-          </Label>
-          <Input
-            id="fullName"
-            type="text"
-            placeholder="Jean Dupont"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            disabled={loading}
-            className="bg-slate-800/50 border-border/30 focus:border-primary"
-          />
-        </div>
       )}
 
       {/* Email Field */}
