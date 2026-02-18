@@ -5,7 +5,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowLeft, Crown, Mail, User, Calendar, Copy, Zap, ExternalLink, Heart, Clock, Tv, Settings, Shield, Star } from 'lucide-react'
+import { ArrowLeft, Crown, Mail, User, Calendar, Copy, Check, Zap, ExternalLink, Heart, Clock, Key, Loader2, X, Tv, Settings, Shield, Star } from 'lucide-react'
 import { theme, getRoleBadge } from '@/lib/theme'
 import { getRoleFeatures, getRoleDisplayName, getUserRoleType } from '@/lib/permissions'
 
@@ -47,6 +47,11 @@ export default function UserDashboard() {
   const [loadingFavorites, setLoadingFavorites] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [copiedEmail, setCopiedEmail] = useState(false)
+  const [showVipKeyInput, setShowVipKeyInput] = useState(false)
+  const [vipKey, setVipKey] = useState('')
+  const [redeemingVip, setRedeemingVip] = useState(false)
+  const [vipError, setVipError] = useState<string | null>(null)
+  const [vipSuccess, setVipSuccess] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -189,6 +194,40 @@ export default function UserDashboard() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/')
+  }
+
+  const handleRedeemVipKey = async () => {
+    if (!vipKey.trim()) {
+      setVipError('Veuillez entrer une clé VIP')
+      return
+    }
+
+    setRedeemingVip(true)
+    setVipError(null)
+
+    try {
+      const response = await fetch('/api/vip/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: vipKey.trim() }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de l\'activation')
+      }
+
+      setVipSuccess(true)
+      setTimeout(() => {
+        router.refresh()
+        window.location.reload()
+      }, 2000)
+    } catch (err) {
+      setVipError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setRedeemingVip(false)
+    }
   }
 
   const formatDuration = (seconds: number) => {
@@ -470,21 +509,88 @@ export default function UserDashboard() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <a
-                    href="https://ko-fi.com/wavewatch"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30"
-                  >
-                    <Crown className="w-5 h-5" />
-                    Acheter VIP Premium
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                  <p className="text-xs text-center text-muted-foreground">
-                    Aucune publicité • Qualité 4K • Support prioritaire
-                  </p>
-                </div>
+                {!showVipKeyInput ? (
+                  <div className="space-y-3">
+                    <a
+                      href="https://ko-fi.com/wavewatch"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30"
+                    >
+                      Acheter VIP
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+
+                    <button
+                      onClick={() => setShowVipKeyInput(true)}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-border/50 text-foreground font-semibold text-sm transition-all"
+                    >
+                      <Key className="w-4 h-4" />
+                      J'ai un code VIP
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {vipSuccess ? (
+                      <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 text-center">
+                        <Check className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                        <p className="text-green-400 font-semibold">VIP activé avec succès !</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <input
+                            type="text"
+                            value={vipKey}
+                            onChange={(e) => setVipKey(e.target.value)}
+                            placeholder="Entrez votre clé VIP"
+                            className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+                            disabled={redeemingVip}
+                          />
+                        </div>
+
+                        {vipError && (
+                          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                            <p className="text-red-400 text-xs text-center">{vipError}</p>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setShowVipKeyInput(false)
+                              setVipKey('')
+                              setVipError(null)
+                            }}
+                            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-border/50 text-foreground font-semibold text-sm transition-all"
+                            disabled={redeemingVip}
+                          >
+                            <X className="w-4 h-4" />
+                            Annuler
+                          </button>
+
+                          <button
+                            onClick={handleRedeemVipKey}
+                            className="flex items-center justify-center gap-2 flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm transition-all"
+                            disabled={redeemingVip || !vipKey.trim()}
+                          >
+                            {redeemingVip ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Activation...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-4 h-4" />
+                                Activer
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               /* Show gift option for VIP/Admin users */
