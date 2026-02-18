@@ -115,22 +115,34 @@ export default function UserDashboard() {
         // Fetch channel details separately
         if (favData && favData.length > 0) {
           const channelIds = favData.map(f => f.channel_id)
+          console.log('[v0] Fetching channels for IDs:', channelIds)
+          
           const { data: channelsData, error: channelsError } = await supabase
             .from('channels')
             .select('id, name, logo, category')
             .in('id', channelIds)
 
-          if (channelsError) throw channelsError
+          if (channelsError) {
+            console.error('[v0] Error fetching channels:', channelsError)
+            throw channelsError
+          }
+
+          console.log('[v0] Channels found:', channelsData?.length, 'of', channelIds.length)
+          console.log('[v0] Channels data:', channelsData)
 
           // Merge favorites with channel data
-          const mergedData = favData.map(fav => ({
-            ...fav,
-            channels: channelsData?.find(ch => ch.id === fav.channel_id) || {
-              name: 'Chaîne inconnue',
-              logo: '',
-              category: 'N/A'
+          const mergedData = favData.map(fav => {
+            const channelData = channelsData?.find(ch => ch.id === fav.channel_id)
+            console.log(`[v0] Matching ${fav.channel_id}:`, channelData ? 'found' : 'NOT FOUND')
+            return {
+              ...fav,
+              channels: channelData || {
+                name: 'Chaîne inconnue',
+                logo: '',
+                category: 'N/A'
+              }
             }
-          }))
+          })
 
           setFavorites(mergedData)
         } else {
