@@ -15,7 +15,6 @@ import { Footer } from "@/components/footer"
 
 interface ChannelsClientProps {
   country: string
-  channelToOpen?: string // Optional: Channel ID to auto-open
 }
 
 const DEFAULT_CHANNEL_LOGO = "https://i.imgur.com/ovX7j6R.png"
@@ -33,7 +32,7 @@ interface ChannelOverride {
   custom_logo: string | null
 }
 
-export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) {
+export function ChannelsClient({ country }: ChannelsClientProps) {
   const [channels, setChannels] = useState<GroupedChannel[]>([])
   const [disabledChannels, setDisabledChannels] = useState<Set<string>>(new Set())
   const [channelOverrides, setChannelOverrides] = useState<Map<string, ChannelOverride>>(new Map())
@@ -98,22 +97,6 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
 
     fetchData()
   }, [country])
-
-  // Auto-open channel if specified in URL
-  useEffect(() => {
-    if (channelToOpen && channels.length > 0 && !selectedChannel) {
-      console.log("[v0] Auto-opening channel from URL:", channelToOpen)
-      const channelToSelect = channelsWithFavorites.find(
-        ch => ch.baseId === channelToOpen || ch.baseId.includes(channelToOpen.split('|')[0])
-      )
-      if (channelToSelect) {
-        console.log("[v0] Found channel to auto-open:", channelToSelect.baseName)
-        setSelectedChannel(channelToSelect)
-      } else {
-        console.log("[v0] Channel not found in list:", channelToOpen)
-      }
-    }
-  }, [channelToOpen, channels, channelsWithFavorites, selectedChannel])
 
   const dismissBanner = () => {
     setBannerDismissed(true)
