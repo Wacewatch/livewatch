@@ -1,9 +1,9 @@
 -- Migration to ensure all user_profiles have correct structure
 -- Run this to fix any existing profiles and set proper defaults
 
--- Update any profiles that might have NULL role to 'user'
+-- Update any profiles that might have NULL role to 'member'
 UPDATE user_profiles 
-SET role = 'user' 
+SET role = 'member' 
 WHERE role IS NULL;
 
 -- Update any profiles that might have NULL is_vip to false

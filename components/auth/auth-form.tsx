@@ -94,7 +94,7 @@ export function AuthForm() {
         .insert({
           id: signUpData.user.id,
           email,
-          role: 'user',
+          role: 'member',
           is_vip: false,
         })
 
