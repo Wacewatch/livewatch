@@ -577,10 +577,11 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
         const data = await response.json()
         console.log("[v0] TvVoo stream data received")
 
-        // Store all available TvVoo sources
+        // Store only enabled TvVoo sources
         if (data.sources && data.sources.length > 0) {
-          console.log("[v0] Found", data.sources.length, "TvVoo sources:", data.sources.map((s: any) => s.name).join(", "))
-          setTvvooSources(data.sources)
+          const enabledTvvooSources = data.sources.filter((s: any) => s.enabled !== false)
+          console.log("[v0] Found", data.sources.length, "TvVoo sources, ", enabledTvvooSources.length, "enabled:", enabledTvvooSources.map((s: any) => s.name).join(", "))
+          setTvvooSources(enabledTvvooSources)
           
           // Check if URL requested a specific alternative source
           const urlParams = new URLSearchParams(window.location.search)
