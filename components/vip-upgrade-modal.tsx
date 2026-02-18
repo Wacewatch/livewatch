@@ -11,27 +11,25 @@ export function VipUpgradeModal({ isOpen, onClose }: VipUpgradeModalProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-
-      <div
-        className="relative w-full max-w-lg bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="relative w-full max-w-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+          className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-colors z-10"
         >
           <X className="w-5 h-5 text-white" />
         </button>
 
         <div className="p-6 space-y-6">
-          <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mx-auto mb-4">
-              <Crown className="w-10 h-10 text-black" />
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/50">
+              <Crown className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Passez VIP Premium</h2>
-            <p className="text-white/60">Débloquez tous les avantages premium</p>
+          </div>
+
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-white mb-2">Passez VIP Premium</h2>
+            <p className="text-white/60 text-sm">Débloquez l'expérience ultime sans publicité</p>
           </div>
 
           <div className="space-y-3">
