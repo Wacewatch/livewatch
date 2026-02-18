@@ -214,10 +214,11 @@ export default function UserDashboard() {
     if (hours > 0) {
       return `${hours}h ${minutes}m`
     }
-    return `${minutes}m`
+  return `${minutes}m`
   }
-
-  const isVipOrAdmin = user?.is_vip || user?.role === 'admin'
+  
+  // Check if user is VIP or Admin - use is_vip field and role
+  const isVipOrAdmin = user ? (user.is_vip === true || user.role === 'admin') : false
 
   if (loading) {
     return (
