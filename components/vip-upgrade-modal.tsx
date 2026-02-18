@@ -11,24 +11,24 @@ export function VipUpgradeModal({ isOpen, onClose }: VipUpgradeModalProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-gray-900 to-black border border-amber-500/30 rounded-2xl shadow-2xl shadow-amber-500/20 max-w-lg w-full overflow-hidden">
-        {/* Header */}
-        <div className="relative bg-gradient-to-r from-amber-500 to-amber-600 p-6 text-center">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/20 text-white hover:bg-black/40 transition-all"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <Crown className="w-16 h-16 text-black mx-auto mb-3" />
-          <h2 className="text-3xl font-bold text-black">Devenez VIP</h2>
-          <p className="text-black/80 mt-2">Accès illimité sans publicité</p>
-        </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="relative w-full max-w-md bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all z-10"
+        >
+          <X className="w-5 h-5" />
+        </button>
 
-        {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Benefits */}
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 flex items-center justify-center mx-auto mb-4">
+              <Crown className="w-9 h-9 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Passer au VIP</h2>
+            <p className="text-white/60 text-sm">Débloquez l'expérience complète sans publicité</p>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -61,14 +61,12 @@ export function VipUpgradeModal({ isOpen, onClose }: VipUpgradeModalProps) {
             </div>
           </div>
 
-          {/* Price */}
           <div className="bg-gradient-to-r from-amber-500/10 to-amber-600/10 border border-amber-500/30 rounded-xl p-4 text-center">
             <p className="text-white/70 text-sm mb-1">Prix unique</p>
             <p className="text-4xl font-bold text-amber-400">5€</p>
             <p className="text-white/50 text-sm mt-1">À vie - Jusqu'à la fin des services</p>
           </div>
 
-          {/* Action Button */}
           <a
             href="https://ko-fi.com/wavewatch"
             target="_blank"
