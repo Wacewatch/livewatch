@@ -17,28 +17,31 @@ function PlayerVIPContent() {
     const fetchChannel = async () => {
       try {
         console.log("[v0] [VIP] Fetching channel with ID:", channelId)
-        const response = await fetch("/api/catalog")
-        const data = await response.json()
-        const channels = data.channels || []
+        
+        const country = channelId.split('.').pop()?.toUpperCase() || 'FR'
+        const response = await fetch(`/api/tvvoo/channels?countries=${country}`)
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch channels: ${response.statusText}`)
+        }
+        
+        const channels = await response.json()
 
-        const found = channels.find((c: Channel) => {
-          // Direct match
+        const found = channels.find((c: any) => {
           if (c.baseId === channelId || c.id === channelId) return true
-
-          // Try decoding the channelId
+          
           try {
             const decodedId = decodeURIComponent(channelId)
             if (c.baseId === decodedId || c.id === decodedId) return true
           } catch (e) {
-            // Ignore decode errors
+            // Ignore
           }
 
-          // Try encoding the channel baseId
           try {
             const encodedBaseId = encodeURIComponent(c.baseId)
             if (encodedBaseId === channelId) return true
           } catch (e) {
-            // Ignore encode errors
+            // Ignore
           }
 
           return false

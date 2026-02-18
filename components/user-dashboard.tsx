@@ -162,7 +162,7 @@ export default function UserDashboard() {
       if (!user) return
       
       try {
-        const { data, error } = await supabase
+        const { data: historyData, error } = await supabase
           .from('channel_views')
           .select('*')
           .eq('user_id', user.id)
@@ -170,7 +170,34 @@ export default function UserDashboard() {
           .limit(10)
 
         if (error) throw error
-        setHistory(data || [])
+        
+        if (historyData && historyData.length > 0) {
+          const channelIds = [...new Set(historyData.map((h: any) => h.channel_id))]
+          const country = channelIds[0]?.split('.').pop()?.toLowerCase() || 'fr'
+          
+          const response = await fetch(`/api/tvvoo/channels?countries=${encodeURIComponent(country)}`)
+          if (response.ok) {
+            const apiChannels = await response.json()
+            
+            const enrichedHistory = historyData.map((view: any) => {
+              const channelData = apiChannels.find((ch: any) => ch.baseId === view.channel_id)
+              return {
+                ...view,
+                channelInfo: channelData ? {
+                  name: channelData.baseName,
+                  logo: channelData.logo,
+                  baseId: channelData.baseId
+                } : null
+              }
+            })
+            
+            setHistory(enrichedHistory)
+          } else {
+            setHistory(historyData)
+          }
+        } else {
+          setHistory([])
+        }
       } catch (error) {
         console.error('[v0] Error fetching history:', error)
       } finally {
@@ -729,24 +756,38 @@ export default function UserDashboard() {
                 </div>
               ) : history.length > 0 ? (
                 <div className="space-y-3">
-                  {history.map((view) => (
-                    <div
-                      key={view.id}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-800/50 border border-border/30 hover:border-primary/50 hover:bg-slate-800 transition-all"
-                    >
-                      <div className="w-12 h-12 rounded-lg bg-slate-900 border border-border/30 flex items-center justify-center flex-shrink-0">
-                        <Tv className="w-6 h-6 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-semibold text-foreground truncate mb-1">{view.channel_name}</h4>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>{new Date(view.viewed_at).toLocaleDateString('fr-FR')}</span>
-                          <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
-                          <span>{formatDuration(view.duration_seconds)}</span>
+                  {history.map((view) => {
+                    const country = view.channel_id?.split('.').pop()?.toLowerCase() || 'fr'
+                    return (
+                      <Link
+                        key={view.id}
+                        href={`/channels/${country}?channel=${encodeURIComponent(view.channel_id)}`}
+                        className="flex items-center gap-4 p-4 rounded-xl bg-slate-800/50 border border-border/30 hover:border-primary/50 hover:bg-slate-800 transition-all cursor-pointer"
+                      >
+                        <div className="w-12 h-12 rounded-lg bg-slate-900 border border-border/30 overflow-hidden flex items-center justify-center flex-shrink-0">
+                          {view.channelInfo?.logo ? (
+                            <Image
+                              src={view.channelInfo.logo}
+                              alt={view.channel_name}
+                              width={48}
+                              height={48}
+                              className="object-cover"
+                            />
+                          ) : (
+                            <Tv className="w-6 h-6 text-primary" />
+                          )}
                         </div>
-                      </div>
-                    </div>
-                  ))}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-foreground truncate mb-1">{view.channel_name}</h4>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span>{new Date(view.viewed_at).toLocaleDateString('fr-FR')}</span>
+                            <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                            <span>{formatDuration(view.duration_seconds)}</span>
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12">
