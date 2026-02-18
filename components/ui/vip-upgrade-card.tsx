@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { Crown, Sparkles, Zap, ExternalLink, Check } from 'lucide-react'
 import { theme } from '@/lib/theme'
 
@@ -71,26 +70,17 @@ export function VipUpgradeCard({ compact = false, className = '' }: VipUpgradeCa
         ))}
       </div>
 
-      {/* CTA Buttons */}
-      <div className="space-y-3">
-        <a
-          href="https://ko-fi.com/wavewatch"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30"
-        >
-          <Zap className="w-4 h-4" />
-          Acheter VIP Premium
-          <ExternalLink className="w-4 h-4" />
-        </a>
-
-        <Link
-          href="/dashboard"
-          className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-border/50 text-foreground font-semibold text-sm transition-all"
-        >
-          J'ai déjà une clé VIP
-        </Link>
-      </div>
+      {/* CTA Button */}
+      <a
+        href="https://ko-fi.com/wavewatch"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold text-sm transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/30"
+      >
+        <Zap className="w-4 h-4" />
+        Acheter VIP Premium
+        <ExternalLink className="w-4 h-4" />
+      </a>
 
       {/* Price Info */}
       <div className="mt-4 pt-4 border-t border-yellow-500/20">
