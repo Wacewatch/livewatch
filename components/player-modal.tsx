@@ -59,8 +59,8 @@ type ProxyType = "default" | "external" | "rotator" | "vavoo"
 export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, country = "France" }: PlayerModalProps) {
   const { role, isVip, isAdmin } = useUserRole()
   const { toast } = useToast()
-  // VIP/Admin users start with ads unlocked immediately - no modal shown
-  const [adUnlocked, setAdUnlocked] = useState(isVip || isAdmin || forceNoAds)
+  // Start with false, will be updated in useEffect based on user role
+  const [adUnlocked, setAdUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -101,6 +101,14 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const bufferHealthCheckRef = useRef<NodeJS.Timeout | null>(null)
 
   const initialProxy: ProxyType = "default"
+
+  // Unlock ads immediately for VIP/Admin users without showing modal
+  useEffect(() => {
+    if (isVip || isAdmin || forceNoAds) {
+      console.log("[v0] VIP/Admin/ForceNoAds detected - unlocking immediately, no ad modal")
+      setAdUnlocked(true)
+    }
+  }, [isVip, isAdmin, forceNoAds])
 
   useEffect(() => {
     if (isOpen && channel) {
@@ -607,16 +615,43 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                     setOriginalStreamUrl(defaultSource.originalUrl)
                     setStreamUrl(defaultSource.streamUrl)
                     playSource(defaultSource.streamUrl, proxyType)
+                    return // Don't continue to default loading
                   }
+                }
+                
+                // If we didn't select a default alternative, load the first stream normally
+                if (data.originalUrl) {
+                  setOriginalStreamUrl(data.originalUrl)
+                  const finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
+                  setStreamUrl(finalUrl)
+                  playSource(finalUrl, proxyType)
+                } else if (data.streamUrl) {
+                  setOriginalStreamUrl(data.streamUrl)
+                  setStreamUrl(data.streamUrl)
+                  playSource(data.streamUrl, proxyType)
                 }
               })
               .catch(err => {
                 console.error("[v0] Failed to fetch source config:", err)
                 setCurrentTvvooSourceIndex(0)
+                
+                // Fallback to first stream on error
+                if (data.originalUrl) {
+                  setOriginalStreamUrl(data.originalUrl)
+                  const finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
+                  setStreamUrl(finalUrl)
+                  playSource(finalUrl, proxyType)
+                } else if (data.streamUrl) {
+                  setOriginalStreamUrl(data.streamUrl)
+                  setStreamUrl(data.streamUrl)
+                  playSource(data.streamUrl, proxyType)
+                }
               })
+            return // Don't continue to default loading since we're handling it in the promise
           }
         }
 
+        // This code only runs if we didn't select alpha/beta or default alternative
         if (data.originalUrl) {
           setOriginalStreamUrl(data.originalUrl)
           const finalUrl = `/api/proxy?url=${encodeURIComponent(data.originalUrl)}`
@@ -1084,7 +1119,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
                       <Radio className="h-4 w-4 mr-2 text-cyan-400" />
                       Source 1 - Proxy par défaut
                       {!sourceConfig.source1_enabled && (
-                        <Badge className="ml-2 text-xs bg-orange-500">Désactivée</Badge>
+                        <Badge className="ml-2 text-xs bg-orange-500">Désactiv��e</Badge>
                       )}
                     </DropdownMenuItem>
                   )}

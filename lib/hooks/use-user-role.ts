@@ -24,13 +24,20 @@ export function useUserRole() {
           return
         }
 
-        const { data, error } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+        const { data, error } = await supabase.from("user_profiles").select("role, is_vip").eq("id", user.id).single()
 
         if (error) {
           console.error("[v0] Error fetching user role:", error)
           setRole("member")
         } else {
-          setRole((data?.role as UserRole) || "member")
+          // Determine role: admin > vip > member
+          let userRole: UserRole = "member"
+          if (data?.role === "admin") {
+            userRole = "admin"
+          } else if (data?.is_vip === true || data?.role === "vip") {
+            userRole = "vip"
+          }
+          setRole(userRole)
         }
       } catch (err: any) {
         console.error("[v0] Error in useUserRole:", err?.message || err)
