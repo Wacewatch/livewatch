@@ -390,6 +390,7 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
                       height={50}
                       className="object-contain max-h-10 md:max-h-16 w-auto drop-shadow-2xl"
                       unoptimized
+                      loading="eager"
                     />
                   </div>
 
