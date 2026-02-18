@@ -77,6 +77,14 @@ export default function UserDashboard() {
 
         if (error) throw error
 
+        console.log('[v0] Dashboard user loaded:', {
+          email: data?.email,
+          is_vip: data?.is_vip,
+          role: data?.role,
+          vip_purchased_at: data?.vip_purchased_at,
+          created_at: data?.created_at
+        })
+
         setUser(data)
       } catch (error) {
         console.error('[v0] Error fetching user:', error)
@@ -218,7 +226,14 @@ export default function UserDashboard() {
   }
   
   // Check if user is VIP or Admin - use is_vip field and role
-  const isVipOrAdmin = user ? (user.is_vip === true || user.role === 'admin') : false
+  const isVipOrAdmin = user ? (user.is_vip === true || user.role === 'admin' || user.role === 'vip') : false
+  
+  console.log('[v0] Dashboard isVipOrAdmin check:', {
+    user_email: user?.email,
+    is_vip: user?.is_vip,
+    role: user?.role,
+    isVipOrAdmin: isVipOrAdmin
+  })
 
   if (loading) {
     return (
