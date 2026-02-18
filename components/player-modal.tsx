@@ -868,25 +868,54 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
               
             default:
               console.error("[v0] Fatal error, cannot recover")
-              setError("Impossible de charger le flux. Essayez l'autre source.")
               setLoading(false)
               
-  const availableSources = [
-    { type: "default" as ProxyType, enabled: sourceConfig.source1_enabled },
-    { type: "external" as ProxyType, enabled: sourceConfig.source2_enabled },
-    { type: "rotator" as ProxyType, enabled: sourceConfig.source3_enabled },
-    { type: "vavoo" as ProxyType, enabled: sourceConfig.source4_enabled },
-  ].filter((s) => s.enabled)
-  
-  if (availableSources.length > 1) {
-  setTimeout(() => {
-  const currentIndex = availableSources.findIndex(s => s.type === currentProxy)
-  const nextIndex = (currentIndex + 1) % availableSources.length
-  const nextProxy = availableSources[nextIndex].type
-  console.log("[v0] Auto-switching to:", nextProxy)
-  switchProxySource(nextProxy)
-  }, 2000)
-  }
+              const availableProxySources = [
+                { type: "default" as ProxyType, enabled: sourceConfig.source1_enabled },
+                { type: "external" as ProxyType, enabled: sourceConfig.source2_enabled },
+                { type: "rotator" as ProxyType, enabled: sourceConfig.source3_enabled },
+                { type: "vavoo" as ProxyType, enabled: sourceConfig.source4_enabled },
+              ].filter((s) => s.enabled)
+              
+              const enabledCustomSources = customSources.filter(s => s.enabled)
+              const totalAvailableSources = availableProxySources.length + enabledCustomSources.length
+              
+              if (retryCount < 3 && totalAvailableSources > 1) {
+                setRetryCount(prev => prev + 1)
+                console.log(`[v0] Auto-retry attempt ${retryCount + 1}/${3}`)
+                
+                setTimeout(() => {
+                  if (currentCustomSourceId) {
+                    const currentCustomIndex = enabledCustomSources.findIndex(s => s.id === currentCustomSourceId)
+                    const nextCustomIndex = (currentCustomIndex + 1) % enabledCustomSources.length
+                    
+                    if (nextCustomIndex !== currentCustomIndex && enabledCustomSources[nextCustomIndex]) {
+                      console.log("[v0] Auto-switching to next custom source:", enabledCustomSources[nextCustomIndex].name)
+                      loadStreamSource(selectedSourceIndex, "default", enabledCustomSources[nextCustomIndex].id)
+                    } else if (availableProxySources.length > 0) {
+                      console.log("[v0] Auto-switching to proxy source:", availableProxySources[0].type)
+                      switchProxySource(availableProxySources[0].type)
+                    }
+                  } else {
+                    const currentProxyIndex = availableProxySources.findIndex(s => s.type === currentProxy)
+                    const nextProxyIndex = (currentProxyIndex + 1) % availableProxySources.length
+                    
+                    if (nextProxyIndex !== currentProxyIndex) {
+                      const nextProxy = availableProxySources[nextProxyIndex].type
+                      console.log("[v0] Auto-switching to next proxy:", nextProxy)
+                      switchProxySource(nextProxy)
+                    } else if (enabledCustomSources.length > 0) {
+                      console.log("[v0] Auto-switching to first custom source:", enabledCustomSources[0].name)
+                      loadStreamSource(selectedSourceIndex, "default", enabledCustomSources[0].id)
+                    }
+                  }
+                }, 2000)
+                
+                setError(`Tentative ${retryCount + 1}/${3} - Changement de source...`)
+              } else {
+                setError("Toutes les sources ont échoué. Veuillez réessayer plus tard.")
+                setRetryCount(0)
+              }
               break
           }
         } else {

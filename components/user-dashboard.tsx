@@ -400,14 +400,6 @@ export default function UserDashboard() {
               <p className="text-sm font-semibold text-foreground">Player VIP</p>
             </Link>
           )}
-
-          <button
-            onClick={() => window.open('https://ko-fi.com/wavewatch', '_blank')}
-            className="glass-card border border-border/50 rounded-xl p-4 hover:border-primary/50 hover:bg-slate-800/80 transition-all text-center group"
-          >
-            <ExternalLink className="w-8 h-8 text-primary mx-auto mb-2 group-hover:scale-110 transition-transform" />
-            <p className="text-sm font-semibold text-foreground">Support</p>
-          </button>
         </div>
       </div>
 
@@ -496,15 +488,37 @@ export default function UserDashboard() {
 
             {/* VIP Section */}
             {!isVipOrAdmin ? (
-              /* Show VIP upgrade options for non-VIP users */
               <div className="glass-card border border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 via-transparent to-yellow-500/5 rounded-2xl p-6">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-yellow-500/20 border border-yellow-500/50 flex items-center justify-center flex-shrink-0">
                     <Crown className="w-5 h-5 text-yellow-400" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-foreground mb-1">VIP Premium</h3>
-                    <p className="text-xs text-muted-foreground">Aucune publicité</p>
+                    <h3 className="text-lg font-bold text-foreground mb-1">Passez VIP Premium</h3>
+                    <p className="text-xs text-muted-foreground">Débloquez l'expérience ultime</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    <span className="text-foreground">Aucune publicité</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    <span className="text-foreground">Qualité 4K disponible</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    <span className="text-foreground">100 favoris maximum</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    <span className="text-foreground">Support prioritaire</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    <span className="text-foreground">Accès à vie - 5€ seulement</span>
                   </div>
                 </div>
 
