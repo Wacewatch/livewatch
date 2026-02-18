@@ -47,38 +47,49 @@ export async function GET() {
     let totalChannelsAllCountries = 0
     const channelCounts: Record<string, number> = {}
 
-    for (const country of ALL_COUNTRIES) {
-      try {
-        const manifestUrl = `https://tvvoo.hayd.uk/cfg-${country.code}/manifest.json`
-        const manifestRes = await fetch(manifestUrl, {
-          signal: AbortSignal.timeout(5000),
-          cache: "no-store",
-        })
+    // Use the new TvVoo multi-country config path
+    const configPath = "cfg-it-uk-fr-de-pt-es-al-tr-nl-ar-bk-ru-ro-pl-bg-res"
+    
+    try {
+      const manifestUrl = `https://tvvoo.hayd.uk/${configPath}/manifest.json`
+      const manifestRes = await fetch(manifestUrl, {
+        signal: AbortSignal.timeout(10000),
+        cache: "no-store",
+      })
 
-        if (manifestRes.ok) {
-          const manifest = await manifestRes.json()
-          const catalogs = manifest.catalogs || []
+      if (manifestRes.ok) {
+        const manifest = await manifestRes.json()
+        const catalogs = manifest.catalogs || []
 
-          for (const catalog of catalogs) {
-            if (catalog.type === "tv") {
-              const catalogUrl = `https://tvvoo.hayd.uk/cfg-${country.code}/catalog/tv/${catalog.id}.json`
+        // Count channels from all catalogs
+        for (const catalog of catalogs) {
+          if (catalog.type === "tv") {
+            try {
+              // Use the new URL format with /genre=Tutti.json
+              const catalogUrl = `https://tvvoo.hayd.uk/${configPath}/catalog/tv/${catalog.id}/genre=Tutti.json`
               const catalogRes = await fetch(catalogUrl, {
-                signal: AbortSignal.timeout(5000),
+                signal: AbortSignal.timeout(10000),
                 cache: "no-store",
               })
 
               if (catalogRes.ok) {
                 const catalogData = await catalogRes.json()
                 const count = (catalogData.metas || []).length
-                channelCounts[country.name] = (channelCounts[country.name] || 0) + count
+                
+                // Extract country from catalog name (e.g., "vavoo_tv_fr" -> "France")
+                const catalogCountry = catalog.name || catalog.id
                 totalChannelsAllCountries += count
+                
+                console.log(`[v0] ${catalogCountry}: ${count} channels`)
               }
+            } catch (catalogError) {
+              console.error(`[v0] Failed to fetch catalog ${catalog.id}:`, catalogError)
             }
           }
         }
-      } catch (e) {
-        console.error(`[v0] Failed to count channels for ${country.name}:`, e)
       }
+    } catch (e) {
+      console.error(`[v0] Failed to fetch manifest:`, e)
     }
 
     console.log("[v0] Total channels from all countries:", totalChannelsAllCountries)
