@@ -99,8 +99,8 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
     fetchData()
   }, [country])
 
-  const channelsWithFavorites = useMemo(() => {
-    return channels.map((ch) => {
+  const channelsWithFavorites = useMemo(() =>
+    channels.map((ch) => {
       const override = channelOverrides.get(ch.baseId)
       return {
         ...ch,
@@ -110,7 +110,7 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
         isDisabled: disabledChannels.has(ch.baseId),
       }
     })
-  }, [channels, favorites, disabledChannels, channelOverrides])
+  , [channels, favorites, disabledChannels, channelOverrides])
 
   // Auto-open channel if specified in URL
   useEffect(() => {
@@ -390,6 +390,7 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
                       height={50}
                       className="object-contain max-h-10 md:max-h-16 w-auto drop-shadow-2xl"
                       unoptimized
+                      loading="eager"
                     />
                   </div>
 
