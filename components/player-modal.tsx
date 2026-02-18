@@ -99,6 +99,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
   const hiddenLinkRef = useRef<HTMLAnchorElement>(null)
   const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const bufferHealthCheckRef = useRef<NodeJS.Timeout | null>(null)
+  const sourceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const initialProxy: ProxyType = "default"
 
@@ -205,6 +206,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       stopTrackingSession()
       clearLoadingInterval()
       clearBufferHealthCheck()
+      clearSourceTimeout()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -220,6 +222,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
       stopTrackingSession()
       clearLoadingInterval()
       clearBufferHealthCheck()
+      clearSourceTimeout()
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
@@ -238,6 +241,13 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     if (bufferHealthCheckRef.current) {
       clearInterval(bufferHealthCheckRef.current)
       bufferHealthCheckRef.current = null
+    }
+  }
+
+  const clearSourceTimeout = () => {
+    if (sourceTimeoutRef.current) {
+      clearTimeout(sourceTimeoutRef.current)
+      sourceTimeoutRef.current = null
     }
   }
 
@@ -737,6 +747,26 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
     }
 
     clearBufferHealthCheck()
+    clearSourceTimeout()
+
+    console.log("[v0] Starting 30s timeout for source switching")
+    sourceTimeoutRef.current = setTimeout(() => {
+      if (!videoLoaded && tvvooSources.length > 0) {
+        console.log("[v0] 30s timeout reached - switching to next TVVoo source")
+        const nextIndex = (currentTvvooSourceIndex + 1) % tvvooSources.length
+        const nextSource = tvvooSources[nextIndex]
+        
+        if (nextSource && nextIndex !== currentTvvooSourceIndex) {
+          setCurrentTvvooSourceIndex(nextIndex)
+          setError(`Changement automatique vers la source ${nextIndex + 1}...`)
+          setTimeout(() => {
+            loadStreamSource(nextIndex, proxyType)
+          }, 1000)
+        } else {
+          setError("Toutes les sources alternatives ont été essayées. Veuillez réessayer plus tard.")
+        }
+      }
+    }, 30000)
 
     const isM3U8 =
       url.includes(".m3u8") || url.includes("m3u8") || url.includes("proxy") || url.includes("custom-proxy")
@@ -823,6 +853,7 @@ export function PlayerModal({ channel, isOpen, onClose, forceNoAds = false, coun
           setLoadingProgress(100)
           setLoadingStatus("Lecture...")
           clearLoadingInterval()
+          clearSourceTimeout()
           setTimeout(() => {
             setVideoLoaded(true)
             setLoading(false)
