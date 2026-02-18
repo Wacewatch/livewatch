@@ -99,6 +99,19 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
     fetchData()
   }, [country])
 
+  const channelsWithFavorites = useMemo(() => {
+    return channels.map((ch) => {
+      const override = channelOverrides.get(ch.baseId)
+      return {
+        ...ch,
+        baseName: override?.custom_name || ch.baseName,
+        logo: override?.custom_logo || ch.logo,
+        isFavorite: favorites.includes(ch.baseId),
+        isDisabled: disabledChannels.has(ch.baseId),
+      }
+    })
+  }, [channels, favorites, disabledChannels, channelOverrides])
+
   // Auto-open channel if specified in URL
   useEffect(() => {
     if (channelToOpen && channels.length > 0 && !selectedChannel) {
@@ -190,19 +203,6 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
       console.error("[v0] Error toggling channel:", error)
     }
   }
-
-  const channelsWithFavorites = useMemo(() => {
-    return channels.map((ch) => {
-      const override = channelOverrides.get(ch.baseId)
-      return {
-        ...ch,
-        baseName: override?.custom_name || ch.baseName,
-        logo: override?.custom_logo || ch.logo,
-        isFavorite: favorites.includes(ch.baseId),
-        isDisabled: disabledChannels.has(ch.baseId),
-      }
-    })
-  }, [channels, favorites, disabledChannels, channelOverrides])
 
   const categories = useMemo(() => {
     const cats = new Set(channels.map((c) => c.category).filter(Boolean))
