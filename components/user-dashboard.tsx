@@ -46,7 +46,6 @@ export default function UserDashboard() {
   const [history, setHistory] = useState<ViewHistory[]>([])
   const [loadingFavorites, setLoadingFavorites] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(true)
-  const [copiedEmail, setCopiedEmail] = useState(false)
   const [showVipKeyInput, setShowVipKeyInput] = useState(false)
   const [vipKey, setVipKey] = useState('')
   const [redeemingVip, setRedeemingVip] = useState(false)
