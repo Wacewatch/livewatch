@@ -18,6 +18,8 @@ export async function GET() {
         default_tvvoo_source: 1, // Default to beta (second) alternative source
         alpha_enabled: true, // Alpha source enabled by default
         beta_enabled: true, // Beta source enabled by default
+        naga_enabled: true, // Naga source enabled by default
+        naga_default: false, // Naga not default by default
       })
     }
 
@@ -33,6 +35,8 @@ export async function GET() {
       default_tvvoo_source: 1,
       alpha_enabled: true,
       beta_enabled: true,
+      naga_enabled: true,
+      naga_default: false,
     })
   }
 }
@@ -51,6 +55,8 @@ export async function PUT(request: Request) {
       default_tvvoo_source: config.default_tvvoo_source ?? 1,
       alpha_enabled: config.alpha_enabled ?? true,
       beta_enabled: config.beta_enabled ?? true,
+      naga_enabled: config.naga_enabled ?? true,
+      naga_default: config.naga_default ?? false,
     }
 
     const { error } = await supabase.from("app_config").upsert({
