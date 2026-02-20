@@ -11,9 +11,60 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const url = searchParams.get("url")
   const name = searchParams.get("name") || ""
+  const channel = searchParams.get("channel")
+  const path = searchParams.get("path")
 
+  // New mode: resolve channel stream first, then proxy
+  if (channel) {
+    try {
+      // Import NagaClient dynamically
+      const { NagaClient } = await import("@/lib/naga-client")
+      const nagaClient = new NagaClient()
+
+      // Get stream URL for this channel
+      const stream = await nagaClient.resolveStream(channel)
+      
+      if (!stream || !stream.url) {
+        return new Response("Channel stream not found", { status: 404 })
+      }
+
+      // If requesting the manifest
+      if (path === "index.m3u8" || !path) {
+        if (stream.url.toLowerCase().includes(".m3u8")) {
+          return proxyHLSManifest(stream.url, request)
+        }
+        // For non-HLS, return a simple manifest that points to direct stream
+        return new Response(
+          `#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXTINF:10.0,\n${stream.url}\n#EXT-X-ENDLIST`,
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/vnd.apple.mpegurl",
+              "Cache-Control": "no-cache",
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
+        )
+      }
+
+      // If requesting a specific segment/path, build the URL
+      const baseUrl = stream.url.substring(0, stream.url.lastIndexOf("/"))
+      const segmentUrl = `${baseUrl}/${path}`
+      
+      if (segmentUrl.toLowerCase().includes(".m3u8")) {
+        return proxyHLSManifest(segmentUrl, request)
+      } else {
+        return proxyHLSSegment(segmentUrl)
+      }
+    } catch (error) {
+      console.error("[v0] Naga channel proxy error:", error)
+      return new Response("Channel proxy error", { status: 502 })
+    }
+  }
+
+  // Original mode: direct URL proxy
   if (!url) {
-    return new Response("Missing URL parameter", { status: 400 })
+    return new Response("Missing URL or channel parameter", { status: 400 })
   }
 
   try {
@@ -97,7 +148,7 @@ async function proxyHLSManifest(m3u8Url: string, request: NextRequest): Promise<
       status: 200,
       headers: {
         "Content-Type": "application/vnd.apple.mpegurl",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "public, max-age=10, s-maxage=10",
         "Access-Control-Allow-Origin": "*",
       },
     })
@@ -134,6 +185,7 @@ async function proxyHLSSegment(segUrl: string): Promise<Response> {
       status: 200,
       headers: {
         "Content-Type": "video/mp2t",
+        "Cache-Control": "public, max-age=21600, s-maxage=21600, immutable",
         "Access-Control-Allow-Origin": "*",
       },
     })

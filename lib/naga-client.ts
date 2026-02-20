@@ -401,13 +401,16 @@ export class NagaClient {
   /**
    * Resolve stream for a channel (combines getChannelById + resolveChannel)
    */
-  async resolveStream(channelId: string): Promise<string | null> {
+  async resolveStream(channelId: string): Promise<{ url: string; channel: NagaChannel } | null> {
     const sig = await this.getAddonSig()
     if (!sig) return null
 
     const channel = await this.getChannelById(channelId)
     if (!channel) return null
 
-    return this.resolveChannel(channel.url, sig)
+    const streamUrl = await this.resolveChannel(channel.url, sig)
+    if (!streamUrl) return null
+
+    return { url: streamUrl, channel }
   }
 }
