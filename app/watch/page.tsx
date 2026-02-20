@@ -95,44 +95,48 @@ function WatchPageContent() {
           enableWorker: true,
           lowLatencyMode: false,
 
-          // Buffer minimal pour démarrer IMMÉDIATEMENT
-          backBufferLength: 5,
-          maxBufferLength: 15, // Buffer max réduit
-          maxMaxBufferLength: 30,
-          maxBufferSize: 30 * 1000 * 1000,
+          // Buffer optimisé pour réduire les requêtes
+          backBufferLength: 10, // Garder 10s en arrière
+          maxBufferLength: 30, // Buffer de 30 secondes
+          maxMaxBufferLength: 60,
+          maxBufferSize: 60 * 1000 * 1000,
           maxBufferHole: 0.5,
 
-          // Démarrer dès le premier segment
-          startLevel: 0, // Commencer avec la qualité la plus basse
+          // Démarrer rapidement
+          startLevel: -1, // Auto quality
           autoStartLoad: true,
-          startFragPrefetch: true, // Précharger le premier fragment
+          startFragPrefetch: true,
 
-          // Réduire les requêtes de manifest
+          // Réduire les rechargements de manifest
           levelLoadingMaxRetry: 2,
           manifestLoadingMaxRetry: 2,
+          
+          // Augmenter l'intervalle de rechargement du manifest pour réduire les requêtes
+          manifestLoadingMaxRetryTimeout: 64000,
+          levelLoadingMaxRetryTimeout: 64000,
 
-          // ABR agressif pour monter en qualité rapidement
-          abrEwmaDefaultEstimate: 3000000, // Estimer 3Mbps par défaut
-          abrEwmaFastLive: 2,
-          abrEwmaSlowLive: 6,
-          abrBandWidthFactor: 0.9,
-          abrBandWidthUpFactor: 0.8,
+          // ABR modéré
+          abrEwmaDefaultEstimate: 5000000, // Estimer 5Mbps
+          abrEwmaFastLive: 3,
+          abrEwmaSlowLive: 9,
+          abrBandWidthFactor: 0.95,
+          abrBandWidthUpFactor: 0.7,
 
-          // Timeouts raisonnables
+          // Timeouts généreux
           fragLoadingTimeOut: 30000,
-          fragLoadingMaxRetry: 2,
-          fragLoadingRetryDelay: 500,
-          manifestLoadingTimeOut: 15000,
-          levelLoadingTimeOut: 15000,
+          fragLoadingMaxRetry: 3,
+          fragLoadingRetryDelay: 1000,
+          manifestLoadingTimeOut: 20000,
+          levelLoadingTimeOut: 20000,
 
-          // Live sync - démarrer au plus proche du live
-          liveSyncDurationCount: 2, // Juste 2 segments de buffer
-          liveMaxLatencyDurationCount: 4,
+          // Live sync - buffer plus large pour stabilité
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 10,
           liveDurationInfinity: true,
 
-          // Optimisations supplémentaires
+          // Optimisations
           progressive: true,
-          testBandwidth: false, // Ne pas tester, commencer direct
+          testBandwidth: false,
         })
 
         hls.loadSource(streamUrl)
@@ -334,24 +338,29 @@ function WatchPageContent() {
 
         {sources.length > 1 && (
           <div className="flex gap-2 flex-wrap items-center">
-            <span className="text-muted-foreground text-xs mr-2">Sources:</span>
-            {sources.map((src, index) => (
-              <button
-                key={src.id}
-                onClick={() => {
-                  setCurrentSourceIndex(index)
-                  setIsLoading(true)
-                  setHasError(false)
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
-                  index === currentSourceIndex
-                    ? "bg-primary text-primary-foreground"
-                    : "glass-card border border-border hover:border-primary/50 hover:text-primary"
-                }`}
-              >
-                Source {index + 1}
-              </button>
-            ))}
+            <span className="text-muted-foreground text-xs mr-2">Sources alternatives:</span>
+            {sources.map((src, index) => {
+              const sourceName = src.source === "naga" ? "Naga" : src.source === "vavoo" ? "VAVOO" : `Source ${index + 1}`
+              const sourceColor = src.source === "naga" ? "border-purple-500/50 text-purple-400 hover:border-purple-500" : ""
+              
+              return (
+                <button
+                  key={src.id}
+                  onClick={() => {
+                    setCurrentSourceIndex(index)
+                    setIsLoading(true)
+                    setHasError(false)
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
+                    index === currentSourceIndex
+                      ? `bg-primary text-primary-foreground ${src.source === "naga" ? "glow-accent" : ""}`
+                      : `glass-card border ${sourceColor || "border-border hover:border-primary/50 hover:text-primary"}`
+                  }`}
+                >
+                  {sourceName}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
