@@ -80,8 +80,10 @@ export async function POST(request: Request) {
       channel_count: 0,
     }))
 
-    await supabaseService.from("delta_countries").delete().neq("name", "")
-    const { error: countriesError } = await supabaseService.from("delta_countries").insert(countries)
+    // Use upsert to handle existing countries
+    const { error: countriesError } = await supabaseService
+      .from("delta_countries")
+      .upsert(countries, { onConflict: "id" })
 
     if (countriesError) {
       console.error("[v0] Delta Sync: Countries error:", countriesError)
@@ -108,11 +110,12 @@ export async function POST(request: Request) {
     const chunkSize = 1000
     let synced = 0
 
-    await supabaseService.from("delta_channels").delete().neq("id", "")
-
+    // Use upsert in chunks to handle existing channels
     for (let i = 0; i < channelsData.length; i += chunkSize) {
       const chunk = channelsData.slice(i, i + chunkSize)
-      const { error: channelsError } = await supabaseService.from("delta_channels").insert(chunk)
+      const { error: channelsError } = await supabaseService
+        .from("delta_channels")
+        .upsert(chunk, { onConflict: "id" })
 
       if (channelsError) {
         console.error("[v0] Delta Sync: Channels error:", channelsError)
