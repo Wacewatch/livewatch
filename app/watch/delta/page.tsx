@@ -93,7 +93,8 @@ function DeltaWatchContent() {
     if (!sources[currentSourceIndex] || !videoRef.current || !adWatched) return
 
     const video = videoRef.current
-    const streamUrl = `/api/delta/proxy/play/${sources[currentSourceIndex].id}/index.m3u8`
+    // Use VAVOO-style endpoint - simple redirect to stream like Python proxy
+    const streamUrl = `/api/delta/vavoo?channel=${sources[currentSourceIndex].id}`
 
     // Cleanup previous HLS instance
     if (hlsRef.current) {
