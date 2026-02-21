@@ -7,6 +7,24 @@ import { useEffect, useState } from "react"
 import { UserMenu } from "@/components/user-menu"
 import { useUserRole } from "@/lib/hooks/use-user-role"
 import { Footer } from "@/components/footer"
+import { DeltaCountrySelector } from "./delta-country-selector"
+
+interface CountrySelectorProps {
+  version?: "alpha" | "delta"
+}
+
+export function CountrySelector({ version = "alpha" }: CountrySelectorProps) {
+  // If Delta version, use Delta country selector
+  if (version === "delta") {
+    return <DeltaCountrySelector />
+  }
+
+  // Otherwise use Alpha (current) country selector
+  return <AlphaCountrySelector />
+}
+
+function AlphaCountrySelector() {
+  const { isAdmin } = useUserRole()
 
 const ALL_COUNTRIES = [
   { name: "France", code: "fr" },
@@ -40,12 +58,10 @@ interface GlobalBanner {
   text_color: string
 }
 
-export function CountrySelector() {
   const [countryStatuses, setCountryStatuses] = useState<CountryStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [globalBanner, setGlobalBanner] = useState<GlobalBanner | null>(null)
   const [bannerDismissed, setBannerDismissed] = useState(false)
-  const { isAdmin } = useUserRole()
 
   useEffect(() => {
     const dismissed = localStorage.getItem("global_banner_dismissed")

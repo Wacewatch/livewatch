@@ -29,32 +29,20 @@ CREATE TABLE IF NOT EXISTS delta_usage_logs (
 CREATE INDEX IF NOT EXISTS idx_delta_usage_timestamp ON delta_usage_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_delta_usage_country ON delta_usage_logs(country);
 
--- Add delta_enabled and delta_default to app_config
-DO $$
-BEGIN
-  -- Check if columns exist, if not add them
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'app_config' AND column_name = 'delta_enabled'
-  ) THEN
-    ALTER TABLE app_config ADD COLUMN delta_enabled BOOLEAN DEFAULT true;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'app_config' AND column_name = 'delta_default'
-  ) THEN
-    ALTER TABLE app_config ADD COLUMN delta_default BOOLEAN DEFAULT false;
-  END IF;
-END $$;
-
--- Initialize config if needed
-INSERT INTO app_config (key, source1_enabled, source2_enabled, source3_enabled, source4_enabled, delta_enabled, delta_default)
-VALUES ('source_config', true, true, true, true, true, false)
-ON CONFLICT (key) DO UPDATE 
-SET 
-  delta_enabled = COALESCE(app_config.delta_enabled, true),
-  delta_default = COALESCE(app_config.delta_default, false);
+-- Add delta_enabled and delta_default to app_config JSONB value
+UPDATE app_config 
+SET value = jsonb_set(
+  jsonb_set(
+    value,
+    '{delta_enabled}',
+    'true'::jsonb,
+    true
+  ),
+  '{delta_default}',
+  'false'::jsonb,
+  true
+)
+WHERE key = 'source_config';
 
 -- Grant permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON delta_cache TO authenticated;
