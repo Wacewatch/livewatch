@@ -76,12 +76,14 @@ export async function GET(request: NextRequest) {
       }
 
       // For segments, stream directly
+      const segmentData = await streamResponse.arrayBuffer()
+      
       const headers = new Headers()
       headers.set("Content-Type", streamResponse.headers.get("Content-Type") || "video/mp2t")
       headers.set("Access-Control-Allow-Origin", "*")
-      headers.set("Cache-Control": "no-cache")
+      headers.set("Cache-Control", "no-cache")
 
-      return new NextResponse(streamResponse.body, {
+      return new NextResponse(segmentData, {
         status: 200,
         headers,
       })
