@@ -104,11 +104,11 @@ function DeltaWatchContent() {
     if (!sources[currentSourceIndex] || !videoRef.current || !adWatched) return
 
     const video = videoRef.current
-    // Use simplified Delta proxy
     const streamUrl = `/api/delta/proxy/play/${sources[currentSourceIndex].id}/index.m3u8`
 
     // Cleanup previous HLS instance
     if (hlsRef.current) {
+      console.log("[v0] Delta: Destroying previous HLS instance")
       hlsRef.current.destroy()
       hlsRef.current = null
     }
@@ -117,36 +117,30 @@ function DeltaWatchContent() {
     setStatusText("Connexion au flux Delta...")
     setHasError(false)
 
-    // Check if HLS.js is loaded
     const initHls = () => {
       if ((window as any).Hls && (window as any).Hls.isSupported()) {
         const hls = new (window as any).Hls({
           enableWorker: true,
           lowLatencyMode: false,
           backBufferLength: 10,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
-          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferLength: 20,
+          maxMaxBufferLength: 30,
+          maxBufferSize: 30 * 1000 * 1000,
           maxBufferHole: 0.5,
           startLevel: -1,
           autoStartLoad: true,
-          startFragPrefetch: true,
-          levelLoadingMaxRetry: 2,
-          manifestLoadingMaxRetry: 2,
-          manifestLoadingMaxRetryTimeout: 64000,
-          levelLoadingMaxRetryTimeout: 64000,
-          abrEwmaDefaultEstimate: 5000000,
-          abrEwmaFastLive: 3,
-          abrEwmaSlowLive: 9,
-          abrBandWidthFactor: 0.95,
-          abrBandWidthUpFactor: 0.7,
-          fragLoadingTimeOut: 30000,
-          fragLoadingMaxRetry: 3,
-          fragLoadingRetryDelay: 1000,
-          manifestLoadingTimeOut: 20000,
-          levelLoadingTimeOut: 20000,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 10,
+          startFragPrefetch: false,
+          levelLoadingMaxRetry: 1,
+          manifestLoadingMaxRetry: 1,
+          manifestLoadingMaxRetryTimeout: 10000,
+          levelLoadingMaxRetryTimeout: 10000,
+          fragLoadingTimeOut: 20000,
+          fragLoadingMaxRetry: 2,
+          fragLoadingRetryDelay: 500,
+          manifestLoadingTimeOut: 10000,
+          levelLoadingTimeOut: 10000,
+          liveSyncDurationCount: 2,
+          liveMaxLatencyDurationCount: 5,
           liveDurationInfinity: true,
           progressive: true,
           testBandwidth: false,
@@ -217,9 +211,15 @@ function DeltaWatchContent() {
     }
 
     return () => {
+      console.log("[v0] Delta: Cleanup - destroying HLS and stopping video")
       if (hlsRef.current) {
         hlsRef.current.destroy()
         hlsRef.current = null
+      }
+      if (videoRef.current) {
+        videoRef.current.pause()
+        videoRef.current.src = ""
+        videoRef.current.load()
       }
     }
   }, [sources, currentSourceIndex, adWatched])
