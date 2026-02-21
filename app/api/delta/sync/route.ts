@@ -1,22 +1,41 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createServiceClient } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase/server"
 import { getAddonSig, fetchCatalog, getCountries } from "@/lib/delta-client-v2"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-const supabase = createClient(
+const supabaseService = createServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export async function POST(request: Request) {
   try {
-    // Verify cron secret
+    // Check if request is from cron job or admin user
     const authHeader = request.headers.get("authorization")
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const isCronJob = authHeader === `Bearer ${process.env.CRON_SECRET}`
+    
+    if (!isCronJob) {
+      // Verify admin user
+      const supabase = await createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+
+      const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+
+      if (profile?.role !== "admin") {
+        return NextResponse.json({ error: "Admin access required" }, { status: 403 })
+      }
     }
+    
+    console.log("[v0] Delta Sync: Starting sync...", isCronJob ? "(cron)" : "(manual)")
 
     console.log("[v0] Delta Sync: Starting sync...")
 
@@ -60,8 +79,8 @@ export async function POST(request: Request) {
       code: name.toLowerCase().replace(/\s+/g, "-"),
     }))
 
-    await supabase.from("delta_countries").delete().neq("name", "")
-    const { error: countriesError } = await supabase.from("delta_countries").insert(countries)
+    await supabaseService.from("delta_countries").delete().neq("name", "")
+    const { error: countriesError } = await supabaseService.from("delta_countries").insert(countries)
 
     if (countriesError) {
       console.error("[v0] Delta Sync: Countries error:", countriesError)
@@ -87,11 +106,11 @@ export async function POST(request: Request) {
     const chunkSize = 1000
     let synced = 0
 
-    await supabase.from("delta_channels").delete().neq("delta_id", "")
+    await supabaseService.from("delta_channels").delete().neq("delta_id", "")
 
     for (let i = 0; i < channelsData.length; i += chunkSize) {
       const chunk = channelsData.slice(i, i + chunkSize)
-      const { error: channelsError } = await supabase.from("delta_channels").insert(chunk)
+      const { error: channelsError } = await supabaseService.from("delta_channels").insert(chunk)
 
       if (channelsError) {
         console.error("[v0] Delta Sync: Channels error:", channelsError)
