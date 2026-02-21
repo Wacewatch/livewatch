@@ -94,19 +94,7 @@ export async function POST(request: Request) {
       }
     })
 
-    // Delete all existing countries - select all IDs then delete them  
-    console.log("[v0] Delta Sync: Deleting all delta_countries...")
-    const { data: existingCountries } = await supabaseService
-      .from("delta_countries")
-      .select("id")
-    
-    if (existingCountries && existingCountries.length > 0) {
-      console.log(`[v0] Delta Sync: Found ${existingCountries.length} existing countries to delete`)
-      const ids = existingCountries.map((c) => c.id)
-      await supabaseService.from("delta_countries").delete().in("id", ids)
-      console.log("[v0] Delta Sync: All existing countries deleted")
-    }
-    
+    // Insert countries (already deleted at the start)
     console.log("[v0] Delta Sync: Inserting", countries.length, "countries...")
     const { error: countriesError } = await supabaseService
       .from("delta_countries")
@@ -136,29 +124,9 @@ export async function POST(request: Request) {
       }
     })
 
-    // Batch insert channels (in chunks of 1000)
+    // Insert channels in chunks of 1000
     const chunkSize = 1000
     let synced = 0
-
-    // Delete all existing channels - select all IDs then delete them
-    console.log("[v0] Delta Sync: Deleting all delta_channels...")
-    const { data: existingChannels } = await supabaseService
-      .from("delta_channels")
-      .select("id")
-    
-    if (existingChannels && existingChannels.length > 0) {
-      console.log(`[v0] Delta Sync: Found ${existingChannels.length} existing channels to delete`)
-      // Delete in smaller batches to avoid query limits
-      const batchSize = 1000
-      for (let i = 0; i < existingChannels.length; i += batchSize) {
-        const batch = existingChannels.slice(i, i + batchSize)
-        const ids = batch.map((c) => c.id)
-        await supabaseService.from("delta_channels").delete().in("id", ids)
-      }
-      console.log("[v0] Delta Sync: All existing channels deleted")
-    }
-    
-    // Insert channels in chunks
     console.log("[v0] Delta Sync: Inserting", channelsData.length, "channels in chunks...")
     for (let i = 0; i < channelsData.length; i += chunkSize) {
       const chunk = channelsData.slice(i, i + chunkSize)
