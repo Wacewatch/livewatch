@@ -94,17 +94,13 @@ export async function POST(request: Request) {
       }
     })
 
-    // Delete existing countries and insert new ones - use 'not is null' to match all rows
-    console.log("[v0] Delta Sync: Deleting existing countries...")
-    const { count: deletedCountriesCount, error: deleteCountriesError } = await supabaseService
-      .from("delta_countries")
-      .delete({ count: "exact" })
-      .not("id", "is", null)
-    
-    console.log("[v0] Delta Sync: Deleted", deletedCountriesCount, "existing countries")
-    if (deleteCountriesError) {
-      console.error("[v0] Delta Sync: Delete countries error:", deleteCountriesError)
-      // Continue anyway
+    // Truncate countries table for clean slate
+    console.log("[v0] Delta Sync: Truncating delta_countries table...")
+    const { error: truncateCountriesError } = await supabaseService.rpc("truncate_delta_countries")
+    if (truncateCountriesError) {
+      console.error("[v0] Delta Sync: Truncate countries error, trying delete:", truncateCountriesError)
+      // Fallback: delete all
+      await supabaseService.from("delta_countries").delete().neq("id", "xxxxx-impossible-id")
     }
     
     console.log("[v0] Delta Sync: Inserting", countries.length, "countries...")
