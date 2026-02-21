@@ -23,6 +23,7 @@ function DeltaWatchContent() {
   const [statusText, setStatusText] = useState("Connexion...")
   const [showAdModal, setShowAdModal] = useState(true)
   const [adWatched, setAdWatched] = useState(false)
+  const [adCountdown, setAdCountdown] = useState(5)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
 
@@ -33,6 +34,16 @@ function DeltaWatchContent() {
       setAdWatched(true)
     }
   }, [isAdmin, isVip])
+
+  // Ad countdown
+  useEffect(() => {
+    if (showAdModal && adCountdown > 0) {
+      const timer = setTimeout(() => {
+        setAdCountdown(adCountdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [adCountdown, showAdModal])
 
   useEffect(() => {
     const script = document.createElement("script")
@@ -93,9 +104,7 @@ function DeltaWatchContent() {
     if (!sources[currentSourceIndex] || !videoRef.current || !adWatched) return
 
     const video = videoRef.current
-    const currentChannel = sources[currentSourceIndex]
-    
-    console.log("[v0] Delta: Loading channel", currentChannel.name, currentChannel.url)
+    const streamUrl = `/api/delta/proxy/play/${sources[currentSourceIndex].id}/index.m3u8`
 
     // Cleanup previous HLS instance
     if (hlsRef.current) {
@@ -108,37 +117,7 @@ function DeltaWatchContent() {
     setStatusText("Connexion au flux Delta...")
     setHasError(false)
 
-    // First resolve the channel URL to get stream URL (like PHP ?action=resolve)
-    const resolveAndPlay = async () => {
-      try {
-        setStatusText("Résolution du flux...")
-        
-        const resolveResponse = await fetch(`/api/delta/proxy?action=resolve&channelUrl=${encodeURIComponent(currentChannel.url)}`)
-        if (!resolveResponse.ok) {
-          throw new Error("Failed to resolve channel")
-        }
-        
-        const { stream_url } = await resolveResponse.json()
-        console.log("[v0] Delta: Stream URL resolved:", stream_url?.substring(0, 50))
-        
-        if (!stream_url) {
-          throw new Error("No stream URL")
-        }
-        
-        // Now proxy the stream (like PHP ?action=pipe)
-        const proxyUrl = `/api/delta/proxy?action=pipe&url=${encodeURIComponent(stream_url)}`
-        
-        setStatusText("Connexion au flux...")
-        initHls(proxyUrl)
-      } catch (error) {
-        console.error("[v0] Delta: Resolution failed:", error)
-        setHasError(true)
-        setStatusText("Échec de la résolution")
-        setIsLoading(false)
-      }
-    }
-    
-    const initHls = (streamUrl: string) => {
+    const initHls = () => {
       if ((window as any).Hls && (window as any).Hls.isSupported()) {
         const hls = new (window as any).Hls({
           enableWorker: true,
@@ -167,9 +146,6 @@ function DeltaWatchContent() {
           testBandwidth: false,
         })
 
-        hlsRef.current = hls
-        
-        console.log("[v0] Delta: Loading HLS stream")
         hls.loadSource(streamUrl)
         hls.attachMedia(video)
 
@@ -223,12 +199,12 @@ function DeltaWatchContent() {
     }
 
     if ((window as any).Hls) {
-      resolveAndPlay()
+      initHls()
     } else {
       const checkInterval = setInterval(() => {
         if ((window as any).Hls) {
           clearInterval(checkInterval)
-          resolveAndPlay()
+          initHls()
         }
       }, 50)
       setTimeout(() => clearInterval(checkInterval), 5000)
@@ -349,10 +325,15 @@ function DeltaWatchContent() {
 
             <button
               onClick={handleUnlockStream}
-              className="w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 mb-4 bg-red-500 text-white hover:bg-red-600 hover:scale-105"
+              disabled={adCountdown > 0}
+              className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 mb-4 ${
+                adCountdown > 0
+                  ? "bg-red-500/50 text-red-200 cursor-not-allowed"
+                  : "bg-red-500 text-white hover:bg-red-600 hover:scale-105"
+              }`}
             >
               <Lock className="w-5 h-5 inline mr-2" />
-              Débloquer le stream
+              {adCountdown > 0 ? `Débloquer dans ${adCountdown}s` : "Débloquer le stream"}
             </button>
 
             <div className="text-center">
@@ -405,13 +386,6 @@ function DeltaWatchContent() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href={`/channels/delta?country=${searchParams.get("country") || "France"}`}
-              className="p-2 rounded-lg glass-card border border-border/50 hover:border-primary/50 transition-all hover:scale-105"
-              title="Retour aux chaînes"
-            >
-              <X className="w-5 h-5 text-foreground" />
-            </Link>
             <button
               onClick={toggleMute}
               className="p-2.5 rounded-xl glass-card border border-accent/50 text-accent hover:scale-105 transition-all duration-300"
@@ -464,7 +438,7 @@ function DeltaWatchContent() {
       </div>
 
       {/* Video Player */}
-      <div className="relative w-full h-full flex items-center justify-center">
+      <div className="w-full h-full flex items-center justify-center">
         <video
           ref={videoRef}
           className="w-full h-full object-contain"
@@ -483,10 +457,11 @@ function DeltaWatchContent() {
             setIsLoading(false)
           }}
         />
-        
-        {/* Loading overlay - inside video container */}
-        {isLoading && adWatched && (
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/5 to-pink-900/5 flex flex-col items-center justify-center z-10">
+      </div>
+
+      {/* Loading overlay */}
+      {isLoading && adWatched && (
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/5 to-pink-900/5 flex flex-col items-center justify-center backdrop-blur-sm z-30">
           <div className="mb-8">
             <Image
               src="/livewatch-logo.png"
@@ -502,9 +477,8 @@ function DeltaWatchContent() {
           <p className="text-purple-400 font-bold text-lg mt-4">{statusText}</p>
           <p className="text-muted-foreground text-sm mt-2">Connexion au serveur...</p>
           <p className="text-xs text-muted-foreground mt-1">Source Delta (Proxy par défaut)</p>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
