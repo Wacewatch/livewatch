@@ -118,9 +118,9 @@ export function DeltaChannelsClient({ country }: DeltaChannelsClientProps) {
 
         {!isLoading && !error && channels.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-            {channels.map((channel) => (
+            {channels.map((channel, index) => (
               <button
-                key={channel.id}
+                key={`${channel.id}-${index}`}
                 onClick={() => handleChannelClick(channel)}
                 className="group glass-card border border-border/50 hover:border-purple-500/50 rounded-2xl p-4 md:p-6 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/20 transition-all duration-300 flex flex-col items-center gap-3"
               >
