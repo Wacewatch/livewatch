@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/sync-delta",
+      "path": "/api/delta/sync",
       "schedule": "*/30 * * * *"
     }
   ]

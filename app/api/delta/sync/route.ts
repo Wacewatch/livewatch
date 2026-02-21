@@ -94,9 +94,18 @@ export async function POST(request: Request) {
       }
     })
 
-    // Delete all existing countries - use gte which matches all dates
+    // Delete all existing countries - select all IDs then delete them  
     console.log("[v0] Delta Sync: Deleting all delta_countries...")
-    await supabaseService.from("delta_countries").delete().gte("created_at", "2020-01-01")
+    const { data: existingCountries } = await supabaseService
+      .from("delta_countries")
+      .select("id")
+    
+    if (existingCountries && existingCountries.length > 0) {
+      console.log(`[v0] Delta Sync: Found ${existingCountries.length} existing countries to delete`)
+      const ids = existingCountries.map((c) => c.id)
+      await supabaseService.from("delta_countries").delete().in("id", ids)
+      console.log("[v0] Delta Sync: All existing countries deleted")
+    }
     
     console.log("[v0] Delta Sync: Inserting", countries.length, "countries...")
     const { error: countriesError } = await supabaseService
@@ -131,9 +140,23 @@ export async function POST(request: Request) {
     const chunkSize = 1000
     let synced = 0
 
-    // Delete all existing channels - use gte which matches all dates
+    // Delete all existing channels - select all IDs then delete them
     console.log("[v0] Delta Sync: Deleting all delta_channels...")
-    await supabaseService.from("delta_channels").delete().gte("created_at", "2020-01-01")
+    const { data: existingChannels } = await supabaseService
+      .from("delta_channels")
+      .select("id")
+    
+    if (existingChannels && existingChannels.length > 0) {
+      console.log(`[v0] Delta Sync: Found ${existingChannels.length} existing channels to delete`)
+      // Delete in smaller batches to avoid query limits
+      const batchSize = 1000
+      for (let i = 0; i < existingChannels.length; i += batchSize) {
+        const batch = existingChannels.slice(i, i + batchSize)
+        const ids = batch.map((c) => c.id)
+        await supabaseService.from("delta_channels").delete().in("id", ids)
+      }
+      console.log("[v0] Delta Sync: All existing channels deleted")
+    }
     
     // Insert channels in chunks
     console.log("[v0] Delta Sync: Inserting", channelsData.length, "channels in chunks...")
