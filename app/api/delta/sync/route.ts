@@ -94,11 +94,15 @@ export async function POST(request: Request) {
       }
     })
 
-    // Delete existing countries and insert new ones
+    // Delete existing countries and insert new ones - using gt('id', '') to match all rows
     console.log("[v0] Delta Sync: Deleting existing countries...")
-    const { error: deleteCountriesError } = await supabaseService.from("delta_countries").delete().neq("id", "")
+    const { error: deleteCountriesError } = await supabaseService
+      .from("delta_countries")
+      .delete()
+      .gt("id", "")
     if (deleteCountriesError) {
       console.error("[v0] Delta Sync: Delete countries error:", deleteCountriesError)
+      // Continue anyway
     }
     
     console.log("[v0] Delta Sync: Inserting", countries.length, "countries...")
@@ -134,11 +138,15 @@ export async function POST(request: Request) {
     const chunkSize = 1000
     let synced = 0
 
-    // Delete all existing channels first
+    // Delete all existing channels first - using gt('id', '') to match all rows
     console.log("[v0] Delta Sync: Deleting existing channels...")
-    const { error: deleteError } = await supabaseService.from("delta_channels").delete().neq("id", "")
+    const { error: deleteError } = await supabaseService
+      .from("delta_channels")
+      .delete()
+      .gt("id", "")
     if (deleteError) {
       console.error("[v0] Delta Sync: Delete error:", deleteError)
+      // Continue anyway - upsert will handle it
     }
     
     // Insert channels in chunks

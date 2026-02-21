@@ -464,7 +464,7 @@ function DeltaWatchContent() {
       </div>
 
       {/* Video Player */}
-      <div className="w-full h-full flex items-center justify-center">
+      <div className="relative w-full h-full flex items-center justify-center">
         <video
           ref={videoRef}
           className="w-full h-full object-contain"
@@ -483,11 +483,10 @@ function DeltaWatchContent() {
             setIsLoading(false)
           }}
         />
-      </div>
-
-      {/* Loading overlay */}
-      {isLoading && adWatched && (
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/5 to-pink-900/5 flex flex-col items-center justify-center backdrop-blur-sm z-30">
+        
+        {/* Loading overlay - inside video container */}
+        {isLoading && adWatched && (
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/5 to-pink-900/5 flex flex-col items-center justify-center z-10">
           <div className="mb-8">
             <Image
               src="/livewatch-logo.png"
@@ -503,8 +502,9 @@ function DeltaWatchContent() {
           <p className="text-purple-400 font-bold text-lg mt-4">{statusText}</p>
           <p className="text-muted-foreground text-sm mt-2">Connexion au serveur...</p>
           <p className="text-xs text-muted-foreground mt-1">Source Delta (Proxy par défaut)</p>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
