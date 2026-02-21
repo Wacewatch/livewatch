@@ -94,14 +94,9 @@ export async function POST(request: Request) {
       }
     })
 
-    // Truncate countries table for clean slate
-    console.log("[v0] Delta Sync: Truncating delta_countries table...")
-    const { error: truncateCountriesError } = await supabaseService.rpc("truncate_delta_countries")
-    if (truncateCountriesError) {
-      console.error("[v0] Delta Sync: Truncate countries error, trying delete:", truncateCountriesError)
-      // Fallback: delete all
-      await supabaseService.from("delta_countries").delete().neq("id", "xxxxx-impossible-id")
-    }
+    // Delete all existing countries - use gte which matches all dates
+    console.log("[v0] Delta Sync: Deleting all delta_countries...")
+    await supabaseService.from("delta_countries").delete().gte("created_at", "2020-01-01")
     
     console.log("[v0] Delta Sync: Inserting", countries.length, "countries...")
     const { error: countriesError } = await supabaseService
@@ -136,14 +131,9 @@ export async function POST(request: Request) {
     const chunkSize = 1000
     let synced = 0
 
-    // Truncate table directly for clean slate (faster than delete)
-    console.log("[v0] Delta Sync: Truncating delta_channels table...")
-    const { error: truncateError } = await supabaseService.rpc("truncate_delta_channels")
-    if (truncateError) {
-      console.error("[v0] Delta Sync: Truncate error, trying delete:", truncateError)
-      // Fallback: delete with a condition that matches everything
-      await supabaseService.from("delta_channels").delete().neq("id", "xxxxx-impossible-id")
-    }
+    // Delete all existing channels - use gte which matches all dates
+    console.log("[v0] Delta Sync: Deleting all delta_channels...")
+    await supabaseService.from("delta_channels").delete().gte("created_at", "2020-01-01")
     
     // Insert channels in chunks
     console.log("[v0] Delta Sync: Inserting", channelsData.length, "channels in chunks...")
