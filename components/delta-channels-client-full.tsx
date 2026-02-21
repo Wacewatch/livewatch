@@ -166,8 +166,6 @@ export function DeltaChannelsClientFull({ country }: DeltaChannelsClientProps) {
           </div>
         </div>
       </div>
-        </div>
-      </div>
     )
   }
 
