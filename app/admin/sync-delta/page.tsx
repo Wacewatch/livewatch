@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowLeft, RefreshCw } from "lucide-react"
+import { syncDeltaData } from "./actions"
 
 export default function SyncDeltaPage() {
   const [syncing, setSyncing] = useState(false)
@@ -13,13 +14,10 @@ export default function SyncDeltaPage() {
     setSyncing(true)
     setResult(null)
     try {
-      const response = await fetch("/api/delta/sync", {
-        method: "POST",
-      })
-      const data = await response.json()
+      const data = await syncDeltaData()
       setResult(data)
     } catch (error) {
-      setResult({ error: String(error) })
+      setResult({ success: false, error: String(error) })
     } finally {
       setSyncing(false)
     }
