@@ -1,5 +1,4 @@
-const fetch = require('node:fetch');
-
+// fetch is global in Node.js 18+
 async function triggerSync() {
   console.log('[Sync] Starting Delta synchronization...');
   console.log('[Sync] This will take 2-5 minutes to fetch ~8000 channels from VAVOO API');
