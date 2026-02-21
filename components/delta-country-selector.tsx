@@ -19,11 +19,19 @@ export function DeltaCountrySelector() {
     fetch("/api/delta/countries")
       .then((res) => res.json())
       .then((data) => {
-        setCountries(data)
+        console.log("[v0] Delta countries received:", data)
+        // Make sure data is an array
+        if (Array.isArray(data)) {
+          setCountries(data)
+        } else {
+          console.error("[v0] Invalid data format, expected array:", data)
+          setCountries([])
+        }
         setIsLoading(false)
       })
       .catch((error) => {
         console.error("[v0] Error fetching Delta countries:", error)
+        setCountries([])
         setIsLoading(false)
       })
   }, [])
@@ -52,9 +60,9 @@ export function DeltaCountrySelector() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto">
-          {countries.map((country) => (
+          {countries.map((country, index) => (
             <button
-              key={country.code}
+              key={`${country.code}-${index}`}
               onClick={() => router.push(`/channels/delta?country=${encodeURIComponent(country.name)}`)}
               className="glass-card border border-border/50 hover:border-primary/50 p-6 rounded-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 group"
             >

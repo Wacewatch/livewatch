@@ -21,8 +21,34 @@ export async function GET() {
     console.log("[v0] Delta loaded", allChannels.length, "channels")
     
     // Then extract countries from channels
-    const countries = deltaClient.getCountries(allChannels)
-    console.log(`[v0] Loaded ${countries.length} Delta countries`)
+    const countryNames = deltaClient.getCountries(allChannels)
+    console.log(`[v0] Loaded ${countryNames.length} Delta countries`)
+
+    // Transform country names to Country objects with flags
+    const countryFlags: Record<string, string> = {
+      France: "🇫🇷",
+      Italy: "🇮🇹",
+      Spain: "🇪🇸",
+      Germany: "🇩🇪",
+      UK: "🇬🇧",
+      "United Kingdom": "🇬🇧",
+      Belgium: "🇧🇪",
+      Netherlands: "🇳🇱",
+      Portugal: "🇵🇹",
+      Switzerland: "🇨🇭",
+      Austria: "🇦🇹",
+      Poland: "🇵🇱",
+      Turkey: "🇹🇷",
+      Greece: "🇬🇷",
+      USA: "🇺🇸",
+      Canada: "🇨🇦",
+    }
+
+    const countries = countryNames.map((name) => ({
+      name,
+      flag: countryFlags[name] || "🌍",
+      code: name.toLowerCase().replace(/\s+/g, "-"),
+    }))
 
     return NextResponse.json(countries)
   } catch (error) {
