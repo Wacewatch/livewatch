@@ -2,16 +2,11 @@
 
 import { useEffect, useState, useRef, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { RefreshCw, Maximize, Minimize, Volume2, VolumeX, Lock, Sparkles, X } from "lucide-react"
-import { useUserRole } from "@/lib/hooks/use-user-role"
-import Image from "next/image"
-import Link from "next/link"
+import { RefreshCw, Maximize, Minimize, Volume2, VolumeX } from "lucide-react"
 
-function DeltaWatchContent() {
+function WatchPageContent() {
   const searchParams = useSearchParams()
   const id = searchParams.get("id")
-  const { isAdmin, isVip } = useUserRole()
-  
   const [channel, setChannel] = useState<any>(null)
   const [sources, setSources] = useState<any[]>([])
   const [currentSourceIndex, setCurrentSourceIndex] = useState(0)
@@ -21,29 +16,8 @@ function DeltaWatchContent() {
   const [isMuted, setIsMuted] = useState(false)
   const [hasError, setHasError] = useState(false)
   const [statusText, setStatusText] = useState("Connexion...")
-  const [showAdModal, setShowAdModal] = useState(true)
-  const [adWatched, setAdWatched] = useState(false)
-  const [adCountdown, setAdCountdown] = useState(5)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
-
-  // Check if user is VIP or admin - skip ad
-  useEffect(() => {
-    if (isAdmin || isVip) {
-      setShowAdModal(false)
-      setAdWatched(true)
-    }
-  }, [isAdmin, isVip])
-
-  // Ad countdown
-  useEffect(() => {
-    if (showAdModal && adCountdown > 0) {
-      const timer = setTimeout(() => {
-        setAdCountdown(adCountdown - 1)
-      }, 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [adCountdown, showAdModal])
 
   useEffect(() => {
     const script = document.createElement("script")
@@ -57,11 +31,9 @@ function DeltaWatchContent() {
   }, [])
 
   useEffect(() => {
-    if (!id || !adWatched) return
+    if (!id) return
 
-    const country = searchParams.get("country") || "France"
-    
-    fetch(`/api/delta/channels?country=${country}`)
+    fetch("/api/channels")
       .then((res) => res.json())
       .then((data) => {
         const channelsList = Array.isArray(data) ? data : []
@@ -73,7 +45,7 @@ function DeltaWatchContent() {
           const normalizedName = foundChannel.name
             .toUpperCase()
             .replace(/\s*(HD|FHD|4K|UHD|SD)\s*/gi, "")
-            .replace(/\s*\(\d+\)\s*/g, "")
+            .replace(/\s*$$\d+$$\s*/g, "")
             .replace(/\s+/g, " ")
             .trim()
 
@@ -81,31 +53,30 @@ function DeltaWatchContent() {
             const chNormalized = ch.name
               .toUpperCase()
               .replace(/\s*(HD|FHD|4K|UHD|SD)\s*/gi, "")
-              .replace(/\s*\(\d+\)\s*/g, "")
+              .replace(/\s*$$\d+$$\s*/g, "")
               .replace(/\s+/g, " ")
               .trim()
             return chNormalized === normalizedName
           })
 
-          setSources(alternativeSources.length > 0 ? alternativeSources : [foundChannel])
+          setSources(alternativeSources)
         } else {
           setHasError(true)
         }
         setIsLoading(false)
       })
       .catch((error) => {
-        console.error("[v0] Delta: Error fetching channel:", error)
+        console.error("[v0] Error fetching channel:", error)
         setHasError(true)
         setIsLoading(false)
       })
-  }, [id, adWatched, searchParams])
+  }, [id])
 
   useEffect(() => {
-    if (!sources[currentSourceIndex] || !videoRef.current || !adWatched) return
+    if (!sources[currentSourceIndex] || !videoRef.current) return
 
     const video = videoRef.current
-    // Use simplified Delta proxy
-    const streamUrl = `/api/delta/proxy/play/${sources[currentSourceIndex].id}/index.m3u8`
+    const streamUrl = `/api/proxy/play/${sources[currentSourceIndex].id}/index.m3u8`
 
     // Cleanup previous HLS instance
     if (hlsRef.current) {
@@ -114,7 +85,7 @@ function DeltaWatchContent() {
     }
 
     setIsLoading(true)
-    setStatusText("Connexion au flux Delta...")
+    setStatusText("Connexion au flux...")
     setHasError(false)
 
     // Check if HLS.js is loaded
@@ -123,31 +94,47 @@ function DeltaWatchContent() {
         const hls = new (window as any).Hls({
           enableWorker: true,
           lowLatencyMode: false,
-          backBufferLength: 10,
-          maxBufferLength: 30,
+
+          // Buffer optimisé pour réduire les requêtes
+          backBufferLength: 10, // Garder 10s en arrière
+          maxBufferLength: 30, // Buffer de 30 secondes
           maxMaxBufferLength: 60,
           maxBufferSize: 60 * 1000 * 1000,
           maxBufferHole: 0.5,
-          startLevel: -1,
+
+          // Démarrer rapidement
+          startLevel: -1, // Auto quality
           autoStartLoad: true,
           startFragPrefetch: true,
+
+          // Réduire les rechargements de manifest
           levelLoadingMaxRetry: 2,
           manifestLoadingMaxRetry: 2,
+          
+          // Augmenter l'intervalle de rechargement du manifest pour réduire les requêtes
           manifestLoadingMaxRetryTimeout: 64000,
           levelLoadingMaxRetryTimeout: 64000,
-          abrEwmaDefaultEstimate: 5000000,
+
+          // ABR modéré
+          abrEwmaDefaultEstimate: 5000000, // Estimer 5Mbps
           abrEwmaFastLive: 3,
           abrEwmaSlowLive: 9,
           abrBandWidthFactor: 0.95,
           abrBandWidthUpFactor: 0.7,
+
+          // Timeouts généreux
           fragLoadingTimeOut: 30000,
           fragLoadingMaxRetry: 3,
           fragLoadingRetryDelay: 1000,
           manifestLoadingTimeOut: 20000,
           levelLoadingTimeOut: 20000,
+
+          // Live sync - buffer plus large pour stabilité
           liveSyncDurationCount: 3,
           liveMaxLatencyDurationCount: 10,
           liveDurationInfinity: true,
+
+          // Optimisations
           progressive: true,
           testBandwidth: false,
         })
@@ -157,6 +144,7 @@ function DeltaWatchContent() {
 
         hls.on((window as any).Hls.Events.MANIFEST_PARSED, () => {
           setStatusText("Chargement du flux...")
+          // Lancer la lecture immédiatement
           video.play().catch((e: any) => {
             video.muted = true
             video.play().catch(() => {})
@@ -176,7 +164,7 @@ function DeltaWatchContent() {
         })
 
         hls.on((window as any).Hls.Events.ERROR, (event: any, data: any) => {
-          console.log("[v0] Delta HLS Error:", data.type, data.details, data.fatal)
+          console.log("[v0] HLS Error:", data.type, data.details, data.fatal)
           if (data.fatal) {
             switch (data.type) {
               case (window as any).Hls.ErrorTypes.NETWORK_ERROR:
@@ -196,6 +184,7 @@ function DeltaWatchContent() {
 
         hlsRef.current = hls
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native HLS support (Safari)
         video.src = streamUrl
         video.addEventListener("loadedmetadata", () => {
           setIsLoading(false)
@@ -204,6 +193,7 @@ function DeltaWatchContent() {
       }
     }
 
+    // Wait for HLS.js to load
     if ((window as any).Hls) {
       initHls()
     } else {
@@ -213,6 +203,8 @@ function DeltaWatchContent() {
           initHls()
         }
       }, 50)
+
+      // Timeout après 5 secondes
       setTimeout(() => clearInterval(checkInterval), 5000)
     }
 
@@ -222,7 +214,7 @@ function DeltaWatchContent() {
         hlsRef.current = null
       }
     }
-  }, [sources, currentSourceIndex, adWatched])
+  }, [sources, currentSourceIndex])
 
   useEffect(() => {
     let timer: NodeJS.Timeout
@@ -234,6 +226,7 @@ function DeltaWatchContent() {
 
     window.addEventListener("mousemove", handleMove)
     window.addEventListener("touchstart", handleMove)
+
     timer = setTimeout(() => setShowHeader(false), 3000)
 
     return () => {
@@ -266,17 +259,12 @@ function DeltaWatchContent() {
     }
   }
 
-  const handleUnlockStream = () => {
-    setShowAdModal(false)
-    setAdWatched(true)
-  }
-
   if (!id) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-black to-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-destructive mb-2">Paramètre ID manquant</h1>
-          <p className="text-muted-foreground">Usage: /watch/delta?id=CHANNEL_ID</p>
+          <p className="text-muted-foreground">Usage: /watch?id=CHANNEL_ID</p>
         </div>
       </div>
     )
@@ -288,9 +276,9 @@ function DeltaWatchContent() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-destructive mb-2">Chaîne non trouvée</h1>
           <p className="text-muted-foreground mb-4">ID: {id}</p>
-          <Link href={`/channels/delta?country=${searchParams.get("country") || "France"}`} className="text-primary hover:underline font-bold">
-            Retour aux chaînes
-          </Link>
+          <a href="/" className="text-primary hover:underline font-bold">
+            Retour à l&apos;accueil
+          </a>
         </div>
       </div>
     )
@@ -298,68 +286,6 @@ function DeltaWatchContent() {
 
   return (
     <div className="relative w-screen h-screen bg-black overflow-hidden">
-      {/* Ad Modal - only for non-VIP/non-admin users */}
-      {showAdModal && !adWatched && !isAdmin && !isVip && (
-        <div className="absolute inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center">
-          <div className="max-w-md w-full mx-4 text-center">
-            <div className="mb-8">
-              <Image
-                src="/livewatch-logo.png"
-                alt="LiveWatch"
-                width={250}
-                height={80}
-                className="mx-auto"
-              />
-            </div>
-
-            <div className="mb-8">
-              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
-                <Lock className="w-10 h-10 text-red-400" />
-              </div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Stream verrouillé</h2>
-              <p className="text-muted-foreground mb-4">
-                Regardez une courte publicité pour débloquer ce stream
-              </p>
-              <p className="text-sm text-amber-400 font-semibold">Merci pour votre soutien ❤️</p>
-            </div>
-
-            <button
-              onClick={handleUnlockStream}
-              disabled={adCountdown > 0}
-              className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 mb-4 ${
-                adCountdown > 0
-                  ? "bg-red-500/50 text-red-200 cursor-not-allowed"
-                  : "bg-red-500 text-white hover:bg-red-600 hover:scale-105"
-              }`}
-            >
-              <Lock className="w-5 h-5 inline mr-2" />
-              {adCountdown > 0 ? `Débloquer dans ${adCountdown}s` : "Débloquer le stream"}
-            </button>
-
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-3">Ou profitez sans publicité !</p>
-              <Link
-                href="/pricing"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:scale-105 transition-all duration-300"
-              >
-                <Sparkles className="w-5 h-5" />
-                Devenez VIP - 5€ à vie
-              </Link>
-            </div>
-
-            <button
-              onClick={() => {
-                setShowAdModal(false)
-                setAdWatched(true)
-              }}
-              className="mt-6 text-sm text-muted-foreground hover:text-foreground underline"
-            >
-              Cliquez ici si le bouton ne fonctionne pas
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div
         className={`absolute top-0 left-0 right-0 z-20 p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-all duration-300 ${
@@ -371,9 +297,6 @@ function DeltaWatchContent() {
             <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold glass-card border border-red-500/50 text-red-400">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
               EN DIRECT
-            </span>
-            <span className="px-4 py-2 rounded-full text-xs font-bold glass-card border border-purple-500/50 text-purple-400">
-              DELTA
             </span>
             <span className="px-4 py-2 rounded-full text-xs font-bold glass-card border border-primary/50 text-primary">
               {channel?.name}
@@ -404,35 +327,40 @@ function DeltaWatchContent() {
             >
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
-            <Link
-              href={`/channels/delta?country=${searchParams.get("country") || "France"}`}
+            <a
+              href="/"
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm glass-card border border-emerald-400/50 text-emerald-400 hover:scale-105 transition-all duration-300"
             >
               Retour
-            </Link>
+            </a>
           </div>
         </div>
 
         {sources.length > 1 && (
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-muted-foreground text-xs mr-2">Sources alternatives:</span>
-            {sources.map((src, index) => (
-              <button
-                key={`${src.id}-${index}`}
-                onClick={() => {
-                  setCurrentSourceIndex(index)
-                  setIsLoading(true)
-                  setHasError(false)
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
-                  index === currentSourceIndex
-                    ? "bg-purple-500 text-white"
-                    : "glass-card border border-border hover:border-purple-500/50 hover:text-purple-400"
-                }`}
-              >
-                Source {index + 1}
-              </button>
-            ))}
+            {sources.map((src, index) => {
+              const sourceName = src.source === "naga" ? "Naga" : src.source === "vavoo" ? "VAVOO" : `Source ${index + 1}`
+              const sourceColor = src.source === "naga" ? "border-purple-500/50 text-purple-400 hover:border-purple-500" : ""
+              
+              return (
+                <button
+                  key={src.id}
+                  onClick={() => {
+                    setCurrentSourceIndex(index)
+                    setIsLoading(true)
+                    setHasError(false)
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
+                    index === currentSourceIndex
+                      ? `bg-primary text-primary-foreground ${src.source === "naga" ? "glow-accent" : ""}`
+                      : `glass-card border ${sourceColor || "border-border hover:border-primary/50 hover:text-primary"}`
+                  }`}
+                >
+                  {sourceName}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -452,7 +380,7 @@ function DeltaWatchContent() {
           }}
           onCanPlay={() => setIsLoading(false)}
           onError={() => {
-            console.error("[v0] Delta: Video element error")
+            console.error("[v0] Video element error")
             setHasError(true)
             setIsLoading(false)
           }}
@@ -460,33 +388,22 @@ function DeltaWatchContent() {
       </div>
 
       {/* Loading overlay */}
-      {isLoading && adWatched && (
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/5 to-pink-900/5 flex flex-col items-center justify-center backdrop-blur-sm z-30">
-          <div className="mb-8">
-            <Image
-              src="/livewatch-logo.png"
-              alt="LiveWatch"
-              width={200}
-              height={64}
-              className="mx-auto opacity-80"
-            />
-          </div>
+      {isLoading && (
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-primary/5 to-accent/5 flex flex-col items-center justify-center backdrop-blur-sm z-30">
           <div className="relative">
-            <div className="w-16 h-16 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+            <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
           </div>
-          <p className="text-purple-400 font-bold text-lg mt-4">{statusText}</p>
-          <p className="text-muted-foreground text-sm mt-2">Connexion au serveur...</p>
-          <p className="text-xs text-muted-foreground mt-1">Source Delta (Proxy par défaut)</p>
+          <p className="text-primary font-bold text-lg mt-4">{statusText}</p>
         </div>
       )}
     </div>
   )
 }
 
-export default function DeltaWatchPage() {
+export default function WatchPage() {
   return (
     <Suspense fallback={null}>
-      <DeltaWatchContent />
+      <WatchPageContent />
     </Suspense>
   )
 }
