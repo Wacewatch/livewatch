@@ -168,7 +168,8 @@ export async function GET(request: Request) {
   const cached = channelsCache.get(cacheKey)
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     console.log("[v0] Serving channels from cache for:", cacheKey)
-    return NextResponse.json(cached.data)
+    console.log("[v0] Cache data length:", cached.data?.length)
+    return NextResponse.json(cached.data || [])
   }
 
   try {
@@ -251,11 +252,14 @@ export async function GET(request: Request) {
       }
     })
 
+    console.log("[v0] Channels loaded:", channels.length)
+    
     channelsCache.set(cacheKey, {
       data: channels,
       timestamp: Date.now(),
     })
 
+    console.log("[v0] Returning channels:", channels.length)
     return NextResponse.json(channels)
   } catch (error) {
     console.error("[v0] Error loading TvVoo channels:", error)

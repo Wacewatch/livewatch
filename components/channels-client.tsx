@@ -61,8 +61,26 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
       try {
         const response = await fetch(`/api/tvvoo/channels?countries=${encodeURIComponent(country)}`)
         if (response.ok) {
-          const data = await response.json()
-          setChannels(data)
+          const text = await response.text()
+          console.log("[v0] Response text length:", text.length)
+          
+          if (!text || text.length === 0) {
+            console.error("[v0] Empty response from API")
+            setChannels([])
+            return
+          }
+          
+          try {
+            const data = JSON.parse(text)
+            console.log("[v0] Channels loaded:", data?.length)
+            setChannels(data || [])
+          } catch (parseError) {
+            console.error("[v0] JSON parse error:", parseError)
+            console.error("[v0] Response text:", text.substring(0, 200))
+            setChannels([])
+          }
+        } else {
+          console.error("[v0] API response not OK:", response.status)
         }
 
         const disabledRes = await fetch("/api/admin/disabled-channels")
