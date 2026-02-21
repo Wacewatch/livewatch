@@ -512,8 +512,8 @@ export class DeltaClient {
       return null
     }
 
-    // Get all channels
-    const allChannels = await this.getAllChannels()
+    // Fetch catalog
+    const allChannels = await this.fetchCatalog(sig)
     
     // Find the channel by ID
     const channel = this.getChannelById(allChannels, channelId)

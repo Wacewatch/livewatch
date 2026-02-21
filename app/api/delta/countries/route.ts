@@ -10,8 +10,14 @@ export async function GET() {
 
     const deltaClient = new DeltaClient()
     
-    // First get all channels
-    const allChannels = await deltaClient.getAllChannels()
+    // Get signature first
+    const sig = await deltaClient.getAddonSig()
+    if (!sig) {
+      throw new Error("Failed to get Delta signature")
+    }
+    
+    // Fetch catalog
+    const allChannels = await deltaClient.fetchCatalog(sig)
     console.log("[v0] Delta loaded", allChannels.length, "channels")
     
     // Then extract countries from channels
