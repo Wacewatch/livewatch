@@ -40,6 +40,55 @@ export function DeltaChannelsClientFull({ country }: DeltaChannelsClientProps) {
   const { favorites, toggleFavorite, count: favoritesCount } = useFavorites()
   const { isAdmin } = useUserRole()
 
+  const handleEditChannel = (channel: DeltaChannel) => {
+    setEditingChannel(channel)
+    setEditName(channel.name)
+    setEditLogo(channel.logo || "")
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingChannel) return
+
+    try {
+      const response = await fetch(`/api/delta/channels/${editingChannel.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName,
+          logo: editLogo,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update channel")
+
+      setChannels((prev) =>
+        prev.map((ch) => (ch.id === editingChannel.id ? { ...ch, name: editName, logo: editLogo } : ch))
+      )
+
+      setEditingChannel(null)
+      console.log("[v0] Delta: Channel updated successfully")
+    } catch (error) {
+      console.error("[v0] Delta: Error updating channel:", error)
+    }
+  }
+
+  const handleDeleteChannel = async (channelId: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir désactiver cette chaîne ?")) return
+
+    try {
+      const response = await fetch(`/api/delta/channels/${channelId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) throw new Error("Failed to delete channel")
+
+      setChannels((prev) => prev.filter((ch) => ch.id !== channelId))
+      console.log("[v0] Delta: Channel deleted successfully")
+    } catch (error) {
+      console.error("[v0] Delta: Error deleting channel:", error)
+    }
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -245,18 +294,46 @@ export function DeltaChannelsClientFull({ country }: DeltaChannelsClientProps) {
                     LIVE
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      toggleFavorite(channel.id)
-                    }}
-                    className={`absolute top-1.5 right-1.5 md:top-2 md:right-2 w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
-                      channel.isFavorite ? "bg-yellow-400 text-black scale-110" : "bg-black/60 text-white"
-                    }`}
-                  >
-                    <Star className="w-3.5 h-3.5 md:w-4.5 md:h-4.5" fill={channel.isFavorite ? "currentColor" : "none"} />
-                  </button>
+                  <div className="absolute top-1.5 right-1.5 md:top-2 md:right-2 flex items-center gap-1">
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleEditChannel(channel)
+                          }}
+                          className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-lg bg-blue-500 text-white hover:bg-blue-600"
+                          title="Modifier"
+                        >
+                          <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleDeleteChannel(channel.id)
+                          }}
+                          className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-lg bg-red-500 text-white hover:bg-red-600"
+                          title="Désactiver"
+                        >
+                          <Ban className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        toggleFavorite(channel.id)
+                      }}
+                      className={`w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                        channel.isFavorite ? "bg-yellow-400 text-black scale-110" : "bg-black/60 text-white"
+                      }`}
+                    >
+                      <Star className="w-3.5 h-3.5 md:w-4.5 md:h-4.5" fill={channel.isFavorite ? "currentColor" : "none"} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-2 md:p-4 bg-gradient-to-b from-card/50 to-card">
@@ -287,6 +364,68 @@ export function DeltaChannelsClientFull({ country }: DeltaChannelsClientProps) {
       </main>
 
       <Footer />
+
+      {editingChannel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="glass-card rounded-2xl p-6 max-w-md w-full border border-purple-500/30">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                Modifier la chaîne
+              </h2>
+              <button
+                onClick={() => setEditingChannel(null)}
+                className="w-10 h-10 rounded-full glass-card border border-border/50 flex items-center justify-center hover:border-red-500/50 hover:text-red-500 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Nom de la chaîne</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl glass-card border border-purple-500/30 text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:shadow-lg focus:shadow-purple-500/20 transition-all outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">URL du logo</label>
+                <input
+                  type="text"
+                  value={editLogo}
+                  onChange={(e) => setEditLogo(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl glass-card border border-purple-500/30 text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:shadow-lg focus:shadow-purple-500/20 transition-all outline-none"
+                />
+              </div>
+
+              {editLogo && (
+                <div className="relative h-32 rounded-xl glass-card border border-purple-500/30 overflow-hidden">
+                  <div className="absolute inset-0 flex items-center justify-center p-4">
+                    <Image
+                      src={editLogo}
+                      alt="Preview"
+                      width={100}
+                      height={50}
+                      className="object-contain max-h-20 w-auto"
+                      unoptimized
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleSaveEdit}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:scale-105 transition-all shadow-lg shadow-purple-500/30"
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
