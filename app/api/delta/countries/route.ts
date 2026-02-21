@@ -1,57 +1,30 @@
 import { NextResponse } from "next/server"
-import { getAddonSig, fetchCatalog, getCountries } from "@/lib/delta-client-v2"
+import { createClient } from "@/lib/supabase/server"
 
 export const runtime = "nodejs"
-export const maxDuration = 60
+export const maxDuration = 10
 
 export async function GET() {
   try {
-    console.log("[v0] Delta: Fetching countries...")
+    console.log("[v0] Delta: Fetching countries from DB...")
 
-    // Get signature via ping (uses cache if valid)
-    const sig = await getAddonSig()
-    if (!sig) {
-      console.error("[v0] Delta: Failed to get token")
-      return NextResponse.json({ error: "No token" }, { status: 503 })
+    const supabase = await createClient()
+
+    const { data: countries, error } = await supabase
+      .from("delta_countries")
+      .select("*")
+      .order("name")
+
+    if (error) {
+      console.error("[v0] Delta: Countries DB error:", error)
+      throw error
     }
 
-    // Fetch catalog (uses cache if valid)
-    const allChannels = await fetchCatalog(sig)
-    console.log("[v0] Delta: Loaded", allChannels.length, "channels")
+    console.log("[v0] Delta: Loaded", countries?.length || 0, "countries from DB")
 
-    // Extract unique countries
-    const countryNames = getCountries(allChannels)
-    console.log("[v0] Delta: Found", countryNames.length, "countries")
-
-    // Transform country names to Country objects with flags
-    const countryFlags: Record<string, string> = {
-      France: "🇫🇷",
-      Italy: "🇮🇹",
-      Spain: "🇪🇸",
-      Germany: "🇩🇪",
-      UK: "🇬🇧",
-      "United Kingdom": "🇬🇧",
-      Belgium: "🇧🇪",
-      Netherlands: "🇳🇱",
-      Portugal: "🇵🇹",
-      Switzerland: "🇨🇭",
-      Austria: "🇦🇹",
-      Poland: "🇵🇱",
-      Turkey: "🇹🇷",
-      Greece: "🇬🇷",
-      USA: "🇺🇸",
-      Canada: "🇨🇦",
-    }
-
-    const countries = countryNames.map((name) => ({
-      name,
-      flag: countryFlags[name] || "🌍",
-      code: name.toLowerCase().replace(/\s+/g, "-"),
-    }))
-
-    return NextResponse.json(countries)
+    return NextResponse.json(countries || [])
   } catch (error) {
-    console.error("[v0] Error fetching Delta countries:", error)
+    console.error("[v0] Delta: Error fetching countries:", error)
     return NextResponse.json({ error: "Failed to fetch countries" }, { status: 500 })
   }
 }

@@ -386,7 +386,7 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4 lg:gap-6">
-            {filteredChannels.map((channel) => (
+            {filteredChannels.map((channel, index) => (
               <div
                 key={channel.baseId}
                 onClick={() => !channel.isDisabled && setSelectedChannel(channel)}
@@ -407,6 +407,7 @@ export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) 
                       width={100}
                       height={50}
                       className="object-contain max-h-10 md:max-h-16 w-auto drop-shadow-2xl"
+                      loading={index < 12 ? "eager" : "lazy"}
                       unoptimized
                     />
                   </div>
