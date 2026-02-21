@@ -98,11 +98,12 @@ export function DeltaCountrySelector() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
             {countries.map((country, index) => {
-              const flagCode = FLAG_MAP[country.id] || (country.id ? country.id.substring(0, 2) : "fr")
+              const countryId = country.id || country.name?.toLowerCase().replace(/\s+/g, "-") || ""
+              const flagCode = FLAG_MAP[countryId] || (countryId ? countryId.substring(0, 2) : "fr")
               
               return (
                 <Link
-                  key={`${country.id}-${index}`}
+                  key={`${countryId}-${index}`}
                   href={`/channels/delta?country=${encodeURIComponent(country.name)}`}
                   className="group glass-card border border-purple-500/30 rounded-2xl p-6 md:p-8 hover:scale-105 hover:shadow-xl hover:border-purple-500/50 hover:shadow-purple-500/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
                 >
