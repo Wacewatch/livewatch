@@ -15,7 +15,7 @@ export async function syncDeltaData() {
       return { success: false, error: "Not authenticated" }
     }
 
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
 
     if (profile?.role !== "admin") {
       return { success: false, error: "Admin access required" }
@@ -23,18 +23,19 @@ export async function syncDeltaData() {
 
     console.log("[v0] Delta Sync: Starting manual sync by admin:", user.email)
 
-    // Call the sync API with admin authentication
-    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/delta/sync`, {
+    // Call the sync API directly with CRON_SECRET since we verified admin
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/delta/sync`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Cookie: `sb-access-token=${(await supabase.auth.getSession()).data.session?.access_token}`,
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
       },
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      return { success: false, error: error.error || "Sync failed" }
+      const errorText = await response.text()
+      console.error("[v0] Delta Sync: API error:", errorText)
+      return { success: false, error: errorText || "Sync failed" }
     }
 
     const result = await response.json()

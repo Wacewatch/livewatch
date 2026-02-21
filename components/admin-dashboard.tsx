@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { KofiTransactions } from "@/components/kofi-transactions"
+import { syncDeltaData } from "@/app/admin/sync-delta/actions"
 
 // ... existing code (interfaces) ...
 
@@ -247,6 +248,9 @@ export function AdminDashboard() {
 
   const [externalProxyUrl, setExternalProxyUrl] = useState("")
   const [showExternalProxyDialog, setShowExternalProxyDialog] = useState(false)
+  
+  const [deltaSyncLoading, setDeltaSyncLoading] = useState(false)
+  const [deltaSyncResult, setDeltaSyncResult] = useState<any>(null)
 
   const [globalBanner, setGlobalBanner] = useState<GlobalBanner>({
     message: "",
@@ -523,19 +527,42 @@ export function AdminDashboard() {
     setCollapsed((prev) => ({ ...prev, [module]: !prev[module] }))
   }
 
-  const syncProxies = async () => {
-    try {
-      const res = await fetch("/api/admin/proxy-pool", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sync_proxies" }),
-      })
+const handleDeltaSync = async () => {
+  setDeltaSyncLoading(true)
+  setDeltaSyncResult(null)
+  try {
+    const result = await syncDeltaData()
+    setDeltaSyncResult(result)
+    if (result.success) {
+      alert(`Synchronisation Delta réussie ! ${result.data?.totalChannels || 0} chaînes synchronisées`)
+    } else {
+      alert(`Erreur: ${result.error}`)
+    }
+  } catch (error) {
+    console.error("[v0] Failed to sync Delta:", error)
+    setDeltaSyncResult({ success: false, error: String(error) })
+  } finally {
+    setDeltaSyncLoading(false)
+  }
+}
 
-      const data = await res.json()
-      if (data.success) {
-        alert(`Synchronisation réussie ! ${data.added} proxies ajoutés`)
-        fetchDashboardData()
-      }
+const syncProxies = async () => {
+  try {
+  const res = await fetch("/api/admin/proxy-pool", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ action: "sync_proxies" }),
+  })
+  
+  const data = await res.json()
+  if (data.success) {
+  alert(`Synchronisation réussie ! ${data.added} proxies ajoutés`)
+  fetchDashboardData()
+  }
+  } catch (error) {
+  console.error("[v0] Failed to sync proxies:", error)
+  }
+  }
     } catch (error) {
       console.error("[v0] Failed to sync proxies:", error)
       alert("Échec de la synchronisation")
@@ -1547,6 +1574,50 @@ export function AdminDashboard() {
                 <Button onClick={deleteInactiveProxies} size="sm" variant="destructive">
                   <Trash2 className="w-4 h-4 mr-1" /> Supprimer inactifs
                 </Button>
+              </div>
+              
+              {/* Delta Sync Card */}
+              <div className="p-4 rounded-lg glass-card border border-purple-500/30 bg-gradient-to-r from-purple-500/5 to-pink-500/5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-bold text-foreground flex items-center gap-2">
+                      <Server className="w-4 h-4 text-purple-400" />
+                      Synchronisation Delta (VAVOO)
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Synchronise les chaînes et pays depuis l'API VAVOO vers la base de données
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleDeltaSync} 
+                    disabled={deltaSyncLoading}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${deltaSyncLoading ? "animate-spin" : ""}`} />
+                    {deltaSyncLoading ? "Synchronisation..." : "Lancer la Sync"}
+                  </Button>
+                </div>
+                
+                {deltaSyncResult && (
+                  <div className={`mt-3 p-3 rounded-lg ${deltaSyncResult.success ? "bg-green-500/10 border border-green-500/30" : "bg-red-500/10 border border-red-500/30"}`}>
+                    <p className="text-sm">
+                      {deltaSyncResult.success ? (
+                        <span className="text-green-400">
+                          ✓ Synchronisation réussie ! {deltaSyncResult.data?.totalChannels || 0} chaînes et {deltaSyncResult.data?.totalCountries || 0} pays synchronisés
+                        </span>
+                      ) : (
+                        <span className="text-red-400">
+                          ✗ Erreur: {deltaSyncResult.error}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                
+                <div className="mt-3 text-xs text-muted-foreground">
+                  <p>💡 Cette action charge toutes les chaînes Delta en BDD pour un chargement ultra-rapide</p>
+                  <p className="mt-1">⏰ La synchronisation automatique s'effectue toutes les 30 minutes via cron job</p>
+                </div>
               </div>
 
               {/* External Proxy URL display */}
