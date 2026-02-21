@@ -28,8 +28,20 @@ export async function GET(request: Request) {
     console.log("[v0] Delta loaded", allChannels.length, "total channels")
     
     // Then filter by country
-    const channels = deltaClient.getChannelsByCountry(allChannels, country)
+    let channels = deltaClient.getChannelsByCountry(allChannels, country)
     console.log(`[v0] Loaded ${channels.length} Delta channels for ${country}`)
+
+    // Enrich channels with proper metadata for display
+    channels = channels.map((ch) => ({
+      id: ch.id,
+      name: ch.cleanName || ch.name,
+      logo: ch.logo || "",
+      category: ch.genre || "",
+      quality: ch.quality || "",
+      language: "fr", // Default to French
+      country: ch.country,
+      url: ch.url,
+    }))
 
     return NextResponse.json(channels)
   } catch (error) {

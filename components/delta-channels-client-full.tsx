@@ -202,7 +202,7 @@ export function DeltaChannelsClientFull({ country }: DeltaChannelsClientProps) {
             {filteredChannels.map((channel, index) => (
               <Link
                 key={`${channel.id}-${index}`}
-                href={`/watch/delta?id=${encodeURIComponent(channel.id)}&name=${encodeURIComponent(channel.name)}`}
+                href={`/watch/delta?id=${encodeURIComponent(channel.id)}&name=${encodeURIComponent(channel.name)}&country=${encodeURIComponent(country)}`}
                 className="group glass-card border border-purple-500/30 rounded-xl md:rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer hover:border-purple-500/50 hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/20"
               >
                 <div className="relative h-28 md:h-40 overflow-hidden">
