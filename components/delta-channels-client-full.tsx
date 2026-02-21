@@ -33,6 +33,9 @@ export function DeltaChannelsClientFull({ country }: DeltaChannelsClientProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [editingChannel, setEditingChannel] = useState<DeltaChannel | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editLogo, setEditLogo] = useState("")
 
   const { favorites, toggleFavorite, count: favoritesCount } = useFavorites()
   const { isAdmin } = useUserRole()
@@ -89,14 +92,31 @@ export function DeltaChannelsClientFull({ country }: DeltaChannelsClientProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-24 h-24 mx-auto mb-8">
-            <div className="absolute inset-0 border-4 border-purple-400/20 border-t-purple-400 rounded-full animate-spin" />
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <header className="glass-card rounded-2xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <Link href="/" className="flex items-center gap-3 group">
+                <Image src="/livewatch-logo.png" alt="LiveWatch" width={40} height={40} className="group-hover:scale-110 transition-transform" />
+                <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400">
+                  LIVEWATCH
+                </h1>
+              </Link>
+              <div className="flex items-center gap-3">
+                <VersionToggle />
+                <UserMenu />
+              </div>
+            </div>
+          </header>
+          
+          <div className="text-center py-20">
+            <div className="relative w-16 h-16 mx-auto mb-6">
+              <div className="absolute inset-0 border-4 border-purple-400/20 border-t-purple-400 rounded-full animate-spin" />
+            </div>
+            <p className="text-xl font-semibold text-foreground">Chargement des chaînes...</p>
           </div>
-          <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-            Chargement des chaînes Delta...
-          </p>
+        </div>
+      </div>
         </div>
       </div>
     )
