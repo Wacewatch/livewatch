@@ -37,7 +37,40 @@ export async function POST(request: Request) {
     
     console.log("[v0] Delta Sync: Starting sync...", isCronJob ? "(cron)" : "(manual)")
 
-    console.log("[v0] Delta Sync: Starting sync...")
+    // DELETE ALL EXISTING DATA FIRST before fetching new data
+    console.log("[v0] Delta Sync: Step 1/3 - Deleting all existing Delta channels...")
+    const { data: existingChannels } = await supabaseService
+      .from("delta_channels")
+      .select("id")
+    
+    if (existingChannels && existingChannels.length > 0) {
+      console.log(`[v0] Delta Sync: Found ${existingChannels.length} existing channels - deleting in batches...`)
+      const deleteBatchSize = 1000
+      for (let i = 0; i < existingChannels.length; i += deleteBatchSize) {
+        const batch = existingChannels.slice(i, i + deleteBatchSize)
+        const ids = batch.map((c) => c.id)
+        await supabaseService.from("delta_channels").delete().in("id", ids)
+      }
+      console.log("[v0] Delta Sync: All existing channels deleted successfully")
+    } else {
+      console.log("[v0] Delta Sync: No existing channels to delete")
+    }
+
+    console.log("[v0] Delta Sync: Step 2/3 - Deleting all existing Delta countries...")
+    const { data: existingCountries } = await supabaseService
+      .from("delta_countries")
+      .select("id")
+    
+    if (existingCountries && existingCountries.length > 0) {
+      console.log(`[v0] Delta Sync: Found ${existingCountries.length} existing countries - deleting...`)
+      const ids = existingCountries.map((c) => c.id)
+      await supabaseService.from("delta_countries").delete().in("id", ids)
+      console.log("[v0] Delta Sync: All existing countries deleted successfully")
+    } else {
+      console.log("[v0] Delta Sync: No existing countries to delete")
+    }
+
+    console.log("[v0] Delta Sync: Step 3/3 - Fetching new data from VAVOO API...")
 
     // Get Delta signature
     const sig = await getAddonSig()
