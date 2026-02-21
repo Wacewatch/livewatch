@@ -500,4 +500,35 @@ export class DeltaClient {
 
     return null
   }
+
+  /**
+   * Resolve stream for a channel (combines getChannelById + resolveChannel)
+   */
+  async resolveStream(channelId: string): Promise<{ url: string; channel: DeltaChannel } | null> {
+    // Get signature
+    const sig = await this.getAddonSig()
+    if (!sig) {
+      console.error("[v0] Delta: Failed to get signature")
+      return null
+    }
+
+    // Get all channels
+    const allChannels = await this.getAllChannels()
+    
+    // Find the channel by ID
+    const channel = this.getChannelById(allChannels, channelId)
+    if (!channel) {
+      console.error("[v0] Delta: Channel not found:", channelId)
+      return null
+    }
+
+    // Resolve the channel URL to stream URL
+    const streamUrl = await this.resolveChannel(channel.url, sig)
+    if (!streamUrl) {
+      console.error("[v0] Delta: Failed to resolve stream for:", channelId)
+      return null
+    }
+
+    return { url: streamUrl, channel }
+  }
 }

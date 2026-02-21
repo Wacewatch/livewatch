@@ -9,8 +9,13 @@ export async function GET() {
     console.log("[v0] Fetching Delta countries...")
 
     const deltaClient = new DeltaClient()
-    const countries = await deltaClient.getCountries()
-
+    
+    // First get all channels
+    const allChannels = await deltaClient.getAllChannels()
+    console.log("[v0] Delta loaded", allChannels.length, "channels")
+    
+    // Then extract countries from channels
+    const countries = deltaClient.getCountries(allChannels)
     console.log(`[v0] Loaded ${countries.length} Delta countries`)
 
     return NextResponse.json(countries)
