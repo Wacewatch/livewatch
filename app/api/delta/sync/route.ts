@@ -140,17 +140,13 @@ export async function POST(request: Request) {
     const chunkSize = 1000
     let synced = 0
 
-    // Delete all existing channels first - use 'not is null' to match all rows
-    console.log("[v0] Delta Sync: Deleting existing channels...")
-    const { count: deletedCount, error: deleteError } = await supabaseService
-      .from("delta_channels")
-      .delete({ count: "exact" })
-      .not("id", "is", null)
-    
-    console.log("[v0] Delta Sync: Deleted", deletedCount, "existing channels")
-    if (deleteError) {
-      console.error("[v0] Delta Sync: Delete error:", deleteError)
-      // Continue anyway
+    // Truncate table directly for clean slate (faster than delete)
+    console.log("[v0] Delta Sync: Truncating delta_channels table...")
+    const { error: truncateError } = await supabaseService.rpc("truncate_delta_channels")
+    if (truncateError) {
+      console.error("[v0] Delta Sync: Truncate error, trying delete:", truncateError)
+      // Fallback: delete with a condition that matches everything
+      await supabaseService.from("delta_channels").delete().neq("id", "xxxxx-impossible-id")
     }
     
     // Insert channels in chunks
