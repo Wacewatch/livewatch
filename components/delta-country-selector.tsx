@@ -98,8 +98,9 @@ export function DeltaCountrySelector() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
             {countries.map((country, index) => {
+              // Delta countries have 'id' field, not 'code'
               const countryId = country.id || country.name?.toLowerCase().replace(/\s+/g, "-") || ""
-              const flagCode = FLAG_MAP[countryId] || (countryId ? countryId.substring(0, 2) : "fr")
+              const flagCode = FLAG_MAP[countryId] || (countryId.length >= 2 ? countryId.substring(0, 2) : "fr")
               
               return (
                 <Link
