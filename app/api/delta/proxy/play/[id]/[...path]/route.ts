@@ -29,31 +29,43 @@ export async function GET(
     // Use cached stream URL if available and not expired
     if (cached && (now - cached.timestamp) < STREAM_CACHE_TTL) {
       streamUrl = cached.url
-      console.log("[v0] Delta proxy: Using cached stream for", id)
+      console.log("[v0] Delta: Using cached stream for", id)
     } else {
       // Need to resolve the stream
-      console.log("[v0] Delta proxy: Resolving stream for", id)
+      console.log("[v0] Delta: Resolving stream for channel", id)
       
       const sig = await getAddonSig()
       if (!sig) {
+        console.error("[v0] Delta: No token available")
         return NextResponse.json({ error: "No token" }, { status: 503 })
       }
 
       const catalog = await fetchCatalog(sig)
-      const channel = catalog.find((ch) => ch.id === id)
+      console.log("[v0] Delta: Catalog loaded,", catalog.length, "channels")
       
-      if (!channel || !channel.url) {
+      const channel = catalog.find((ch) => String(ch.id) === String(id))
+      
+      if (!channel) {
+        console.error("[v0] Delta: Channel not found in catalog, ID:", id)
         return NextResponse.json({ error: "Channel not found" }, { status: 404 })
       }
+      
+      if (!channel.url) {
+        console.error("[v0] Delta: Channel has no URL, ID:", id)
+        return NextResponse.json({ error: "Channel has no URL" }, { status: 404 })
+      }
 
+      console.log("[v0] Delta: Resolving channel URL:", channel.url)
       const resolved = await resolveChannel(channel.url, sig)
+      
       if (!resolved) {
-        return NextResponse.json({ error: "Failed to resolve" }, { status: 500 })
+        console.error("[v0] Delta: Failed to resolve channel URL")
+        return NextResponse.json({ error: "Failed to resolve stream" }, { status: 500 })
       }
 
       streamUrl = resolved
       streamCache.set(id, { url: streamUrl, timestamp: now })
-      console.log("[v0] Delta proxy: Stream resolved and cached")
+      console.log("[v0] Delta: Stream resolved and cached:", streamUrl)
     }
 
     // Handle manifest or segment

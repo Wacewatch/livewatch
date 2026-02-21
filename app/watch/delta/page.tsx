@@ -23,7 +23,6 @@ function DeltaWatchContent() {
   const [statusText, setStatusText] = useState("Connexion...")
   const [showAdModal, setShowAdModal] = useState(true)
   const [adWatched, setAdWatched] = useState(false)
-  const [adCountdown, setAdCountdown] = useState(5)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
 
@@ -34,16 +33,6 @@ function DeltaWatchContent() {
       setAdWatched(true)
     }
   }, [isAdmin, isVip])
-
-  // Ad countdown
-  useEffect(() => {
-    if (showAdModal && adCountdown > 0) {
-      const timer = setTimeout(() => {
-        setAdCountdown(adCountdown - 1)
-      }, 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [adCountdown, showAdModal])
 
   useEffect(() => {
     const script = document.createElement("script")
@@ -325,15 +314,10 @@ function DeltaWatchContent() {
 
             <button
               onClick={handleUnlockStream}
-              disabled={adCountdown > 0}
-              className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 mb-4 ${
-                adCountdown > 0
-                  ? "bg-red-500/50 text-red-200 cursor-not-allowed"
-                  : "bg-red-500 text-white hover:bg-red-600 hover:scale-105"
-              }`}
+              className="w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 mb-4 bg-red-500 text-white hover:bg-red-600 hover:scale-105"
             >
               <Lock className="w-5 h-5 inline mr-2" />
-              {adCountdown > 0 ? `Débloquer dans ${adCountdown}s` : "Débloquer le stream"}
+              Débloquer le stream
             </button>
 
             <div className="text-center">
@@ -386,6 +370,13 @@ function DeltaWatchContent() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              href={`/channels/delta?country=${searchParams.get("country") || "France"}`}
+              className="p-2 rounded-lg glass-card border border-border/50 hover:border-primary/50 transition-all hover:scale-105"
+              title="Retour aux chaînes"
+            >
+              <X className="w-5 h-5 text-foreground" />
+            </Link>
             <button
               onClick={toggleMute}
               className="p-2.5 rounded-xl glass-card border border-accent/50 text-accent hover:scale-105 transition-all duration-300"
