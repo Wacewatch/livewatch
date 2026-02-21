@@ -12,12 +12,10 @@ import Image from "next/image"
 import Link from "next/link"
 import { UserMenu } from "@/components/user-menu"
 import { Footer } from "@/components/footer"
-import { VersionToggle } from "@/components/version-toggle"
 
 interface ChannelsClientProps {
   country: string
   channelToOpen?: string // Optional: Channel ID to auto-open
-  version?: "alpha" | "delta"
 }
 
 const DEFAULT_CHANNEL_LOGO = "https://i.imgur.com/ovX7j6R.png"
@@ -35,7 +33,7 @@ interface ChannelOverride {
   custom_logo: string | null
 }
 
-export function ChannelsClient({ country, channelToOpen, version = "alpha" }: ChannelsClientProps) {
+export function ChannelsClient({ country, channelToOpen }: ChannelsClientProps) {
   const [channels, setChannels] = useState<GroupedChannel[]>([])
   const [disabledChannels, setDisabledChannels] = useState<Set<string>>(new Set())
   const [channelOverrides, setChannelOverrides] = useState<Map<string, ChannelOverride>>(new Map())
@@ -287,7 +285,6 @@ export function ChannelsClient({ country, channelToOpen, version = "alpha" }: Ch
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
-              <VersionToggle />
               <UserMenu />
               <button
                 onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
@@ -389,7 +386,7 @@ export function ChannelsClient({ country, channelToOpen, version = "alpha" }: Ch
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4 lg:gap-6">
-            {filteredChannels.map((channel, index) => (
+            {filteredChannels.map((channel) => (
               <div
                 key={channel.baseId}
                 onClick={() => !channel.isDisabled && setSelectedChannel(channel)}
@@ -410,7 +407,6 @@ export function ChannelsClient({ country, channelToOpen, version = "alpha" }: Ch
                       width={100}
                       height={50}
                       className="object-contain max-h-10 md:max-h-16 w-auto drop-shadow-2xl"
-                      loading={index < 12 ? "eager" : "lazy"}
                       unoptimized
                     />
                   </div>

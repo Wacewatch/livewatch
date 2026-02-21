@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { getAddonSig, fetchCatalog, getChannelsByCountry } from "@/lib/delta-client-v2"
 
 export const runtime = "nodejs"
-export const maxDuration = 30
+export const maxDuration = 60
 
 export async function GET(request: Request) {
   try {
@@ -13,39 +13,38 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Country parameter required" }, { status: 400 })
     }
 
-    console.log("[v0] Delta: Fetching channels for", country, "from DB...")
+    console.log("[v0] Delta: Fetching channels for", country)
 
-    const supabase = await createClient()
-
-    const { data: channels, error } = await supabase
-      .from("delta_channels")
-      .select("*")
-      .eq("country", country)
-      .eq("enabled", true)
-      .order("name")
-
-    if (error) {
-      console.error("[v0] Delta: Channels DB error:", error)
-      throw error
+    // Get signature via ping
+    const sig = await getAddonSig()
+    if (!sig) {
+      console.error("[v0] Delta: No token")
+      return NextResponse.json({ error: "No token" }, { status: 503 })
     }
 
-    console.log("[v0] Delta: Loaded", channels?.length || 0, "channels from DB")
+    // Fetch catalog with caching
+    const allChannels = await fetchCatalog(sig)
+    console.log("[v0] Delta: Total", allChannels.length, "channels")
 
-    // Map to expected format
-    const mappedChannels = (channels || []).map((ch) => ({
+    // Filter by country
+    let channels = getChannelsByCountry(allChannels, country)
+    console.log("[v0] Delta:", channels.length, "channels for", country)
+
+    // Enrich channels with proper metadata for display
+    channels = channels.map((ch) => ({
       id: ch.id,
-      name: ch.name,
-      logo: ch.logo,
-      category: ch.category,
-      quality: ch.quality,
-      language: ch.language,
+      name: ch.cleanName || ch.name,
+      logo: ch.logo || "",
+      category: ch.genre || "",
+      quality: ch.quality || "",
+      language: "fr", // Default to French
       country: ch.country,
       url: ch.url,
     }))
 
-    return NextResponse.json(mappedChannels)
+    return NextResponse.json(channels)
   } catch (error) {
-    console.error("[v0] Delta: Error fetching channels:", error)
+    console.error("[v0] Error fetching Delta channels:", error)
     return NextResponse.json({ error: "Failed to fetch channels" }, { status: 500 })
   }
 }

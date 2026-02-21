@@ -9,10 +9,9 @@ import { VersionToggle } from "@/components/version-toggle"
 import { Footer } from "@/components/footer"
 
 interface Country {
-  id: string
   name: string
   flag: string
-  channel_count?: number
+  code: string
 }
 
 // Mapping codes to flag images
@@ -98,13 +97,11 @@ export function DeltaCountrySelector() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
             {countries.map((country, index) => {
-              // Delta countries have 'id' field, not 'code'
-              const countryId = country.id || country.name?.toLowerCase().replace(/\s+/g, "-") || ""
-              const flagCode = FLAG_MAP[countryId] || (countryId.length >= 2 ? countryId.substring(0, 2) : "fr")
+              const flagCode = FLAG_MAP[country.code] || country.code.substring(0, 2)
               
               return (
                 <Link
-                  key={`${countryId}-${index}`}
+                  key={`${country.code}-${index}`}
                   href={`/channels/delta?country=${encodeURIComponent(country.name)}`}
                   className="group glass-card border border-purple-500/30 rounded-2xl p-6 md:p-8 hover:scale-105 hover:shadow-xl hover:border-purple-500/50 hover:shadow-purple-500/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
                 >
