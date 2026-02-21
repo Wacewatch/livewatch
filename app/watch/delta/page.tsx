@@ -29,21 +29,46 @@ function DeltaWatchContent() {
         setIsLoading(true)
         setHasError(false)
 
-        // Use the new proxy-stream route
-        const proxyUrl = `/api/delta/proxy-stream?id=${encodeURIComponent(channelId)}`
-        console.log("[v0] Delta stream proxy URL:", proxyUrl)
+        console.log("[v0] Delta: Resolving channel", channelId)
+
+        // Step 1: Get channel info to get the URL
+        const channelsRes = await fetch(`/api/delta/channels?country=${searchParams.get("country") || "France"}`)
+        if (!channelsRes.ok) throw new Error("Failed to fetch channels")
         
+        const channels = await channelsRes.json()
+        const channel = channels.find((ch: any) => ch.id === channelId)
+        
+        if (!channel || !channel.url) {
+          console.error("[v0] Delta: Channel not found")
+          throw new Error("Channel not found")
+        }
+
+        console.log("[v0] Delta: Channel URL:", channel.url)
+
+        // Step 2: Resolve the channel URL to get stream URL
+        const resolveRes = await fetch(
+          `/api/delta/stream-proxy?action=resolve&url=${encodeURIComponent(channel.url)}`
+        )
+        if (!resolveRes.ok) throw new Error("Failed to resolve stream")
+
+        const { stream_url } = await resolveRes.json()
+        console.log("[v0] Delta: Stream URL resolved")
+
+        // Step 3: Use proxy to pipe the stream
+        const proxyUrl = `/api/delta/stream-proxy?action=pipe&url=${encodeURIComponent(stream_url)}&name=${encodeURIComponent(channelName)}`
+        console.log("[v0] Delta: Proxy URL ready")
+
         setStreamUrl(proxyUrl)
         setIsLoading(false)
       } catch (error) {
-        console.error("[v0] Error loading Delta stream:", error)
+        console.error("[v0] Delta: Error loading stream:", error)
         setHasError(true)
         setIsLoading(false)
       }
     }
 
     loadStream()
-  }, [channelId, adWatched])
+  }, [channelId, adWatched, channelName, searchParams])
 
   // Initialize HLS player once stream URL is available
   useEffect(() => {

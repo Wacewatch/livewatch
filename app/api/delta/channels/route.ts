@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { DeltaClient } from "@/lib/delta-client"
+import { getAddonSig, fetchCatalog, getChannelsByCountry } from "@/lib/delta-client-v2"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -13,23 +13,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Country parameter required" }, { status: 400 })
     }
 
-    console.log("[v0] Fetching Delta channels for country:", country)
+    console.log("[v0] Delta: Fetching channels for", country)
 
-    const deltaClient = new DeltaClient()
-    
-    // Get signature first
-    const sig = await deltaClient.getAddonSig()
+    // Get signature via ping
+    const sig = await getAddonSig()
     if (!sig) {
-      throw new Error("Failed to get Delta signature")
+      console.error("[v0] Delta: No token")
+      return NextResponse.json({ error: "No token" }, { status: 503 })
     }
-    
-    // Fetch catalog
-    const allChannels = await deltaClient.fetchCatalog(sig)
-    console.log("[v0] Delta loaded", allChannels.length, "total channels")
-    
-    // Then filter by country
-    let channels = deltaClient.getChannelsByCountry(allChannels, country)
-    console.log(`[v0] Loaded ${channels.length} Delta channels for ${country}`)
+
+    // Fetch catalog with caching
+    const allChannels = await fetchCatalog(sig)
+    console.log("[v0] Delta: Total", allChannels.length, "channels")
+
+    // Filter by country
+    let channels = getChannelsByCountry(allChannels, country)
+    console.log("[v0] Delta:", channels.length, "channels for", country)
 
     // Enrich channels with proper metadata for display
     channels = channels.map((ch) => ({

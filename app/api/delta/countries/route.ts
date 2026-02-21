@@ -1,28 +1,27 @@
 import { NextResponse } from "next/server"
-import { DeltaClient } from "@/lib/delta-client"
+import { getAddonSig, fetchCatalog, getCountries } from "@/lib/delta-client-v2"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
 
 export async function GET() {
   try {
-    console.log("[v0] Fetching Delta countries...")
+    console.log("[v0] Delta: Fetching countries...")
 
-    const deltaClient = new DeltaClient()
-    
-    // Get signature first
-    const sig = await deltaClient.getAddonSig()
+    // Get signature via ping (uses cache if valid)
+    const sig = await getAddonSig()
     if (!sig) {
-      throw new Error("Failed to get Delta signature")
+      console.error("[v0] Delta: Failed to get token")
+      return NextResponse.json({ error: "No token" }, { status: 503 })
     }
-    
-    // Fetch catalog
-    const allChannels = await deltaClient.fetchCatalog(sig)
-    console.log("[v0] Delta loaded", allChannels.length, "channels")
-    
-    // Then extract countries from channels
-    const countryNames = deltaClient.getCountries(allChannels)
-    console.log(`[v0] Loaded ${countryNames.length} Delta countries`)
+
+    // Fetch catalog (uses cache if valid)
+    const allChannels = await fetchCatalog(sig)
+    console.log("[v0] Delta: Loaded", allChannels.length, "channels")
+
+    // Extract unique countries
+    const countryNames = getCountries(allChannels)
+    console.log("[v0] Delta: Found", countryNames.length, "countries")
 
     // Transform country names to Country objects with flags
     const countryFlags: Record<string, string> = {
