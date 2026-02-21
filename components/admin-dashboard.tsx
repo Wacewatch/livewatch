@@ -561,12 +561,8 @@ const syncProxies = async () => {
   }
   } catch (error) {
   console.error("[v0] Failed to sync proxies:", error)
+  alert("Échec de la synchronisation")
   }
-  }
-    } catch (error) {
-      console.error("[v0] Failed to sync proxies:", error)
-      alert("Échec de la synchronisation")
-    }
   }
 
   const deleteInactiveProxies = async () => {
