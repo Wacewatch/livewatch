@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
     // Map to expected format
     const mappedChannels = (channels || []).map((ch) => ({
-      id: ch.delta_id,
+      id: ch.id,
       name: ch.name,
       logo: ch.logo,
       category: ch.category,

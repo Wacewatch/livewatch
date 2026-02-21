@@ -74,9 +74,10 @@ export async function POST(request: Request) {
     }
 
     const countries = countryNames.map((name) => ({
+      id: name.toLowerCase().replace(/\s+/g, "-"),
       name,
       flag: countryFlags[name] || "🌍",
-      code: name.toLowerCase().replace(/\s+/g, "-"),
+      channel_count: 0,
     }))
 
     await supabaseService.from("delta_countries").delete().neq("name", "")
@@ -91,8 +92,9 @@ export async function POST(request: Request) {
 
     // Prepare channels for database
     const channelsData = channels.map((ch) => ({
-      delta_id: ch.id,
+      id: ch.id,
       name: ch.cleanName || ch.name,
+      clean_name: ch.cleanName || ch.name,
       logo: ch.logo || "",
       category: ch.genre || "",
       quality: ch.quality || "",
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
     const chunkSize = 1000
     let synced = 0
 
-    await supabaseService.from("delta_channels").delete().neq("delta_id", "")
+    await supabaseService.from("delta_channels").delete().neq("id", "")
 
     for (let i = 0; i < channelsData.length; i += chunkSize) {
       const chunk = channelsData.slice(i, i + chunkSize)
