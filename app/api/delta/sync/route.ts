@@ -73,12 +73,26 @@ export async function POST(request: Request) {
       Canada: "🇨🇦",
     }
 
-    const countries = countryNames.map((name) => ({
-      id: name.toLowerCase().replace(/\s+/g, "-"),
-      name,
-      flag: countryFlags[name] || "🌍",
-      channel_count: 0,
-    }))
+    // Map country names from VAVOO API to standardized names
+    const countryNameMap: Record<string, string> = {
+      "Italia": "Italy",
+      "Deutschland": "Germany",
+      "Nederland": "Netherlands",
+      "España": "Spain",
+      "França": "France",
+      "Türkiye": "Turkey",
+      "United Kingdom": "UK",
+    }
+    
+    const countries = countryNames.map((name) => {
+      const standardName = countryNameMap[name] || name
+      return {
+        id: standardName.toLowerCase().replace(/\s+/g, "-"),
+        name: standardName,
+        flag: countryFlags[standardName] || countryFlags[name] || "🌍",
+        channel_count: 0,
+      }
+    })
 
     // Delete existing countries and insert new ones
     console.log("[v0] Delta Sync: Deleting existing countries...")
@@ -99,19 +113,22 @@ export async function POST(request: Request) {
 
     console.log("[v0] Delta Sync: Synced", countries.length, "countries")
 
-    // Prepare channels for database
-    const channelsData = channels.map((ch) => ({
-      id: ch.id,
-      name: ch.cleanName || ch.name,
-      clean_name: ch.cleanName || ch.name,
-      logo: ch.logo || "",
-      category: ch.genre || "",
-      quality: ch.quality || "",
-      language: "fr",
-      country: ch.country || "",
-      url: ch.url || "",
-      enabled: true,
-    }))
+    // Prepare channels for database with country name mapping
+    const channelsData = channels.map((ch) => {
+      const standardCountry = countryNameMap[ch.country] || ch.country
+      return {
+        id: ch.id,
+        name: ch.cleanName || ch.name,
+        clean_name: ch.cleanName || ch.name,
+        logo: ch.logo || "",
+        category: ch.genre || "",
+        quality: ch.quality || "",
+        language: "fr",
+        country: standardCountry || "",
+        url: ch.url || "",
+        enabled: true,
+      }
+    })
 
     // Batch insert channels (in chunks of 1000)
     const chunkSize = 1000

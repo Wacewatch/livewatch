@@ -93,8 +93,9 @@ function DeltaWatchContent() {
     if (!sources[currentSourceIndex] || !videoRef.current || !adWatched) return
 
     const video = videoRef.current
-    // Use VAVOO-style endpoint - simple redirect to stream like Python proxy
-    const streamUrl = `/api/delta/vavoo?channel=${sources[currentSourceIndex].id}`
+    const currentChannel = sources[currentSourceIndex]
+    
+    console.log("[v0] Delta: Loading channel", currentChannel.name, currentChannel.url)
 
     // Cleanup previous HLS instance
     if (hlsRef.current) {
@@ -107,7 +108,37 @@ function DeltaWatchContent() {
     setStatusText("Connexion au flux Delta...")
     setHasError(false)
 
-    const initHls = () => {
+    // First resolve the channel URL to get stream URL (like PHP ?action=resolve)
+    const resolveAndPlay = async () => {
+      try {
+        setStatusText("Résolution du flux...")
+        
+        const resolveResponse = await fetch(`/api/delta/proxy?action=resolve&channelUrl=${encodeURIComponent(currentChannel.url)}`)
+        if (!resolveResponse.ok) {
+          throw new Error("Failed to resolve channel")
+        }
+        
+        const { stream_url } = await resolveResponse.json()
+        console.log("[v0] Delta: Stream URL resolved:", stream_url?.substring(0, 50))
+        
+        if (!stream_url) {
+          throw new Error("No stream URL")
+        }
+        
+        // Now proxy the stream (like PHP ?action=pipe)
+        const proxyUrl = `/api/delta/proxy?action=pipe&url=${encodeURIComponent(stream_url)}`
+        
+        setStatusText("Connexion au flux...")
+        initHls(proxyUrl)
+      } catch (error) {
+        console.error("[v0] Delta: Resolution failed:", error)
+        setHasError(true)
+        setStatusText("Échec de la résolution")
+        setIsLoading(false)
+      }
+    }
+    
+    const initHls = (streamUrl: string) => {
       if ((window as any).Hls && (window as any).Hls.isSupported()) {
         const hls = new (window as any).Hls({
           enableWorker: true,
@@ -136,6 +167,9 @@ function DeltaWatchContent() {
           testBandwidth: false,
         })
 
+        hlsRef.current = hls
+        
+        console.log("[v0] Delta: Loading HLS stream")
         hls.loadSource(streamUrl)
         hls.attachMedia(video)
 
@@ -189,12 +223,12 @@ function DeltaWatchContent() {
     }
 
     if ((window as any).Hls) {
-      initHls()
+      resolveAndPlay()
     } else {
       const checkInterval = setInterval(() => {
         if ((window as any).Hls) {
           clearInterval(checkInterval)
-          initHls()
+          resolveAndPlay()
         }
       }, 50)
       setTimeout(() => clearInterval(checkInterval), 5000)
