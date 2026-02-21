@@ -1,8 +1,7 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { DeltaChannelsClient } from "@/components/delta-channels-client"
-import { VersionToggle } from "@/components/version-toggle"
+import { DeltaChannelsClientFull } from "@/components/delta-channels-client-full"
 
 export default function DeltaChannelsPage() {
   const searchParams = useSearchParams()
@@ -18,10 +17,5 @@ export default function DeltaChannelsPage() {
     )
   }
 
-  return (
-    <>
-      <VersionToggle />
-      <DeltaChannelsClient country={country} />
-    </>
-  )
+  return <DeltaChannelsClientFull country={country} />
 }

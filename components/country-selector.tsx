@@ -8,6 +8,7 @@ import { UserMenu } from "@/components/user-menu"
 import { useUserRole } from "@/lib/hooks/use-user-role"
 import { Footer } from "@/components/footer"
 import { DeltaCountrySelector } from "./delta-country-selector"
+import { VersionToggle } from "./version-toggle"
 
 interface CountrySelectorProps {
   version?: "alpha" | "delta"
@@ -123,6 +124,7 @@ interface GlobalBanner {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <VersionToggle />
             <UserMenu />
           </div>
         </div>

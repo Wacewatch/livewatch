@@ -1,8 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Globe } from "lucide-react"
+import { Globe, Info, X } from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
+import { useEffect, useState } from "react"
+import { UserMenu } from "@/components/user-menu"
+import { VersionToggle } from "@/components/version-toggle"
+import { Footer } from "@/components/footer"
 
 interface Country {
   name: string
@@ -10,8 +14,26 @@ interface Country {
   code: string
 }
 
+// Mapping codes to flag images
+const FLAG_MAP: Record<string, string> = {
+  "albania": "al",
+  "arabia": "sa",
+  "balkans": "rs",
+  "bulgaria": "bg",
+  "france": "fr",
+  "germany": "de",
+  "italy": "it",
+  "netherlands": "nl",
+  "poland": "pl",
+  "portugal": "pt",
+  "romania": "ro",
+  "russia": "ru",
+  "spain": "es",
+  "turkey": "tr",
+  "united-kingdom": "gb",
+}
+
 export function DeltaCountrySelector() {
-  const router = useRouter()
   const [countries, setCountries] = useState<Country[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -20,7 +42,6 @@ export function DeltaCountrySelector() {
       .then((res) => res.json())
       .then((data) => {
         console.log("[v0] Delta countries received:", data)
-        // Make sure data is an array
         if (Array.isArray(data)) {
           setCountries(data)
         } else {
@@ -36,55 +57,81 @@ export function DeltaCountrySelector() {
       })
   }, [])
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-primary/10">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Chargement des pays Delta...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-primary/10">
-      <div className="container mx-auto px-4 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary via-purple-400 to-primary bg-clip-text text-transparent mb-4">
-            LiveWatch Delta
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="sticky top-0 z-30 glass-card border-b border-border/50 backdrop-blur-xl shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-purple-500/10 pointer-events-none" />
+
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-3 md:gap-5 p-3 md:p-5 relative">
+          <div className="flex items-center gap-2 md:gap-4">
+            <Link href="/" className="relative w-48 h-12 md:w-64 md:h-16 hover:opacity-80 transition-opacity">
+              <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" priority />
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-2 md:gap-3">
+            <VersionToggle />
+            <UserMenu />
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-screen-2xl mx-auto p-6 md:p-10 lg:p-16 flex-1">
+        <div className="text-center mb-12 md:mb-16">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Globe className="w-12 h-12 text-purple-400" />
+          </div>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 mb-4">
+            <span className="text-purple-400 font-semibold text-sm">VERSION DELTA</span>
+          </div>
+          <h1 className="text-4xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
+            Choisissez votre pays
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Version Delta - Sélectionnez votre pays
-          </p>
+          <p className="text-xl text-muted-foreground">Sélectionnez un pays pour voir les chaînes disponibles</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto">
-          {countries.map((country, index) => (
-            <button
-              key={`${country.code}-${index}`}
-              onClick={() => router.push(`/channels/delta?country=${encodeURIComponent(country.name)}`)}
-              className="glass-card border border-border/50 hover:border-primary/50 p-6 rounded-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20 group"
-            >
-              <div className="flex flex-col items-center gap-3">
-                <div className="text-5xl group-hover:scale-110 transition-transform duration-300">
-                  {country.flag}
-                </div>
-                <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                  {country.name}
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {countries.length === 0 && !isLoading && (
-          <div className="text-center py-12">
-            <Globe className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">Aucun pays disponible</p>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+            {countries.map((country, index) => {
+              const flagCode = FLAG_MAP[country.code] || country.code.substring(0, 2)
+              
+              return (
+                <Link
+                  key={`${country.code}-${index}`}
+                  href={`/channels/delta?country=${encodeURIComponent(country.name)}`}
+                  className="group glass-card border border-purple-500/30 rounded-2xl p-6 md:p-8 hover:scale-105 hover:shadow-xl hover:border-purple-500/50 hover:shadow-purple-500/20 transition-all duration-300 flex flex-col items-center justify-center gap-4"
+                >
+                  <div className="relative w-20 h-16 md:w-24 md:h-20 rounded-lg overflow-hidden shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    <Image
+                      src={`https://flagcdn.com/w160/${flagCode}.png`}
+                      alt={`${country.name} flag`}
+                      fill
+                      className="object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <h3 className="text-lg md:text-xl font-bold text-foreground text-center group-hover:text-purple-400 transition-colors">
+                    {country.name}
+                  </h3>
+                </Link>
+              )
+            })}
           </div>
         )}
-      </div>
+
+        {countries.length === 0 && !isLoading && (
+          <div className="text-center py-20">
+            <Globe className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground text-lg">Aucun pays disponible pour le moment</p>
+          </div>
+        )}
+      </main>
+
+      <Footer />
     </div>
   )
 }

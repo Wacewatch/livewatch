@@ -5,7 +5,6 @@ import { ChannelsClient } from "@/components/channels-client"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { useVersion } from "@/lib/contexts/version-context"
-import { VersionToggle } from "@/components/version-toggle"
 
 export default function HomePage() {
   const searchParams = useSearchParams()
@@ -49,18 +48,8 @@ export default function HomePage() {
 
   // If a channel is specified in URL, show ChannelsClient directly
   if (channelToOpen && selectedCountry) {
-    return (
-      <>
-        <VersionToggle />
-        <ChannelsClient country={selectedCountry} channelToOpen={channelToOpen} version={version} />
-      </>
-    )
+    return <ChannelsClient country={selectedCountry} channelToOpen={channelToOpen} version={version} />
   }
 
-  return (
-    <>
-      <VersionToggle />
-      <CountrySelector version={version} />
-    </>
-  )
+  return <CountrySelector version={version} />
 }

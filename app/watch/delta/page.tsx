@@ -29,21 +29,14 @@ export default function DeltaWatchPage() {
         setIsLoading(true)
         setHasError(false)
 
-        const res = await fetch(`/api/delta/stream?id=${encodeURIComponent(channelId)}`)
-        
-        if (!res.ok) {
-          throw new Error("Stream not found")
-        }
-
-        const data = await res.json()
-        
-        // Use proxy URL for the stream
-        const proxyUrl = `/api/naga/proxy?channel=${encodeURIComponent(channelId)}&path=index.m3u8`
+        // Use Delta proxy directly with channel ID
+        const proxyUrl = `/api/delta/proxy?id=${encodeURIComponent(channelId)}&path=index.m3u8`
+        console.log("[v0] Delta stream URL:", proxyUrl)
         setStreamUrl(proxyUrl)
+        setIsLoading(false)
       } catch (error) {
         console.error("[v0] Error loading Delta stream:", error)
         setHasError(true)
-      } finally {
         setIsLoading(false)
       }
     }
@@ -123,7 +116,7 @@ export default function DeltaWatchPage() {
               <Image src="/livewatch-logo.png" alt="LiveWatch" fill className="object-contain" />
             </Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <VersionToggle />
             <UserMenu />
           </div>
