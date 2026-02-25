@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Range",
-          // Augmenter le cache du manifeste à 5 secondes
-          "Cache-Control": "public, max-age=5",
+          // Cache plus long pour les manifestes pour réduire les requêtes
+          "Cache-Control": "public, max-age=10, s-maxage=10",
         },
       })
     }
@@ -98,8 +98,8 @@ export async function GET(request: NextRequest) {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Range",
-        // Cache plus long pour les segments (1 heure)
-        "Cache-Control": "public, max-age=3600, immutable",
+        // Cache très long pour les segments (6 heures) car ils ne changent jamais
+        "Cache-Control": "public, max-age=21600, s-maxage=21600, immutable",
         "Accept-Ranges": "bytes",
       }
 

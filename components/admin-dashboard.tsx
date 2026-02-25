@@ -140,6 +140,8 @@ interface SourceConfig {
   default_tvvoo_source?: number // Default TvVoo alternative source (0 for first, 1 for second, etc.)
   alpha_enabled?: boolean // Enable/disable alpha source
   beta_enabled?: boolean // Enable/disable beta source
+  naga_enabled?: boolean // Enable/disable Naga source
+  naga_default?: boolean // Use Naga as default source
 }
 
 interface GlobalBanner {
@@ -1272,6 +1274,46 @@ export function AdminDashboard() {
                       checked={sourceConfig.beta_enabled !== false}
                       onCheckedChange={(checked) => {
                         const newConfig = { ...sourceConfig, beta_enabled: checked }
+                        setSourceConfig(newConfig)
+                        fetch("/api/admin/source-config", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(newConfig),
+                        })
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between py-2 border-t border-border/30 mt-2 pt-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Source Naga</p>
+                      <p className="text-xs text-muted-foreground">Source Naga avec lecture PHP</p>
+                    </div>
+                    <Switch
+                      checked={sourceConfig.naga_enabled !== false}
+                      onCheckedChange={(checked) => {
+                        const newConfig = { ...sourceConfig, naga_enabled: checked }
+                        setSourceConfig(newConfig)
+                        fetch("/api/admin/source-config", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(newConfig),
+                        })
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                <div className="p-4 rounded-xl glass-card border border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Utiliser Naga par défaut</p>
+                      <p className="text-xs text-muted-foreground">Prioriser Naga pour toutes les chaînes</p>
+                    </div>
+                    <Switch
+                      checked={sourceConfig.naga_default !== false}
+                      onCheckedChange={(checked) => {
+                        const newConfig = { ...sourceConfig, naga_default: checked }
                         setSourceConfig(newConfig)
                         fetch("/api/admin/source-config", {
                           method: "PUT",
