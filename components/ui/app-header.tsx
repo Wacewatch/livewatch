@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { UserMenu } from '@/components/user-menu'
-import { VersionToggle } from '@/components/version-toggle'
 import { ArrowLeft, Home } from 'lucide-react'
 import { theme } from '@/lib/theme'
 
@@ -68,7 +67,6 @@ export function AppHeader({
         {/* Right Section */}
         <div className="flex items-center gap-2 md:gap-3">
           {children}
-          <VersionToggle />
           <UserMenu />
         </div>
       </div>
