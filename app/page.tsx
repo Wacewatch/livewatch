@@ -4,14 +4,12 @@ import { CountrySelector } from "@/components/country-selector"
 import { ChannelsClient } from "@/components/channels-client"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
-import { useVersion } from "@/lib/contexts/version-context"
 
 export default function HomePage() {
   const searchParams = useSearchParams()
   const channelParam = searchParams.get("channel")
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [channelToOpen, setChannelToOpen] = useState<string | null>(null)
-  const { version } = useVersion()
 
   useEffect(() => {
     if (channelParam) {
@@ -48,8 +46,8 @@ export default function HomePage() {
 
   // If a channel is specified in URL, show ChannelsClient directly
   if (channelToOpen && selectedCountry) {
-    return <ChannelsClient country={selectedCountry} channelToOpen={channelToOpen} version={version} />
+    return <ChannelsClient country={selectedCountry} channelToOpen={channelToOpen} />
   }
 
-  return <CountrySelector version={version} />
+  return <CountrySelector />
 }
