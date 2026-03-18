@@ -1,7 +1,28 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
-const CATALOG_API = "https://apis.wavewatch.xyz/api.php?action=catalog&type=tv&id=vavoo_tv_fr"
+const TVVOO_BASE = "https://tvvoo.hayd.uk/cfg-it-uk-fr-de-pt-es-al-tr-nl-ar-bk-ru-ro-pl-bg-res"
+
+// Tous les catalogues disponibles dans le manifest TvVoo
+const ALL_CATALOGS = [
+  { id: "vavoo_tv_fr", country: "fr" },
+  { id: "vavoo_tv_it", country: "it" },
+  { id: "vavoo_tv_uk", country: "uk" },
+  { id: "vavoo_tv_de", country: "de" },
+  { id: "vavoo_tv_pt", country: "pt" },
+  { id: "vavoo_tv_es", country: "es" },
+  { id: "vavoo_tv_al", country: "al" },
+  { id: "vavoo_tv_tr", country: "tr" },
+  { id: "vavoo_tv_nl", country: "nl" },
+  { id: "vavoo_tv_ar", country: "ar" },
+  { id: "vavoo_tv_bk", country: "bk" },
+  { id: "vavoo_tv_ru", country: "ru" },
+  { id: "vavoo_tv_ro", country: "ro" },
+  { id: "vavoo_tv_pl", country: "pl" },
+  { id: "vavoo_tv_bg", country: "bg" },
+]
+
+export const maxDuration = 300
 
 export async function POST() {
   const startTime = Date.now()
@@ -15,84 +36,108 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
 
   if (profile?.role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  console.log("[v0] Starting catalog sync...")
+  console.log("[v0] Starting full catalog sync for all countries...")
 
-  // Create sync log entry
   const { data: syncLog } = await supabase
     .from("catalog_sync_log")
-    .insert({
-      started_at: new Date().toISOString(),
-      status: "running",
-    })
+    .insert({ started_at: new Date().toISOString(), status: "running" })
     .select()
     .single()
 
   try {
-    // Fetch catalog from external API
-    const response = await fetch(CATALOG_API)
-    if (!response.ok) {
-      throw new Error(`Catalog API returned ${response.status}`)
+    const allChannels: any[] = []
+    const results: Record<string, number> = {}
+
+    // Fetch tous les pays en parallèle
+    const fetchResults = await Promise.allSettled(
+      ALL_CATALOGS.map(async (catalog) => {
+        const url = `${TVVOO_BASE}/catalog/tv/${catalog.id}/genre=Tutti.json`
+        const response = await fetch(url, {
+          headers: { Accept: "application/json", "User-Agent": "Stremio/4.4" },
+          cache: "no-store",
+        })
+        if (!response.ok) {
+          console.log(`[v0] Failed catalog ${catalog.id}: ${response.status}`)
+          return { country: catalog.country, metas: [] }
+        }
+        const data = await response.json()
+        const metas: any[] = data.metas ?? []
+        console.log(`[v0] Fetched ${metas.length} channels for ${catalog.country}`)
+        return { country: catalog.country, metas }
+      })
+    )
+
+    for (const result of fetchResults) {
+      if (result.status === "rejected") continue
+      const { country, metas } = result.value
+      results[country] = metas.length
+      for (const ch of metas) {
+        allChannels.push({
+          id:          ch.id,
+          name:        ch.name,
+          category:    ch.genres?.[0] ?? ch.category ?? null,
+          language:    ch.language ?? country,
+          logo:        ch.logo ?? ch.poster ?? null,
+          background:  ch.poster ?? null,
+          sources:     JSON.stringify([{ id: ch.id, quality: "Auto", url: ch.id }]),
+          quality:     "Auto",
+          last_synced: new Date().toISOString(),
+          enabled:     true,
+        })
+      }
     }
 
-    const data = await response.json()
-    const channels = data.metas || []
+    console.log(`[v0] Total channels fetched: ${allChannels.length}`)
 
-    console.log(`[v0] Fetched ${channels.length} channels from catalog`)
+    // Dédupliquer par id (garder le dernier)
+    const dedupedMap = new Map<string, any>()
+    for (const ch of allChannels) {
+      dedupedMap.set(ch.id, ch)
+    }
+    const deduped = Array.from(dedupedMap.values())
 
-    // Clear old cache
-    await supabase.from("catalog_cache").delete().neq("id", "")
+    console.log(`[v0] Deduped channels: ${deduped.length}`)
 
-    // Insert new channels
-    const channelsToInsert = channels.map((channel: any) => ({
-      id: channel.id,
-      name: channel.name,
-      category: channel.category,
-      language: channel.language,
-      logo: channel.logo,
-      background: channel.poster,
-      sources: JSON.stringify([
-        {
-          id: channel.id,
-          quality: "Auto",
-          url: channel.id,
-        },
-      ]),
-      quality: "Auto",
-      last_synced: new Date().toISOString(),
-      enabled: true,
-    }))
-
-    // Insert in batches of 100
-    for (let i = 0; i < channelsToInsert.length; i += 100) {
-      const batch = channelsToInsert.slice(i, i + 100)
-      await supabase.from("catalog_cache").insert(batch)
+    // Insérer/mettre à jour par batches de 300 (upsert sur l'id)
+    for (let i = 0; i < deduped.length; i += 300) {
+      const batch = deduped.slice(i, i + 300)
+      const { error } = await supabase
+        .from("catalog_cache")
+        .upsert(batch, { onConflict: "id" })
+      if (error) {
+        console.log(`[v0] Upsert error at batch ${i}:`, error.message)
+      }
     }
 
     const duration = Date.now() - startTime
 
-    // Update sync log
     await supabase
       .from("catalog_sync_log")
       .update({
-        completed_at: new Date().toISOString(),
-        channels_synced: channels.length,
-        status: "success",
-        duration_ms: duration,
+        completed_at:    new Date().toISOString(),
+        channels_synced: deduped.length,
+        status:          "success",
+        duration_ms:     duration,
       })
       .eq("id", syncLog.id)
 
-    console.log(`[v0] Catalog sync completed in ${duration}ms`)
+    console.log(`[v0] Full sync completed in ${duration}ms — ${deduped.length} channels`)
 
     return NextResponse.json({
-      success: true,
-      channels_synced: channels.length,
-      duration_ms: duration,
+      success:         true,
+      channels_synced: deduped.length,
+      duration_ms:     duration,
+      by_country:      results,
     })
   } catch (error: any) {
     console.error("[v0] Catalog sync error:", error)
@@ -101,9 +146,9 @@ export async function POST() {
       .from("catalog_sync_log")
       .update({
         completed_at: new Date().toISOString(),
-        status: "error",
-        error: error.message,
-        duration_ms: Date.now() - startTime,
+        status:       "error",
+        error:        error.message,
+        duration_ms:  Date.now() - startTime,
       })
       .eq("id", syncLog.id)
 
@@ -125,7 +170,7 @@ export async function GET() {
   const { count } = await supabase.from("catalog_cache").select("*", { count: "exact", head: true })
 
   return NextResponse.json({
-    last_sync: lastSync,
-    cached_channels: count || 0,
+    last_sync:        lastSync,
+    cached_channels:  count ?? 0,
   })
 }

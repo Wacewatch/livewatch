@@ -178,7 +178,9 @@ export async function GET() {
       genres: ch.category ? [ch.category] : [],
       type: "tv",
       language: ch.language || "FR",
-      sources: JSON.parse(ch.sources || "[]"),
+      sources: typeof ch.sources === "string"
+        ? (() => { try { return JSON.parse(ch.sources) } catch { return [] } })()
+        : (Array.isArray(ch.sources) ? ch.sources : []),
     }))
 
     console.log(`[v0] Successfully loaded ${formattedChannels.length} channels from cache`)
