@@ -17,29 +17,17 @@ export const maxDuration = 30
  *   search   – recherche par nom (insensible à la casse)
  *   limit    – max résultats (défaut 200, max 1000)
  *   offset   – pagination (défaut 0)
- *
- * Chaque item retourné :
- * {
- *   "id":        "vavoo_13EME%20RUE|group:fr",
- *   "name":      "13EME RUE",
- *   "country":   "France",
- *   "country_code": "fr",
- *   "country_flag": "🇫🇷",
- *   "category":  "Entertainment",
- *   "language":  "fr",
- *   "logo_url":  "https://...",
- *   "embed_url": "/player?url=vavoo_13EME%2520RUE%7Cgroup%3Afr"
- * }
  */
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
+    const reqUrl = new URL(request.url)
+    const origin = reqUrl.origin
 
-    const countryFilter  = searchParams.get("country")?.toLowerCase()  ?? null
-    const categoryFilter = searchParams.get("category")?.toLowerCase() ?? null
-    const searchFilter   = searchParams.get("search")?.toLowerCase()   ?? null
-    const limit          = Math.min(Number(searchParams.get("limit")  ?? "200"), 1000)
-    const offset         = Math.max(Number(searchParams.get("offset") ?? "0"),    0)
+    const countryFilter  = reqUrl.searchParams.get("country")?.toLowerCase()  ?? null
+    const categoryFilter = reqUrl.searchParams.get("category")?.toLowerCase() ?? null
+    const searchFilter   = reqUrl.searchParams.get("search")?.toLowerCase()   ?? null
+    const limit          = Math.min(Number(reqUrl.searchParams.get("limit")  ?? "200"), 1000)
+    const offset         = Math.max(Number(reqUrl.searchParams.get("offset") ?? "0"),    0)
 
     const supabase = await createClient()
 
@@ -72,18 +60,17 @@ export async function GET(request: Request) {
       countriesMap.set(c.id.toLowerCase(), { name: c.name, flag: c.flag ?? "" })
     }
 
-    // 3. Extraire le code pays depuis l'ID de la chaine
-    // Format: "vavoo_NAME|group:XX" → code pays = "XX"
+    // 3. Extraire le code pays depuis l'ID: "vavoo_NAME|group:XX" → "XX"
     function extractCountryCode(id: string): string | null {
-      const match = id.match(/[|]group:([a-z]{2,3})$/i)
+      const match = id.match(/\|group:([a-z]{2,3})$/i)
       return match ? match[1].toLowerCase() : null
     }
 
-    // 4. Traiter et filtrer les chaines
+    // 4. Traiter les chaines
     let channels = (catalogResult.data ?? [])
       .filter((ch) => ch.enabled !== false && !disabledSet.has(ch.id))
       .map((ch) => {
-        const override = overridesMap.get(ch.id)
+        const override    = overridesMap.get(ch.id)
         const countryCode = extractCountryCode(ch.id)
         const countryInfo = countryCode ? countriesMap.get(countryCode) : null
 
@@ -103,8 +90,7 @@ export async function GET(request: Request) {
           category,
           language,
           logo_url:     logo,
-          // embed_url = /player?url=<id encodé une fois>
-          embed_url:    `/player?url=${encodeURIComponent(ch.id)}`,
+          embed_url:    `${origin}/player?url=${encodeURIComponent(ch.id)}`,
         }
       })
 
@@ -113,7 +99,7 @@ export async function GET(request: Request) {
       channels = channels.filter(
         (ch) =>
           ch.country.toLowerCase().includes(countryFilter) ||
-          (ch.country_code ?? "").toLowerCase() === countryFilter
+          (ch.country_code ?? "").toLowerCase() === countryFilter,
       )
     }
     if (categoryFilter) {
@@ -129,8 +115,8 @@ export async function GET(request: Request) {
       return cc !== 0 ? cc : a.name.localeCompare(b.name)
     })
 
-    const total   = channels.length
-    const paged   = channels.slice(offset, offset + limit)
+    const total = channels.length
+    const paged = channels.slice(offset, offset + limit)
 
     return NextResponse.json(
       { total, limit, offset, channels: paged },
