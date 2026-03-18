@@ -24,15 +24,15 @@ export const maxDuration = 60
  */
 export async function GET(request: Request) {
   try {
-    const reqUrl     = new URL(request.url)
-    const origin     = reqUrl.origin
+    const reqUrl = new URL(request.url)
+    const origin = "https://livewatch.sbs"
 
-    const countryFilter  = reqUrl.searchParams.get("country")?.toLowerCase()  ?? null
+    const countryFilter = reqUrl.searchParams.get("country")?.toLowerCase() ?? null
     const categoryFilter = reqUrl.searchParams.get("category")?.toLowerCase() ?? null
-    const searchFilter   = reqUrl.searchParams.get("search")?.toLowerCase()   ?? null
-    const limitParam     = reqUrl.searchParams.get("limit")
-    const limit          = limitParam ? Math.max(1, Number(limitParam)) : null
-    const offset         = Math.max(Number(reqUrl.searchParams.get("offset") ?? "0"), 0)
+    const searchFilter = reqUrl.searchParams.get("search")?.toLowerCase() ?? null
+    const limitParam = reqUrl.searchParams.get("limit")
+    const limit = limitParam ? Math.max(1, Number(limitParam)) : null
+    const offset = Math.max(Number(reqUrl.searchParams.get("offset") ?? "0"), 0)
 
     const supabase = await createClient()
 
@@ -74,8 +74,8 @@ export async function GET(request: Request) {
     const overridesMap = new Map<string, { logo?: string; name?: string }>()
     for (const o of (overridesResult.data ?? [])) {
       overridesMap.set(o.channel_id, {
-        logo: o.custom_logo  ?? undefined,
-        name: o.custom_name  ?? undefined,
+        logo: o.custom_logo ?? undefined,
+        name: o.custom_name ?? undefined,
       })
     }
 
@@ -99,24 +99,31 @@ export async function GET(request: Request) {
       try { return decodeURIComponent(id) } catch { return id }
     }
 
+    // Logo à remplacer
+    const REPLACED_LOGO_SRC = "https://raw.githubusercontent.com/qwertyuiop8899/tvvoo/refs/heads/main/public/tvvoo.png"
+    const REPLACED_LOGO_DST = "https://i.imgur.com/ovX7j6R.png"
+
     // --- Transformer les chaines ---
     let channels = allCatalog
       .filter((ch) => ch.enabled !== false && !disabledSet.has(ch.id))
       .map((ch) => {
-        const override    = overridesMap.get(ch.id)
+        const override = overridesMap.get(ch.id)
         const countryCode = extractCountryCode(ch.id)
         const countryInfo = countryCode ? countriesMap.get(countryCode) : null
 
+        const rawLogo = override?.logo ?? ch.logo ?? null
+        const logoUrl = rawLogo === REPLACED_LOGO_SRC ? REPLACED_LOGO_DST : rawLogo
+
         return {
-          id:           ch.id,
-          name:         override?.name ?? ch.name ?? "Unknown",
-          country:      countryInfo?.name ?? countryCode?.toUpperCase() ?? "Unknown",
+          id: ch.id,
+          name: override?.name ?? ch.name ?? "Unknown",
+          country: countryInfo?.name ?? countryCode?.toUpperCase() ?? "Unknown",
           country_code: countryCode ?? null,
           country_flag: countryInfo?.flag ?? null,
-          category:     ch.category ?? "General",
-          language:     ch.language ?? countryCode ?? null,
-          logo_url:     override?.logo ?? ch.logo ?? null,
-          embed_url:    `${origin}/player?url=${encodeURIComponent(safeDecodeId(ch.id))}`,
+          category: ch.category ?? "General",
+          language: ch.language ?? countryCode ?? null,
+          logo_url: logoUrl,
+          embed_url: `${origin}/player?url=${encodeURIComponent(safeDecodeId(ch.id))}`,
         }
       })
 
@@ -154,8 +161,8 @@ export async function GET(request: Request) {
       if (!countriesStats[code]) {
         countriesStats[code] = {
           code,
-          name:          ch.country,
-          flag:          ch.country_flag,
+          name: ch.country,
+          flag: ch.country_flag,
           channel_count: 0,
         }
       }
@@ -166,38 +173,38 @@ export async function GET(request: Request) {
     )
 
     // --- Pagination ---
-    const total  = channels.length
-    const paged  = limit !== null
+    const total = channels.length
+    const paged = limit !== null
       ? channels.slice(offset, offset + limit)
       : channels.slice(offset)
 
     // --- Réponse ---
     return NextResponse.json(
       {
-        api:     "LiveWatch TV Channels",
+        api: "LiveWatch TV Channels",
         version: "2.0",
-        updated_at:       syncResult.data?.completed_at ?? null,
-        channels_synced:  syncResult.data?.channels_synced ?? total,
+        updated_at: syncResult.data?.completed_at ?? null,
+        channels_synced: syncResult.data?.channels_synced ?? total,
         total,
-        returned:         paged.length,
+        returned: paged.length,
         offset,
-        limit:            limit ?? "none",
+        limit: limit ?? "none",
         filters_applied: {
-          country:  countryFilter  ?? null,
+          country: countryFilter ?? null,
           category: categoryFilter ?? null,
-          search:   searchFilter   ?? null,
+          search: searchFilter ?? null,
         },
         countries: {
-          total:   countriesList.length,
-          list:    countriesList,
+          total: countriesList.length,
+          list: countriesList,
         },
         channels: paged,
       },
       {
         headers: {
-          "Cache-Control":                "public, s-maxage=120, stale-while-revalidate=60",
-          "Access-Control-Allow-Origin":  "*",
-          "Content-Type":                 "application/json; charset=utf-8",
+          "Cache-Control": "public, s-maxage=120, stale-while-revalidate=60",
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json; charset=utf-8",
         },
       },
     )
