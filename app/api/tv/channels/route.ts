@@ -25,7 +25,7 @@ export const maxDuration = 60
 export async function GET(request: Request) {
   try {
     const reqUrl = new URL(request.url)
-    const origin = reqUrl.origin
+    const origin = "https://livewatch.sbs"
 
     const countryFilter = reqUrl.searchParams.get("country")?.toLowerCase() ?? null
     const categoryFilter = reqUrl.searchParams.get("category")?.toLowerCase() ?? null
@@ -99,6 +99,10 @@ export async function GET(request: Request) {
       try { return decodeURIComponent(id) } catch { return id }
     }
 
+    // Logo à remplacer
+    const REPLACED_LOGO_SRC = "https://raw.githubusercontent.com/qwertyuiop8899/tvvoo/refs/heads/main/public/tvvoo.png"
+    const REPLACED_LOGO_DST = "https://i.imgur.com/ovX7j6R.png"
+
     // --- Transformer les chaines ---
     let channels = allCatalog
       .filter((ch) => ch.enabled !== false && !disabledSet.has(ch.id))
@@ -106,6 +110,9 @@ export async function GET(request: Request) {
         const override = overridesMap.get(ch.id)
         const countryCode = extractCountryCode(ch.id)
         const countryInfo = countryCode ? countriesMap.get(countryCode) : null
+
+        const rawLogo = override?.logo ?? ch.logo ?? null
+        const logoUrl = rawLogo === REPLACED_LOGO_SRC ? REPLACED_LOGO_DST : rawLogo
 
         return {
           id: ch.id,
@@ -115,7 +122,7 @@ export async function GET(request: Request) {
           country_flag: countryInfo?.flag ?? null,
           category: ch.category ?? "General",
           language: ch.language ?? countryCode ?? null,
-          logo_url: override?.logo ?? ch.logo ?? null,
+          logo_url: logoUrl,
           embed_url: `${origin}/player?url=${encodeURIComponent(safeDecodeId(ch.id))}`,
         }
       })
