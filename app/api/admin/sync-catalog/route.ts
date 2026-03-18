@@ -22,7 +22,7 @@ const ALL_CATALOGS = [
   { id: "vavoo_tv_bg", country: "bg" },
 ]
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 export async function POST() {
   const startTime = Date.now()
@@ -58,44 +58,42 @@ export async function POST() {
     const allChannels: any[] = []
     const results: Record<string, number> = {}
 
-    // Fetch chaque pays
-    for (const catalog of ALL_CATALOGS) {
-      try {
+    // Fetch tous les pays en parallèle
+    const fetchResults = await Promise.allSettled(
+      ALL_CATALOGS.map(async (catalog) => {
         const url = `${TVVOO_BASE}/catalog/tv/${catalog.id}/genre=Tutti.json`
         const response = await fetch(url, {
           headers: { Accept: "application/json", "User-Agent": "Stremio/4.4" },
           cache: "no-store",
         })
-
         if (!response.ok) {
-          console.error(`[v0] Failed to fetch catalog ${catalog.id}: ${response.status}`)
-          results[catalog.country] = 0
-          continue
+          console.log(`[v0] Failed catalog ${catalog.id}: ${response.status}`)
+          return { country: catalog.country, metas: [] }
         }
-
         const data = await response.json()
         const metas: any[] = data.metas ?? []
-        results[catalog.country] = metas.length
+        console.log(`[v0] Fetched ${metas.length} channels for ${catalog.country}`)
+        return { country: catalog.country, metas }
+      })
+    )
 
-        for (const ch of metas) {
-          allChannels.push({
-            id:          ch.id,
-            name:        ch.name,
-            category:    ch.genres?.[0] ?? ch.category ?? null,
-            language:    ch.language ?? catalog.country,
-            logo:        ch.logo ?? ch.poster ?? null,
-            background:  ch.poster ?? null,
-            sources:     JSON.stringify([{ id: ch.id, quality: "Auto", url: ch.id }]),
-            quality:     "Auto",
-            last_synced: new Date().toISOString(),
-            enabled:     true,
-          })
-        }
-
-        console.log(`[v0] Fetched ${metas.length} channels for country: ${catalog.country}`)
-      } catch (err) {
-        console.error(`[v0] Error fetching catalog ${catalog.id}:`, err)
-        results[catalog.country] = 0
+    for (const result of fetchResults) {
+      if (result.status === "rejected") continue
+      const { country, metas } = result.value
+      results[country] = metas.length
+      for (const ch of metas) {
+        allChannels.push({
+          id:          ch.id,
+          name:        ch.name,
+          category:    ch.genres?.[0] ?? ch.category ?? null,
+          language:    ch.language ?? country,
+          logo:        ch.logo ?? ch.poster ?? null,
+          background:  ch.poster ?? null,
+          sources:     JSON.stringify([{ id: ch.id, quality: "Auto", url: ch.id }]),
+          quality:     "Auto",
+          last_synced: new Date().toISOString(),
+          enabled:     true,
+        })
       }
     }
 
@@ -110,15 +108,14 @@ export async function POST() {
 
     console.log(`[v0] Deduped channels: ${deduped.length}`)
 
-    // Vider l'ancienne cache
-    await supabase.from("catalog_cache").delete().neq("id", "")
-
-    // Insérer par batches de 200
-    for (let i = 0; i < deduped.length; i += 200) {
-      const batch = deduped.slice(i, i + 200)
-      const { error } = await supabase.from("catalog_cache").insert(batch)
+    // Insérer/mettre à jour par batches de 300 (upsert sur l'id)
+    for (let i = 0; i < deduped.length; i += 300) {
+      const batch = deduped.slice(i, i + 300)
+      const { error } = await supabase
+        .from("catalog_cache")
+        .upsert(batch, { onConflict: "id" })
       if (error) {
-        console.error(`[v0] Insert error at batch ${i}:`, error.message)
+        console.log(`[v0] Upsert error at batch ${i}:`, error.message)
       }
     }
 
