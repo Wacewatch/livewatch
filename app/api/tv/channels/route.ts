@@ -31,32 +31,43 @@ export async function GET(request: Request) {
 
     const supabase = await createClient()
 
-    // 1. Charger toutes les données en parallèle
-    const [catalogResult, overridesResult, disabledResult, countriesResult] = await Promise.all([
-      supabase.from("catalog_cache").select("id, name, logo, category, language, enabled"),
+    // 1. Charger catalog_cache en paginant (Supabase limite à 1000 par requête)
+    let allCatalog: any[] = []
+    let page = 0
+    const PAGE_SIZE = 1000
+    while (true) {
+      const { data, error } = await supabase
+        .from("catalog_cache")
+        .select("id, name, logo, category, language, enabled")
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+      if (error) {
+        return NextResponse.json({ error: "Failed to fetch channels" }, { status: 500 })
+      }
+      allCatalog = allCatalog.concat(data ?? [])
+      if (!data || data.length < PAGE_SIZE) break
+      page++
+    }
+
+    // Charger les autres tables en parallèle
+    const [overridesResult, disabledResult, countriesResult] = await Promise.all([
       supabase.from("channel_overrides").select("channel_id, custom_logo, custom_name"),
       supabase.from("disabled_channels").select("channel_id"),
       supabase.from("delta_countries").select("id, name, flag"),
     ])
 
-    if (catalogResult.error) {
-      console.error("[api/tv/channels] catalog_cache error:", catalogResult.error)
-      return NextResponse.json({ error: "Failed to fetch channels" }, { status: 500 })
-    }
-
     // 2. Construire des maps de lookup
     const overridesMap = new Map<string, { logo?: string; name?: string }>()
-    for (const o of overridesResult.data ?? []) {
+    for (const o of (overridesResult.data ?? [])) {
       overridesMap.set(o.channel_id, {
         logo: o.custom_logo ?? undefined,
         name: o.custom_name ?? undefined,
       })
     }
 
-    const disabledSet = new Set<string>((disabledResult.data ?? []).map((d) => d.channel_id))
+    const disabledSet = new Set<string>((disabledResult.data ?? []).map((d: any) => d.channel_id))
 
     const countriesMap = new Map<string, { name: string; flag: string }>()
-    for (const c of countriesResult.data ?? []) {
+    for (const c of (countriesResult.data ?? [])) {
       countriesMap.set(c.id.toLowerCase(), { name: c.name, flag: c.flag ?? "" })
     }
 
@@ -67,7 +78,7 @@ export async function GET(request: Request) {
     }
 
     // 4. Traiter les chaines
-    let channels = (catalogResult.data ?? [])
+    let channels = (allCatalog)
       .filter((ch) => ch.enabled !== false && !disabledSet.has(ch.id))
       .map((ch) => {
         const override    = overridesMap.get(ch.id)
@@ -81,6 +92,9 @@ export async function GET(request: Request) {
         const category = ch.category ?? "General"
         const language = ch.language ?? countryCode ?? null
 
+        // Décoder d'abord pour éviter le double encodage (les IDs sont déjà partiellement encodés en BDD)
+        const rawId = (() => { try { return decodeURIComponent(ch.id) } catch { return ch.id } })()
+
         return {
           id:           ch.id,
           name,
@@ -90,7 +104,7 @@ export async function GET(request: Request) {
           category,
           language,
           logo_url:     logo,
-          embed_url:    `${origin}/player?url=${encodeURIComponent(ch.id)}`,
+          embed_url:    `${origin}/player?url=${encodeURIComponent(rawId)}`,
         }
       })
 
