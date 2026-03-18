@@ -94,11 +94,6 @@ export async function GET(request: Request) {
       return match ? match[1].toLowerCase() : null
     }
 
-    // Décoder proprement l'ID pour éviter le double-encodage
-    function safeDecodeId(id: string): string {
-      try { return decodeURIComponent(id) } catch { return id }
-    }
-
     // Logo à remplacer
     const REPLACED_LOGO_SRC = "https://raw.githubusercontent.com/qwertyuiop8899/tvvoo/refs/heads/main/public/tvvoo.png"
     const REPLACED_LOGO_DST = "https://i.imgur.com/ovX7j6R.png"
@@ -123,7 +118,7 @@ export async function GET(request: Request) {
           category: ch.category ?? "General",
           language: ch.language ?? countryCode ?? null,
           logo_url: logoUrl,
-          embed_url: `${origin}/player?url=${encodeURIComponent(safeDecodeId(ch.id))}`,
+          embed_url: `${origin}/player?url=${encodeURIComponent(ch.id)}`,
         }
       })
 
