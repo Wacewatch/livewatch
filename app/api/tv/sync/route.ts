@@ -23,6 +23,11 @@ const ALL_CATALOGS = [
 
 export const maxDuration = 300
 
+// Appelable depuis le navigateur en GET aussi
+export async function GET(request: Request) {
+  return POST(request)
+}
+
 export async function POST(request: Request) {
   // Optionnel : protection par secret header
   const secret = request.headers.get("x-sync-secret")
@@ -82,7 +87,7 @@ export async function POST(request: Request) {
           language:    country,
           logo:        ch.logo ?? ch.poster ?? null,
           background:  ch.poster ?? null,
-          sources:     JSON.stringify([{ id: ch.id, quality: "Auto", url: ch.id }]),
+          sources:     [{ id: ch.id, quality: "Auto", url: ch.id }],
           quality:     "Auto",
           last_synced: new Date().toISOString(),
           enabled:     true,
